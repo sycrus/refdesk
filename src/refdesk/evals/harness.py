@@ -82,6 +82,7 @@ def case_query(case: GoldenCase, k: int) -> Query:
         anchor_id=c.get("anchor_id"),
         avoid=c.get("avoid", []),
         k=k,
+        usage_mode=case.usage_mode,
     )
 
 
