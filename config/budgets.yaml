@@ -1,0 +1,8 @@
+# Paid-call budgets (PRD Section 10, CLAUDE.md hard rules).
+# A paid job with no budget here fails before it starts. Every paid job also
+# needs a key in .env and a run with --approve after a dry-run estimate.
+currency: USD
+per_board_cap: 0.05          # placeholder until measured (PRD Section 12)
+labelling_budget_usd: 20     # routing labels: ~1,500 synthetic briefs (ADR-021)
+training_budget_usd: 10      # Modal fallback for the Kev-4B fine-tune (ADR-001)
+rationale_eval_budget_usd: 0 # set before the first cloud rationale eval run

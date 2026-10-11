@@ -1,0 +1,33 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / UI
+node_modules/
+ui/dist/
+
+# Runs, data and models (large or regenerable)
+runs/
+data/raw/
+data/cache/
+*.sqlite
+*.db
+models/
+*.safetensors
+*.gguf
+
+# Claude Code local overrides
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
