@@ -28,4 +28,4 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["refdesk", "verify"]
+known-first-party = ["refdesk", "verify", "next_issue"]

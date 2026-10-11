@@ -74,7 +74,7 @@
       "PowerShell(ollama show *)",
       "PowerShell(ollama stop *)",
       "PowerShell(./scripts/kev.ps1 *)",
-      "PowerShell(./scripts/verify.ps1*)",
+      "PowerShell(uv run python scripts/*)",
       "PowerShell(uv run pytest*)",
       "PowerShell(uv sync*)",
       "PowerShell(npm run *)",
