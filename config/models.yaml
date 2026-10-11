@@ -1,0 +1,13 @@
+# GPU models the ModelManager may load (issue #40). vram_mib is the MEASURED need on the
+# dev machine (RTX 5080, 16 GB), never a guess (CLAUDE.md). null = not measured yet.
+models:
+  qwen3:4b:
+    backend: ollama
+    vram_mib: 7600  # measured 2026-10-12: 13,773 -> 6,281 MiB free with Ollama defaults
+    notes: >-
+      Thinking model. Through the OpenAI-style endpoint all output tokens went to a
+      separate reasoning field (empty answer); with think=false the reasoning leaked into
+      the text. Not usable for rationales as is; try a non-thinking variant in M3.
+  kev-4b:
+    backend: kev
+    vram_mib: null  # measure on the first Kev run (M4); estimate 8.4 GB for merged weights
