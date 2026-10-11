@@ -172,3 +172,11 @@ def test_case_query_carries_the_usage_mode():
     from refdesk.evals.harness import case_query
 
     assert case_query(CASES[1], k=12).usage_mode == "reproduction"
+
+
+def test_a_second_run_with_a_different_config_never_overwrites_a_report(tmp_path):
+    first = run_eval(JaccardRetriever(RECORDS), CASES, RECORDS, config(k=2))
+    second = run_eval(JaccardRetriever(RECORDS), CASES, RECORDS, config(k=3))
+    a = write_outputs(first, root=tmp_path, date="2026-10-11")["report"]
+    b = write_outputs(second, root=tmp_path, date="2026-10-11")["report"]
+    assert a != b and a.exists() and b.exists()

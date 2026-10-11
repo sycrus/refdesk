@@ -5,7 +5,7 @@ and per slice, and writes three things:
 
 - `runs/<config hash>/manifest.json` and `cases.jsonl`: everything needed to reproduce
   the run. The config hash covers every input that can change a score.
-- `evals/reports/eval-report-<date>-<retriever>.md`: the human-readable report. It says
+- `evals/reports/eval-report-<date>-<retriever>-<hash>.md`: the human-readable report. It says
   which golden set produced every number, and warns when that set is synthetic.
 - one row per metric in `results/history.csv`.
 
@@ -288,7 +288,8 @@ def write_outputs(result: EvalResult, *, root: Path, date: str) -> dict[str, Pat
         for row in result.rows:
             f.write(json.dumps(row) + "\n")
 
-    report = root / "evals" / "reports" / f"eval-report-{date}-{c.retriever}.md"
+    # The config hash is in the name, so a later run never overwrites an earlier report.
+    report = root / "evals" / "reports" / f"eval-report-{date}-{c.retriever}-{h}.md"
     report.parent.mkdir(parents=True, exist_ok=True)
     report.write_text(_report(result, date, gate_policy_status(root)), encoding="utf-8")
 
