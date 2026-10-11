@@ -96,6 +96,7 @@ def client(*, env=ENV, approved=True, transport=None, budgets=BUDGETS):
         env=env,
         approved=approved,
         transport=transport or FakeTransport(),
+        sleep=lambda seconds: None,
     )
 
 
@@ -159,11 +160,19 @@ class TestPaidCallGuards:
 
 
 class TestNoSilentFallback:
-    def test_provider_error_is_raised_not_replaced(self):
+    def test_provider_error_is_raised_after_retrying_the_same_provider_only(self):
         t = FakeTransport(status=503)
         with pytest.raises(llm.ProviderError, match="503"):
             call(client(transport=t))
-        assert len(t.calls) == 1  # no second call to another provider or the mock
+        urls = {url for url, _, _ in t.calls}
+        assert urls == {"https://api.deepseek.com/chat/completions"}  # never another provider
+        assert len(t.calls) == 3  # 1 attempt + 2 retries
+
+    def test_non_retryable_status_is_not_retried(self):
+        t = FakeTransport(status=400)
+        with pytest.raises(llm.ProviderError, match="400"):
+            call(client(transport=t))
+        assert len(t.calls) == 1
 
 
 class TestCompletion:

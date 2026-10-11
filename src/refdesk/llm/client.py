@@ -22,11 +22,13 @@ import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from refdesk.llm.config import Budgets, ProvidersConfig
+
+RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 
 class LLMPolicyError(Exception):
@@ -66,7 +68,12 @@ class NoValidJudge(LLMPolicyError):
 
 
 class ProviderError(Exception):
-    """The provider answered with an error. Raised as-is; never replaced by another call."""
+    """The provider failed (error status, timeout, unreachable). Raised as-is after any
+    retries against the same provider; never replaced by a call to another provider."""
+
+
+class ProviderTimeout(ProviderError):
+    pass
 
 
 class Transport(Protocol):
@@ -89,6 +96,12 @@ class UrllibTransport:
                 return response.status, json.load(response)
         except urllib.error.HTTPError as error:
             return error.code, error.read().decode("utf-8", errors="replace")
+        except TimeoutError as error:
+            raise ProviderTimeout(f"timeout after {self.timeout}s: {url}") from error
+        except urllib.error.URLError as error:
+            if isinstance(error.reason, TimeoutError):
+                raise ProviderTimeout(f"timeout after {self.timeout}s: {url}") from error
+            raise ProviderError(f"cannot reach {url}: {error.reason}") from error
 
 
 @dataclass(frozen=True)
@@ -110,6 +123,7 @@ class Completion:
     tokens_out: int
     cost_usd: float
     latency_s: float
+    attempts: int = 1
 
 
 def _approx_tokens(messages: list[dict[str, str]]) -> int:
@@ -127,12 +141,18 @@ class LLMClient:
         env: Mapping[str, str] | None = None,
         approved: bool = False,
         transport: Transport | None = None,
+        max_retries: int = 2,
+        backoff: float = 1.0,
+        sleep: Callable[[float], None] = time.sleep,
     ):
         self.config = config
         self.budgets = budgets
         self.env = os.environ if env is None else env
         self.approved = approved
         self.transport = transport or UrllibTransport()
+        self.max_retries = max_retries  # same provider only; 429, 5xx and timeouts
+        self.backoff = backoff
+        self._sleep = sleep
         self.spent: dict[str, float] = defaultdict(float)  # USD per job, this session
 
     def _price(self, tier: str, tokens_in: int, tokens_out: int) -> float:
@@ -192,13 +212,21 @@ class LLMClient:
         model = self.config.tiers[tier].model
         headers = {"Authorization": f"Bearer {key}"} if key else {}
         payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
+        url = f"{self._base_url(tier)}/chat/completions"
         start = time.perf_counter()
-        status, body = self.transport.post_json(
-            f"{self._base_url(tier)}/chat/completions", headers, payload
-        )
+        for attempt in range(1, self.max_retries + 2):
+            try:
+                status, body = self.transport.post_json(url, headers, payload)
+            except ProviderTimeout:
+                if attempt > self.max_retries:
+                    raise
+                status, body = None, None
+            if status == 200:
+                break
+            if status is not None and (status not in RETRY_STATUSES or attempt > self.max_retries):
+                raise ProviderError(f"{tier}: HTTP {status}: {str(body)[:200]}")
+            self._sleep(self.backoff * 2 ** (attempt - 1))
         latency = time.perf_counter() - start
-        if status != 200:
-            raise ProviderError(f"{tier}: HTTP {status}: {str(body)[:200]}")
         usage = body.get("usage") or {}
         tokens_in = int(usage.get("prompt_tokens", estimate.tokens_in))
         tokens_out = int(usage.get("completion_tokens", 0))
@@ -216,6 +244,7 @@ class LLMClient:
             tokens_out=tokens_out,
             cost_usd=cost,
             latency_s=latency,
+            attempts=attempt,
         )
 
 
