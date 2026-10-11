@@ -158,3 +158,8 @@ class TestRecheckSkipped:
         assert transport.fetched == [5]  # not 1 (done) and not 6 (still excluded)
         assert result.ingested == 1
         assert store.count_records() == 2
+
+
+def test_iter_records_returns_every_record_in_id_order(store):
+    ingest(store, source(UrlTransport(OBJECTS)))
+    assert [r.id for r in store.iter_records("met")] == ["met:1", "met:2"]
