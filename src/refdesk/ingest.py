@@ -1,0 +1,45 @@
+"""Resumable, idempotent ingest from a source adapter into the store (issue #8).
+
+Resumable: object IDs already in `ingest_progress` are skipped, so a run that stops
+(rate limit, network, Ctrl+C) continues where it left off. Idempotent: records are
+upserted, so `refresh=True` re-fetches everything without creating duplicates.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from refdesk.sources.met import SOURCE, Fetched, MetSource
+from refdesk.store import Store
+
+
+@dataclass
+class IngestResult:
+    listed: int = 0
+    already_done: int = 0
+    ingested: int = 0
+    skipped: dict[str, int] = field(default_factory=dict)
+
+
+def ingest(
+    store: Store,
+    source: MetSource,
+    *,
+    object_ids: list[int] | None = None,
+    refresh: bool = False,
+    limit: int | None = None,
+) -> IngestResult:
+    ids = source.list_object_ids() if object_ids is None else object_ids
+    done = set() if refresh else store.handled_object_ids(SOURCE)
+    pending = [i for i in ids if str(i) not in done]
+    result = IngestResult(listed=len(ids), already_done=len(ids) - len(pending))
+
+    for object_id in pending[:limit]:
+        outcome = source.fetch_one(object_id)  # MetUnavailable propagates: progress is kept
+        if isinstance(outcome, Fetched):
+            store.save(outcome.record, outcome.raw)
+            result.ingested += 1
+        else:
+            store.mark_skipped(SOURCE, str(object_id), outcome.reason)
+            result.skipped[outcome.reason] = result.skipped.get(outcome.reason, 0) + 1
+    return result

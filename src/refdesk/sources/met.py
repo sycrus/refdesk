@@ -177,6 +177,18 @@ class MetClient:
         return self.get(f"{OBJECTS_PATH}?departmentIds={department_id}").get("objectIDs") or []
 
 
+@dataclass(frozen=True)
+class Fetched:
+    record: ArtworkRecord
+    raw: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class Skipped:
+    object_id: int
+    reason: str  # "not_found" or "classification:<value>"
+
+
 @dataclass
 class SourceStats:
     ingested: int = 0
@@ -201,25 +213,38 @@ class MetSource:
         self._now = now
         self.stats = SourceStats()
 
+    def list_object_ids(self) -> list[int]:
+        return self.client.list_object_ids(self.department_id)
+
+    def fetch_one(self, object_id: int) -> Fetched | Skipped:
+        """Fetch one object. Every ID gets an outcome, so the ingest can mark skips as done.
+
+        MetUnavailable is not caught: the caller stops, and resumes later."""
+        try:
+            raw = self.client.get_object(object_id)
+        except MetNotFound:
+            outcome: Fetched | Skipped = Skipped(object_id, "not_found")
+        else:
+            if raw.get("classification") != self.classification:
+                reason = f"classification:{raw.get('classification') or 'none'}"
+                outcome = Skipped(object_id, reason)
+            else:
+                outcome = Fetched(to_record(raw, checked_at=self._now()), raw)
+        if isinstance(outcome, Skipped):
+            self.stats.skipped[outcome.reason] += 1
+        else:
+            self.stats.ingested += 1
+            self.stats.open += outcome.record.rights.status is RightsStatus.OPEN
+        return outcome
+
     def iter_items(
         self, object_ids: list[int] | None = None
     ) -> Iterator[tuple[ArtworkRecord, dict]]:
         """Yield (record, raw response), so the store can keep the raw record (FR-1)."""
-        if object_ids is None:
-            object_ids = self.client.list_object_ids(self.department_id)
-        for object_id in object_ids:
-            try:
-                raw = self.client.get_object(object_id)
-            except MetNotFound:
-                self.stats.skipped["not_found"] += 1
-                continue
-            if raw.get("classification") != self.classification:
-                self.stats.skipped[f"classification:{raw.get('classification') or 'none'}"] += 1
-                continue
-            record = to_record(raw, checked_at=self._now())
-            self.stats.ingested += 1
-            self.stats.open += record.rights.status is RightsStatus.OPEN
-            yield record, raw
+        for object_id in self.list_object_ids() if object_ids is None else object_ids:
+            outcome = self.fetch_one(object_id)
+            if isinstance(outcome, Fetched):
+                yield outcome.record, outcome.raw
 
     def iter_records(self, object_ids: list[int] | None = None) -> Iterator[ArtworkRecord]:
         for record, _ in self.iter_items(object_ids):

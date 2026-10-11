@@ -43,6 +43,7 @@ One row per source. Read each source's own terms before relying on a row (PRD 9,
 - Empty strings mean missing. They are stored as `None`.
 - `artistPrefix` ("Workshop of", "Attributed to") is part of the attribution and is kept.
 - `metadataDate` gives the last update, which can drive incremental re-ingest (#8).
+- Department 11 also holds non-paintings: the first ingest run met `classification: "Miniatures"`. The adapter keeps only `"Paintings"` and records each skip with its reason in `ingest_progress`.
 - metmuseum.org web pages returned HTTP 429 to automated fetches on 2026-10-11, so the terms and Open Access pages could not be read automatically. **Joe: read them in a browser.**
 
 **Sources** (checked 2026-10-11):
