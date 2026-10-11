@@ -14,20 +14,13 @@ it, and the UI would show it with the same badge as a real one.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator, model_validator
 
+from refdesk.wording import RightsStatus  # re-exported; the wording lives in one file
+
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-
-
-class RightsStatus(StrEnum):
-    """Rights status. Values are the fixed badge wording (PRD 8A); never paraphrase them."""
-
-    OPEN = "Open (as stated by source)"
-    UNVERIFIED = "Unverified"
-    PERMISSION_REQUIRED = "Permission required"
 
 
 class _Frozen(BaseModel):
