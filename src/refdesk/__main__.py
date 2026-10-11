@@ -8,6 +8,8 @@ stats [--db PATH]
     Record counts by rights status, and ingest progress.
 images met [--db PATH] [--dir data/images] [--limit N]
     Cache images of open works only (resumable).
+embed met [--model ViT-B-32] [--pretrained laion2b_s34b_b79k] [--device cuda]
+    Embed cached images of open works into a FAISS index (needs: uv sync --extra embed).
 eval [--retriever jaccard] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
 """
@@ -17,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -95,6 +98,14 @@ def main(argv: list[str] | None = None) -> int:
     p_images.add_argument("--db", default=DEFAULT_DB)
     p_images.add_argument("--dir", default="data/images")
     p_images.add_argument("--limit", type=int, help="stop after N new downloads")
+    p_embed = commands.add_parser("embed", help="build the image embedding index")
+    p_embed.add_argument("source", choices=["met"])
+    p_embed.add_argument("--db", default=DEFAULT_DB)
+    p_embed.add_argument("--images", default="data/images")
+    p_embed.add_argument("--out", default="data/index/met-clip")
+    p_embed.add_argument("--model", default="ViT-B-32")
+    p_embed.add_argument("--pretrained", default="laion2b_s34b_b79k")
+    p_embed.add_argument("--device", default="cuda")
     p_eval = commands.add_parser("eval", help="evaluate a retriever on a golden set")
     p_eval.add_argument("--retriever", choices=sorted(RETRIEVERS), default="jaccard")
     p_eval.add_argument("--golden", default=DEFAULT_GOLDEN)
@@ -121,6 +132,16 @@ def main(argv: list[str] | None = None) -> int:
             for record_id, reason in result.failed.items():
                 print(f"  failed {record_id}: {reason}")
             return 1 if result.failed else 0
+        if args.command == "embed":
+            from refdesk.embeddings import OpenClipEmbedder, build_index
+
+            embedder = OpenClipEmbedder(args.model, args.pretrained, args.device)
+            started = time.perf_counter()
+            result = build_index(store, Path(args.images), embedder, Path(args.out))
+            seconds = time.perf_counter() - started
+            action = "built" if result.built else "up to date (skipped)"
+            print(f"{action}: {result.count} vectors, {embedder.model_id}, {seconds:.1f} s")
+            return 0
         if args.command == "eval":
             return _eval(store, args)
         if args.command == "rebuild":
