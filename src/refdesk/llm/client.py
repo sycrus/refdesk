@@ -76,6 +76,11 @@ class ProviderTimeout(ProviderError):
     pass
 
 
+class EmptyCompletion(ProviderError):
+    """The provider answered 200 with no text, e.g. a thinking model that spent every
+    output token on reasoning. Never passed on as an empty rationale."""
+
+
 class Transport(Protocol):
     def post_json(
         self, url: str, headers: dict[str, str], payload: dict[str, Any]
@@ -227,6 +232,13 @@ class LLMClient:
                 raise ProviderError(f"{tier}: HTTP {status}: {str(body)[:200]}")
             self._sleep(self.backoff * 2 ** (attempt - 1))
         latency = time.perf_counter() - start
+        message = body["choices"][0]["message"]
+        if not (message.get("content") or "").strip():
+            where = "reasoning" if message.get("reasoning") else "nothing"
+            raise EmptyCompletion(
+                f"{tier}: empty answer; output tokens went to {where}. "
+                "Use a non-thinking model or raise max_tokens."
+            )
         usage = body.get("usage") or {}
         tokens_in = int(usage.get("prompt_tokens", estimate.tokens_in))
         tokens_out = int(usage.get("completion_tokens", 0))
@@ -234,7 +246,7 @@ class LLMClient:
         self.spent[job] += cost
         provider = self.config.provider_of(tier)
         return Completion(
-            text=body["choices"][0]["message"]["content"],
+            text=message["content"],
             tier=tier,
             provider=self.config.tiers[tier].provider,
             family=provider.family,

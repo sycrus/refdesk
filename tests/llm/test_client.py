@@ -230,3 +230,20 @@ class TestJudgeFamily:
 def test_the_repository_config_loads():
     cfg = ProvidersConfig.load("config/providers.yaml")
     assert set(cfg.routing) <= set(cfg.tiers)
+
+
+class EmptyAnswerTransport(FakeTransport):
+    def post_json(self, url, headers, payload):
+        self.calls.append((url, headers, payload))
+        return 200, {
+            "model": "qwen3:4b",
+            "choices": [{"message": {"content": "", "reasoning": "Okay, the user..."}}],
+            "usage": {"prompt_tokens": 32, "completion_tokens": 600},
+        }
+
+
+def test_an_empty_answer_is_an_error_not_an_empty_rationale():
+    # Seen in the #40 smoke run: a thinking model spent every output token on reasoning.
+    t = EmptyAnswerTransport()
+    with pytest.raises(llm.EmptyCompletion, match="reasoning"):
+        call(client(transport=t))
