@@ -12,6 +12,8 @@ embed met [--model ViT-B-32] [--pretrained laion2b_s34b_b79k] [--device cuda]
     Embed cached images of open works into a FAISS index (needs: uv sync --extra embed).
 eval [--retriever jaccard] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
+compare HASH_A HASH_B
+    Paired comparison of two eval runs (B - A per case, with a 95% CI).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import time
 from datetime import date
 from pathlib import Path
 
+from refdesk.evals.compare import NotComparable, compare_runs, format_comparison
 from refdesk.evals.golden import GoldenCase, corpus_version
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.images import cache_images
@@ -98,6 +101,10 @@ def main(argv: list[str] | None = None) -> int:
     p_images.add_argument("--db", default=DEFAULT_DB)
     p_images.add_argument("--dir", default="data/images")
     p_images.add_argument("--limit", type=int, help="stop after N new downloads")
+    p_compare = commands.add_parser("compare", help="paired comparison of two eval runs")
+    p_compare.add_argument("run_a")
+    p_compare.add_argument("run_b")
+    p_compare.add_argument("--db", default=DEFAULT_DB)
     p_embed = commands.add_parser("embed", help="build the image embedding index")
     p_embed.add_argument("source", choices=["met"])
     p_embed.add_argument("--db", default=DEFAULT_DB)
@@ -132,6 +139,13 @@ def main(argv: list[str] | None = None) -> int:
             for record_id, reason in result.failed.items():
                 print(f"  failed {record_id}: {reason}")
             return 1 if result.failed else 0
+        if args.command == "compare":
+            try:
+                print(format_comparison(compare_runs(Path.cwd(), args.run_a, args.run_b)))
+            except NotComparable as error:
+                print(f"Not comparable: {error}")
+                return 2
+            return 0
         if args.command == "embed":
             from refdesk.embeddings import OpenClipEmbedder, build_index
 
