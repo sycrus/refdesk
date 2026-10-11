@@ -1,0 +1,56 @@
+# LLM providers and routing tiers (PRD 10, ADR-020, issue #38).
+#
+# Model IDs and prices come from each provider's own documentation, filled in by Joe.
+# A paid tier with no model or no price cannot be called: the client refuses before any
+# network request, because a call it cannot price cannot be held to a budget.
+#
+# family: used to make sure a model never judges its own family's output (ADR-021).
+# cloud:  keep_local blocks every provider with cloud: true (FR-11).
+# paid:   needs a key in .env, a budget in config/budgets.yaml and a run with --approve.
+
+providers:
+  deepseek:
+    family: deepseek
+    cloud: true
+    paid: true
+    base_url: https://api.deepseek.com  # OpenAI-compatible; checked 2026-10-11 (api-docs.deepseek.com)
+    key_env: DEEPSEEK_API_KEY
+  glm:
+    family: zhipu
+    cloud: true
+    paid: true
+    base_url_env: GLM_BASE_URL          # set in .env from docs.z.ai
+    key_env: GLM_API_KEY
+  ollama:
+    family: qwen-local
+    cloud: false
+    paid: false
+    base_url: http://127.0.0.1:11434/v1  # Ollama's OpenAI-compatible endpoint
+  mock:
+    family: mock
+    cloud: false
+    paid: false
+    base_url: http://127.0.0.1:8100/v1   # the mock server (#39)
+
+tiers:
+  local-small:
+    provider: ollama
+    model: null          # a 3-4B instruct model, chosen with the local-tier test (ADR-020)
+  cloud-flash:
+    provider: deepseek
+    model: deepseek-flash  # alias: the served model can change; the client records the reported model
+    price_usd_per_mtok: {input: null, output: null}  # [Joe] from DeepSeek's pricing page
+  cloud-strong:
+    provider: deepseek
+    model: deepseek-v4-pro
+    price_usd_per_mtok: {input: null, output: null}  # [Joe]
+  glm-flash:
+    provider: glm
+    model: null          # [Joe] from docs.z.ai
+    price_usd_per_mtok: {input: null, output: null}  # [Joe]
+  mock:
+    provider: mock
+    model: mock-1
+
+# The routing decision chooses among these tiers, cheapest first (ADR-020).
+routing: [local-small, cloud-flash]
