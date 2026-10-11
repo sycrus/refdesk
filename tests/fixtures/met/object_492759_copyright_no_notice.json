@@ -1,0 +1,89 @@
+{
+  "status": 200,
+  "body": {
+    "objectID": 492759,
+    "isHighlight": false,
+    "accessionNumber": "2007.49.87",
+    "accessionYear": "2007",
+    "isPublicDomain": false,
+    "primaryImage": "",
+    "primaryImageSmall": "",
+    "additionalImages": [],
+    "constituents": [
+      {
+        "constituentID": 164952,
+        "role": "Artist",
+        "name": "William Scott",
+        "constituentULAN_URL": "http://vocab.getty.edu/page/ulan/500125958",
+        "constituentWikidata_URL": "https://www.wikidata.org/wiki/Q257928",
+        "gender": ""
+      }
+    ],
+    "department": "Modern and Contemporary Art",
+    "objectName": "Painting",
+    "title": "Blue Painting",
+    "culture": "",
+    "period": "",
+    "dynasty": "",
+    "reign": "",
+    "portfolio": "",
+    "artistRole": "Artist",
+    "artistPrefix": "",
+    "artistDisplayName": "William Scott",
+    "artistDisplayBio": "British, Greenock, Renfrewshire, Scotland 1913–1989 Coleford, Somerset",
+    "artistSuffix": "",
+    "artistAlphaSort": "Scott, William",
+    "artistNationality": "British, Scottish",
+    "artistBeginDate": "1913",
+    "artistEndDate": "1989",
+    "artistGender": "",
+    "artistWikidata_URL": "https://www.wikidata.org/wiki/Q257928",
+    "artistULAN_URL": "http://vocab.getty.edu/page/ulan/500125958",
+    "objectDate": "1957",
+    "objectBeginDate": 1957,
+    "objectEndDate": 1957,
+    "medium": "Oil on canvas",
+    "dimensions": "33 7/8 × 43 3/4 in. (86 × 111.1 cm)",
+    "measurements": [
+      {
+        "elementName": "Framed",
+        "elementDescription": "F.2007.49.87 gold & brown wood frame",
+        "elementMeasurements": {
+          "Depth": 5.08001,
+          "Height": 90.80518,
+          "Width": 116.20523
+        }
+      },
+      {
+        "elementName": "Overall",
+        "elementDescription": null,
+        "elementMeasurements": {
+          "Height": 86.0427,
+          "Width": 111.1252
+        }
+      }
+    ],
+    "creditLine": "Bequest of William S. Lieberman, 2005",
+    "geographyType": "",
+    "city": "",
+    "state": "",
+    "county": "",
+    "country": "",
+    "region": "",
+    "subregion": "",
+    "locale": "",
+    "locus": "",
+    "excavation": "",
+    "river": "",
+    "classification": "Paintings",
+    "rightsAndReproduction": "",
+    "linkResource": "",
+    "metadataDate": "2025-01-31T04:54:36.6Z",
+    "repository": "Metropolitan Museum of Art, New York, NY",
+    "objectURL": "https://www.metmuseum.org/art/collection/search/492759",
+    "tags": null,
+    "objectWikidata_URL": "https://www.wikidata.org/wiki/Q20190127",
+    "isTimelineWork": false,
+    "GalleryNumber": ""
+  }
+}

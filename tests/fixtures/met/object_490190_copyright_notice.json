@@ -1,0 +1,89 @@
+{
+  "status": 200,
+  "body": {
+    "objectID": 490190,
+    "isHighlight": false,
+    "accessionNumber": "2006.32.25",
+    "accessionYear": "2006",
+    "isPublicDomain": false,
+    "primaryImage": "",
+    "primaryImageSmall": "",
+    "additionalImages": [],
+    "constituents": [
+      {
+        "constituentID": 161972,
+        "role": "Artist",
+        "name": "Philip Guston",
+        "constituentULAN_URL": "http://vocab.getty.edu/page/ulan/500023901",
+        "constituentWikidata_URL": "https://www.wikidata.org/wiki/Q701952",
+        "gender": ""
+      }
+    ],
+    "department": "Modern and Contemporary Art",
+    "objectName": "Painting",
+    "title": "Painting",
+    "culture": "",
+    "period": "",
+    "dynasty": "",
+    "reign": "",
+    "portfolio": "",
+    "artistRole": "Artist",
+    "artistPrefix": "",
+    "artistDisplayName": "Philip Guston",
+    "artistDisplayBio": "American (born Canada), Montreal 1913–1980 Woodstock, New York",
+    "artistSuffix": "",
+    "artistAlphaSort": "Guston, Philip",
+    "artistNationality": "American, born Canada",
+    "artistBeginDate": "1913",
+    "artistEndDate": "1980",
+    "artistGender": "",
+    "artistWikidata_URL": "https://www.wikidata.org/wiki/Q701952",
+    "artistULAN_URL": "http://vocab.getty.edu/page/ulan/500023901",
+    "objectDate": "1952",
+    "objectBeginDate": 1952,
+    "objectEndDate": 1952,
+    "medium": "Oil on canvas",
+    "dimensions": "48 × 51 in. (121.9 × 129.5 cm)",
+    "measurements": [
+      {
+        "elementName": "Overall",
+        "elementDescription": null,
+        "elementMeasurements": {
+          "Height": 121.9,
+          "Width": 129.5
+        }
+      },
+      {
+        "elementName": "Framed",
+        "elementDescription": "F.1.2006.32.25 Wood float frame with top and AR plexi ",
+        "elementMeasurements": {
+          "Depth": 6.6675134,
+          "Height": 127.95276,
+          "Width": 135.25526
+        }
+      }
+    ],
+    "creditLine": "The Muriel Kallis Steinberg Newman Collection, Gift of Muriel Kallis Newman, 2006",
+    "geographyType": "",
+    "city": "",
+    "state": "",
+    "county": "",
+    "country": "",
+    "region": "",
+    "subregion": "",
+    "locale": "",
+    "locus": "",
+    "excavation": "",
+    "river": "",
+    "classification": "Paintings",
+    "rightsAndReproduction": "© Estate of Philip Guston",
+    "linkResource": "",
+    "metadataDate": "2026-07-24T09:33:00.533Z",
+    "repository": "Metropolitan Museum of Art, New York, NY",
+    "objectURL": "https://www.metmuseum.org/art/collection/search/490190",
+    "tags": null,
+    "objectWikidata_URL": "https://www.wikidata.org/wiki/Q20189552",
+    "isTimelineWork": false,
+    "GalleryNumber": ""
+  }
+}
