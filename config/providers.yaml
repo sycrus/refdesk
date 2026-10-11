@@ -1,0 +1,64 @@
+# LLM providers and routing tiers (PRD 10, ADR-020, issue #38).
+#
+# Model IDs and prices come from each provider's own documentation, filled in by Joe.
+# A paid tier with no model or no price cannot be called: the client refuses before any
+# network request, because a call it cannot price cannot be held to a budget.
+#
+# family: used to make sure a model never judges its own family's output (ADR-021).
+# cloud:  keep_local blocks every provider with cloud: true (FR-11).
+# paid:   needs a key in .env, a budget in config/budgets.yaml and a run with --approve.
+
+providers:
+  deepseek:
+    family: deepseek
+    cloud: true
+    paid: true
+    base_url: https://api.deepseek.com  # OpenAI-compatible; checked 2026-10-11 (api-docs.deepseek.com)
+    key_env: DEEPSEEK_API_KEY
+  glm:
+    # Do NOT use a GLM Coding Plan key here. Z.ai's usage policy: "GLM Coding Plan may
+    # only be used within officially supported tools and products"; violations can lead to
+    # rate limiting, account freezing and bans (docs.z.ai/devpack/usage-policy, checked
+    # 2026-10-12). refdesk is not a supported tool. Use only a pay-as-you-go API key, with
+    # the general endpoint (https://api.z.ai/api/paas/v4), if GLM is used at all.
+    family: zhipu
+    cloud: true
+    paid: true
+    base_url_env: GLM_BASE_URL
+    key_env: GLM_API_KEY
+  ollama:
+    family: qwen-local
+    cloud: false
+    paid: false
+    base_url: http://127.0.0.1:11434/v1  # Ollama's OpenAI-compatible endpoint
+  mock:
+    family: mock
+    cloud: false
+    paid: false
+    base_url: http://127.0.0.1:8100/v1   # the mock server (#39)
+
+tiers:
+  local-small:
+    provider: ollama
+    model: null          # a 3-4B instruct model, chosen with the local-tier test (ADR-020)
+  # DeepSeek prices: api-docs.deepseek.com/quick_start/pricing, checked 2026-10-12, in "$".
+  # Configured at PEAK, cache-miss input, so the budget check is a true worst case.
+  # Off-peak (outside 01:00-04:00 and 06:00-10:00 UTC on weekdays) is half price.
+  cloud-flash:
+    provider: deepseek
+    model: deepseek-flash  # currently DeepSeek-V4.1-Flash; alias, so the reported model is recorded
+    price_usd_per_mtok: {input: 0.30, output: 1.20}
+  cloud-strong:
+    provider: deepseek
+    model: deepseek-v4-pro  # currently DeepSeek-V4-Pro-0813
+    price_usd_per_mtok: {input: 1.32, output: 3.96}
+  glm-flash:
+    provider: glm
+    model: null          # off until a pay-as-you-go key is chosen (see the glm provider note)
+    price_usd_per_mtok: {input: null, output: null}
+  mock:
+    provider: mock
+    model: mock-1
+
+# The routing decision chooses among these tiers, cheapest first (ADR-020).
+routing: [local-small, cloud-flash]
