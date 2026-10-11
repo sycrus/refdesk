@@ -1,0 +1,32 @@
+{
+  "object_436535_open_painting": {
+    "url": "https://collectionapi.metmuseum.org/public/collection/v1/objects/436535",
+    "status": 200,
+    "recorded_at": "2026-10-11T11:16:44+00:00"
+  },
+  "object_490190_copyright_notice": {
+    "url": "https://collectionapi.metmuseum.org/public/collection/v1/objects/490190",
+    "status": 200,
+    "recorded_at": "2026-10-11T11:16:46+00:00"
+  },
+  "object_492759_copyright_no_notice": {
+    "url": "https://collectionapi.metmuseum.org/public/collection/v1/objects/492759",
+    "status": 200,
+    "recorded_at": "2026-10-11T11:16:47+00:00"
+  },
+  "departments": {
+    "url": "https://collectionapi.metmuseum.org/public/collection/v1/departments",
+    "status": 200,
+    "recorded_at": "2026-10-11T11:16:49+00:00"
+  },
+  "search_v1_1_european_paintings": {
+    "url": "https://collectionapi.metmuseum.org/public/collection/v1.1/search?departmentId=11&hasImages=true&q=painting&limit=5",
+    "status": 200,
+    "recorded_at": "2026-10-11T11:16:50+00:00"
+  },
+  "search_v1_retired": {
+    "url": "https://collectionapi.metmuseum.org/public/collection/v1/search?q=sunflowers",
+    "status": 410,
+    "recorded_at": "2026-10-11T11:16:51+00:00"
+  }
+}
