@@ -30,7 +30,7 @@ from refdesk.evals.golden import GoldenCase, corpus_version
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.images import cache_images
 from refdesk.ingest import ingest, rebuild
-from refdesk.retrieval.registry import RETRIEVERS
+from refdesk.retrieval.registry import RETRIEVERS, build_retriever
 from refdesk.sources.met import SOURCE, MetClient, MetSource, MetUnavailable
 from refdesk.store import Store
 
@@ -70,7 +70,7 @@ def _eval(store: Store, args: argparse.Namespace) -> int:
         git_sha=sha,
         git_dirty=dirty,
     )
-    result = run_eval(RETRIEVERS[args.retriever](records), cases, records, config)
+    result = run_eval(build_retriever(args.retriever, records), cases, records, config)
     paths = write_outputs(result, root=Path.cwd(), date=date.today().isoformat())
     for metric, s in result.summary.items():
         print(f"{metric}: {s['mean']:.3f} [{s['low']:.3f}, {s['high']:.3f}] n={s['n']}")
