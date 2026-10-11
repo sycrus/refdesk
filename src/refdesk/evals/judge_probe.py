@@ -46,6 +46,18 @@ class JudgeItem:
     rationale: str
     label: str  # "supported" or "unsupported"
     error_type: str | None = None
+    claims: tuple[str, ...] = ()  # the factual claims only, one sentence each
+
+
+def _claims(title, artist, date, medium, subject, extra=""):
+    claims = [
+        f"{title} is by {artist} and dated {date}.",
+        f"{title} is {medium.lower()}.",
+        f"The subject of {title} includes {subject}.",
+    ]
+    if extra:
+        claims.append(f"{title}{extra.removeprefix(';').replace(' it ', ' ', 1)}.")
+    return tuple(claims)
 
 
 def record_document(r: ArtworkRecord) -> str:
@@ -86,7 +98,17 @@ def build_items(records: list[ArtworkRecord], *, n_records: int = 30, seed: int 
             opinion=opinion,
         )
         doc = record_document(r)
-        items.append(JudgeItem(f"j{n:03d}a", r.id, doc, _sentence(**parts), "supported"))
+        fact_parts = {k: v for k, v in parts.items() if k != "opinion"}
+        items.append(
+            JudgeItem(
+                f"j{n:03d}a",
+                r.id,
+                doc,
+                _sentence(**parts),
+                "supported",
+                claims=_claims(**fact_parts),
+            )
+        )
 
         error = ERROR_TYPES[n % len(ERROR_TYPES)]
         bad = dict(parts)
@@ -101,8 +123,17 @@ def build_items(records: list[ArtworkRecord], *, n_records: int = 30, seed: int 
             extra = "; it once belonged to Empress Josephine"
         elif error == "invented_subject":
             bad["subject"] = rng.choice(INVENTED_SUBJECTS)
+        bad_facts = {k: v for k, v in bad.items() if k != "opinion"}
         items.append(
-            JudgeItem(f"j{n:03d}b", r.id, doc, _sentence(**bad, extra=extra), "unsupported", error)
+            JudgeItem(
+                f"j{n:03d}b",
+                r.id,
+                doc,
+                _sentence(**bad, extra=extra),
+                "unsupported",
+                error,
+                claims=_claims(**bad_facts, extra=extra),
+            )
         )
     return items
 

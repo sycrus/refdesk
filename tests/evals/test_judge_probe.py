@@ -137,3 +137,24 @@ class TestScoring:
         result = score_judge(items, preds, seed=0)
         assert result.catch_by_type["wrong_date"] == 1.0
         assert result.catch_by_type["invented_subject"] == 0.0
+
+
+class TestClaims:
+    """Factual claims, split exactly, for claim-checker models (MiniCheck, Granite Guardian)."""
+
+    def test_faithful_items_have_only_record_facts_as_claims(self, items):
+        for item in items:
+            if item.label == "supported":
+                r = next(x for x in RECORDS if x.id == item.record_id)
+                assert any(r.artist in c and r.date in c for c in item.claims)
+                assert all("calm" not in c and "mood" not in c for c in item.claims)  # no opinion
+
+    def test_corrupted_items_carry_the_false_fact_in_a_claim(self, items):
+        for item in items:
+            if item.error_type == "invented_provenance":
+                assert any("belonged to" in c for c in item.claims)
+            if item.error_type == "invented_subject":
+                assert any(
+                    s in " ".join(item.claims)
+                    for s in ("lighthouse", "balloon", "locomotive", "windmill")
+                )

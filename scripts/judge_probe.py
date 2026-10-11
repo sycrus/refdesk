@@ -10,6 +10,7 @@ Usage (PowerShell or WSL2, Ollama running):
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import sys
@@ -104,6 +105,21 @@ def judge(model: str, item) -> tuple[str | None, str, float]:
     return verdict, text, seconds
 
 
+def judge_claims(model: str, item) -> tuple[str | None, str, float]:
+    """Claim checkers are built for single factual claims: check each one; the rationale is
+    unsupported if any claim is. Opinion is never sent, because it is not a claim."""
+    verdicts, texts, seconds = [], [], 0.0
+    for claim in item.claims:
+        verdict, text, s = judge(model, dataclasses.replace(item, rationale=claim))
+        verdicts.append(verdict)
+        texts.append(text.strip()[:20])
+        seconds += s
+    if None in verdicts:
+        return None, " | ".join(texts), seconds
+    overall = "unsupported" if "unsupported" in verdicts else "supported"
+    return overall, " | ".join(texts), seconds
+
+
 def main(models: list[str]) -> None:
     with Store(ROOT / "data" / "refdesk.sqlite") as store:
         items = build_items(list(store.iter_records()), n_records=30, seed=0)
@@ -116,33 +132,34 @@ def main(models: list[str]) -> None:
         started = time.perf_counter()
         post("/api/generate", {"model": model, "keep_alive": "15m"})
         load_s = time.perf_counter() - started
-        info = loaded().get(model, {})
+        # Ollama lists an untagged model as "<name>:latest".
+        running = loaded()
+        info = running.get(model) or running.get(f"{model}:latest", {})
         gpu_pct = round(100 * info.get("size_vram", 0) / info["size"]) if info.get("size") else 0
         vram = free_before - nvidia_free_vram_mib()
-        predictions, latencies = [], []
-        with (out_dir / f"{re.sub(r'[^A-Za-z0-9.-]', '_', model)}.jsonl").open("w") as f:
-            for item in items:
-                verdict, text, seconds = judge(model, item)
-                predictions.append(verdict)
-                latencies.append(seconds)
-                f.write(
-                    json.dumps(
-                        {
-                            "id": item.id,
-                            "label": item.label,
-                            "error": item.error_type,
-                            "verdict": verdict,
-                            "raw": text[:200],
-                        }
-                    )
-                    + "\n"
-                )
-        score = score_judge(items, predictions, seed=0)
-        rows.append((model, score, vram, gpu_pct, load_s, sorted(latencies)[len(latencies) // 2]))
-        print(
-            f"{model}: accuracy {score.accuracy:.3f} catch {score.catch_rate:.2f} "
-            f"false alarm {score.false_alarm_rate:.2f} invalid {score.invalid_rate:.2f}"
-        )
+        modes = [("", judge)]
+        if style(model) in ("minicheck", "guardian"):
+            modes.append((" (per claim)", judge_claims))
+        for suffix, run in modes:
+            name = model + suffix
+            predictions, latencies = [], []
+            out = out_dir / f"{re.sub(r'[^A-Za-z0-9.-]', '_', name)}.jsonl"
+            with out.open("w") as f:
+                for item in items:
+                    verdict, text, seconds = run(model, item)
+                    predictions.append(verdict)
+                    latencies.append(seconds)
+                    record = {"id": item.id, "label": item.label, "error": item.error_type,
+                              "verdict": verdict, "raw": text[:200]}  # fmt: skip
+                    f.write(json.dumps(record) + "\n")
+            score = score_judge(items, predictions, seed=0)
+            rows.append(
+                (name, score, vram, gpu_pct, load_s, sorted(latencies)[len(latencies) // 2])
+            )
+            print(
+                f"{name}: accuracy {score.accuracy:.3f} catch {score.catch_rate:.2f} "
+                f"false alarm {score.false_alarm_rate:.2f} invalid {score.invalid_rate:.2f}"
+            )
     unload_all()
     write_report(rows, len(items))
 
