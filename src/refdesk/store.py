@@ -110,6 +110,12 @@ class Store:
         rows = self.db.execute("SELECT object_id FROM ingest_progress WHERE source = ?", (source,))
         return {row[0] for row in rows}
 
+    def object_ids_with_outcome(self, source: str, outcomes: set[str]) -> set[str]:
+        rows = self.db.execute(
+            "SELECT object_id, outcome FROM ingest_progress WHERE source = ?", (source,)
+        )
+        return {object_id for object_id, outcome in rows if outcome in outcomes}
+
     def get_record(self, record_id: str) -> ArtworkRecord | None:
         row = self.db.execute("SELECT data FROM records WHERE id = ?", (record_id,)).fetchone()
         return ArtworkRecord.model_validate_json(row[0]) if row else None

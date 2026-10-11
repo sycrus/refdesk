@@ -3,6 +3,8 @@
 Resumable: object IDs already in `ingest_progress` are skipped, so a run that stops
 (rate limit, network, Ctrl+C) continues where it left off. Idempotent: records are
 upserted, so `refresh=True` re-fetches everything without creating duplicates.
+`recheck_skipped=True` re-fetches only objects skipped for a classification that the
+source now includes, after the slice is widened.
 """
 
 from __future__ import annotations
@@ -27,10 +29,15 @@ def ingest(
     *,
     object_ids: list[int] | None = None,
     refresh: bool = False,
+    recheck_skipped: bool = False,
     limit: int | None = None,
 ) -> IngestResult:
     ids = source.list_object_ids() if object_ids is None else object_ids
     done = set() if refresh else store.handled_object_ids(SOURCE)
+    if recheck_skipped:
+        # Re-fetch objects skipped for a classification the source now includes.
+        reasons = {f"skipped:classification:{c}" for c in source.classifications}
+        done -= store.object_ids_with_outcome(SOURCE, reasons)
     pending = [i for i in ids if str(i) not in done]
     result = IngestResult(listed=len(ids), already_done=len(ids) - len(pending))
 
