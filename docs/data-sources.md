@@ -31,7 +31,7 @@ One row per source. Read each source's own terms before relying on a row (PRD 9,
 
 `licence_string` stores `rightsAndReproduction` verbatim (for example "© Estate of Philip Guston"), or nothing when it is empty. The API has **no licence field**: the CC0 basis comes from the policy above, not from each record. The provenance pack should cite the policy URL next to the flag.
 
-**Slice:** department 11 "European Paintings", classification "Paintings": 2,648 object IDs listed on 2026-10-11 (before the classification filter). That is smaller than the PRD's "10-20k" estimate. At 1 request per second a full slice ingest takes about 45 minutes.
+**Slice:** department 11 "European Paintings", painting-like classifications ("Paintings", "Miniatures", "Pastels & Oil Sketches on Paper"; widened by Joe on 2026-10-11): 2,648 object IDs listed on 2026-10-11 (before the classification filter). That is smaller than the PRD's "10-20k" estimate. At 1 request per second a full slice ingest takes about 45 minutes.
 
 **Images:** store links only. Images are downloaded only for `isPublicDomain: true`, and only if a later task needs them.
 
@@ -41,9 +41,10 @@ One row per source. Read each source's own terms before relying on a row (PRD 9,
 - In-copyright objects return empty `primaryImage` and `primaryImageSmall`.
 - `rightsAndReproduction` can be empty for an in-copyright object (e.g. 492759), so an empty notice does not mean open. Only the flag counts.
 - Empty strings mean missing. They are stored as `None`.
+- `objectDate` (display text) is empty for 600 of 2,588 slice records (23%), but `objectBeginDate`/`objectEndDate` are integers on every record (no `0` placeholders, no BCE, begin never after end; checked 2026-10-11). Both are stored as `date_begin`/`date_end` (#27). The first adapter version dropped them; logged in `docs/ai-assist-log.md`.
 - `artistPrefix` ("Workshop of", "Attributed to") is part of the attribution and is kept.
 - `metadataDate` gives the last update, which can drive incremental re-ingest (#8).
-- Department 11 also holds non-paintings: the first ingest run met `classification: "Miniatures"`. The adapter keeps only `"Paintings"` and records each skip with its reason in `ingest_progress`.
+- Department 11 mixes classifications. Seen in the first third of the slice: Paintings, Miniatures, Drawings, Pastels & Oil Sketches on Paper, Manuscripts and Illuminations. Drawings and manuscripts are skipped, each with its reason in `ingest_progress`. After widening the slice, `ingest met --recheck-skipped` re-fetches only the objects skipped for a classification now included.
 - metmuseum.org web pages returned HTTP 429 to automated fetches on 2026-10-11, so the terms and Open Access pages could not be read automatically. **Joe: read them in a browser.**
 
 **Sources** (checked 2026-10-11):

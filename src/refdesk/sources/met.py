@@ -36,7 +36,9 @@ BASE_URL = "https://collectionapi.metmuseum.org/public/collection"
 OBJECTS_PATH = "/v1/objects"
 SEARCH_PATH = "/v1.1/search"  # v1/search was retired on 2026-10-01 (returns 410)
 PAINTINGS_DEPARTMENT_ID = 11  # "European Paintings"
-PAINTINGS_CLASSIFICATION = "Paintings"
+# Painting-like classifications kept in the slice (Joe, 2026-10-11). Department 11 also
+# holds drawings and manuscripts, which are skipped with the reason recorded.
+PAINTING_CLASSIFICATIONS = frozenset({"Paintings", "Miniatures", "Pastels & Oil Sketches on Paper"})
 FLAG_FIELD = "isPublicDomain"
 USER_AGENT = "refdesk/0.1 (research project; github.com/sycrus/refdesk)"
 
@@ -59,6 +61,12 @@ def _text(raw: dict[str, Any], key: str) -> str | None:
     if isinstance(value, str):
         value = value.strip()
     return value or None
+
+
+def _year(raw: dict[str, Any], key: str) -> int | None:
+    # Structured years from the source. Only real integers count (bool is an int subclass).
+    value = raw.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _rights(raw: dict[str, Any], checked_at: datetime) -> RightsRecord:
@@ -98,6 +106,8 @@ def to_record(raw: dict[str, Any], *, checked_at: datetime) -> ArtworkRecord:
         title=_text(raw, "title"),
         artist=artist or None,
         date=_text(raw, "objectDate"),
+        date_begin=_year(raw, "objectBeginDate"),
+        date_end=_year(raw, "objectEndDate"),
         medium=_text(raw, "medium"),
         classification=_text(raw, "classification"),
         subject_tags=tuple(t["term"] for t in (raw.get("tags") or []) if t.get("term")),
@@ -197,19 +207,19 @@ class SourceStats:
 
 
 class MetSource:
-    """European Paintings slice: department 11, classification "Paintings"."""
+    """European Paintings slice: department 11, painting-like classifications."""
 
     def __init__(
         self,
         client: MetClient | None = None,
         *,
         department_id: int = PAINTINGS_DEPARTMENT_ID,
-        classification: str = PAINTINGS_CLASSIFICATION,
+        classifications: frozenset[str] | set[str] = PAINTING_CLASSIFICATIONS,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ):
         self.client = client or MetClient()
         self.department_id = department_id
-        self.classification = classification
+        self.classifications = frozenset(classifications)
         self._now = now
         self.stats = SourceStats()
 
@@ -225,7 +235,7 @@ class MetSource:
         except MetNotFound:
             outcome: Fetched | Skipped = Skipped(object_id, "not_found")
         else:
-            if raw.get("classification") != self.classification:
+            if raw.get("classification") not in self.classifications:
                 reason = f"classification:{raw.get('classification') or 'none'}"
                 outcome = Skipped(object_id, reason)
             else:

@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import Counter
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -110,6 +111,12 @@ class Store:
         rows = self.db.execute("SELECT object_id FROM ingest_progress WHERE source = ?", (source,))
         return {row[0] for row in rows}
 
+    def object_ids_with_outcome(self, source: str, outcomes: set[str]) -> set[str]:
+        rows = self.db.execute(
+            "SELECT object_id, outcome FROM ingest_progress WHERE source = ?", (source,)
+        )
+        return {object_id for object_id, outcome in rows if outcome in outcomes}
+
     def get_record(self, record_id: str) -> ArtworkRecord | None:
         row = self.db.execute("SELECT data FROM records WHERE id = ?", (record_id,)).fetchone()
         return ArtworkRecord.model_validate_json(row[0]) if row else None
@@ -130,3 +137,11 @@ class Store:
             "SELECT outcome FROM ingest_progress WHERE source = ?", (source,)
         ).fetchall()
         return dict(Counter(row[0] for row in rows))
+
+    def iter_records(self, source: str | None = None) -> Iterator[ArtworkRecord]:
+        """All stored records, ordered by ID (deterministic for baselines and evals)."""
+        sql, args = "SELECT data FROM records ORDER BY id", ()
+        if source is not None:
+            sql, args = "SELECT data FROM records WHERE source = ? ORDER BY id", (source,)
+        for (data,) in self.db.execute(sql, args):
+            yield ArtworkRecord.model_validate_json(data)
