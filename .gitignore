@@ -15,10 +15,10 @@ __pycache__/
 node_modules/
 ui/dist/
 
-# Runs, data and models (large or regenerable)
+# Runs, data and models (large or regenerable). All of data/ is derived: the SQLite
+# store, raw responses and cached images. Never commit it.
 runs/
-data/raw/
-data/cache/
+data/
 *.sqlite
 *.db
 models/
