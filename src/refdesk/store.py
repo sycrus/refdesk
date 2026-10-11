@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import Counter
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -130,3 +131,11 @@ class Store:
             "SELECT outcome FROM ingest_progress WHERE source = ?", (source,)
         ).fetchall()
         return dict(Counter(row[0] for row in rows))
+
+    def iter_records(self, source: str | None = None) -> Iterator[ArtworkRecord]:
+        """All stored records, ordered by ID (deterministic for baselines and evals)."""
+        sql, args = "SELECT data FROM records ORDER BY id", ()
+        if source is not None:
+            sql, args = "SELECT data FROM records WHERE source = ? ORDER BY id", (source,)
+        for (data,) in self.db.execute(sql, args):
+            yield ArtworkRecord.model_validate_json(data)

@@ -135,3 +135,8 @@ class TestStoredContent:
         transport = UrlTransport(OBJECTS)
         ingest(store, source(transport), limit=1)
         assert transport.fetched == [1]
+
+
+def test_iter_records_returns_every_record_in_id_order(store):
+    ingest(store, source(UrlTransport(OBJECTS)))
+    assert [r.id for r in store.iter_records("met")] == ["met:1", "met:2"]
