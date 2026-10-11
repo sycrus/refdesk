@@ -137,6 +137,29 @@ class TestStoredContent:
         assert transport.fetched == [1]
 
 
+class TestRecheckSkipped:
+    def test_recheck_refetches_only_objects_skipped_for_a_now_included_classification(self, store):
+        objects = {
+            1: painting(1),
+            5: painting(5, classification="Miniatures"),
+            6: painting(6, classification="Drawings"),
+        }
+        narrow = met.MetSource(
+            met.MetClient(UrlTransport(objects), min_interval=0, max_retries=0),
+            classifications={"Paintings"},
+            now=lambda: CHECKED,
+        )
+        ingest(store, narrow)
+        assert store.count_records() == 1
+
+        transport = UrlTransport(objects)
+        wide = source(transport)  # default: painting-like classifications
+        result = ingest(store, wide, recheck_skipped=True)
+        assert transport.fetched == [5]  # not 1 (done) and not 6 (still excluded)
+        assert result.ingested == 1
+        assert store.count_records() == 2
+
+
 def test_iter_records_returns_every_record_in_id_order(store):
     ingest(store, source(UrlTransport(OBJECTS)))
     assert [r.id for r in store.iter_records("met")] == ["met:1", "met:2"]

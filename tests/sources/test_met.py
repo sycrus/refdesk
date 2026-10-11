@@ -215,3 +215,21 @@ class TestIterRecords:
         source = met.MetSource(c, now=lambda: CHECKED)
         [(record, raw)] = list(source.iter_items())
         assert raw == OPEN and record.id == "met:436535"
+
+
+class TestPaintingClassifications:
+    @pytest.mark.parametrize(
+        "classification", ["Paintings", "Miniatures", "Pastels & Oil Sketches on Paper"]
+    )
+    def test_painting_like_classifications_are_kept(self, classification):
+        raw = copy.deepcopy(OPEN) | {"classification": classification}
+        c, _, _ = client([(200, raw)], min_interval=0)
+        outcome = met.MetSource(c, now=lambda: CHECKED).fetch_one(436535)
+        assert isinstance(outcome, met.Fetched)
+
+    @pytest.mark.parametrize("classification", ["Drawings", "Manuscripts and Illuminations"])
+    def test_non_paintings_are_skipped(self, classification):
+        raw = copy.deepcopy(OPEN) | {"classification": classification}
+        c, _, _ = client([(200, raw)], min_interval=0)
+        outcome = met.MetSource(c, now=lambda: CHECKED).fetch_one(436535)
+        assert outcome == met.Skipped(436535, f"classification:{classification}")
