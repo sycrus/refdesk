@@ -7,3 +7,7 @@ date,commit,retriever,golden_version,corpus_version,metric,mean,low,high,n,cost_
 2026-10-11,a0633d8a4bf0,jaccard,v0-synthetic,met:2588:d188937d8a53,precision,0.6339,0.5060,0.7530,28,0.00,0.03,f0f60fb69c7d
 2026-10-11,a0633d8a4bf0,jaccard,v0-synthetic,met:2588:d188937d8a53,mrr,0.7750,0.6417,0.8929,28,0.00,0.03,f0f60fb69c7d
 2026-10-11,a0633d8a4bf0,jaccard,v0-synthetic,met:2588:d188937d8a53,open_share,1.0000,1.0000,1.0000,2,0.00,0.03,f0f60fb69c7d
+2026-10-11,ef46e70d7467,jaccard,v0-synthetic,met:2588:d188937d8a53,recall,0.6548,0.5353,0.7697,28,0.00,0.04,fb5462038a93
+2026-10-11,ef46e70d7467,jaccard,v0-synthetic,met:2588:d188937d8a53,precision,0.6339,0.5060,0.7530,28,0.00,0.04,fb5462038a93
+2026-10-11,ef46e70d7467,jaccard,v0-synthetic,met:2588:d188937d8a53,mrr,0.7750,0.6417,0.8929,28,0.00,0.04,fb5462038a93
+2026-10-11,ef46e70d7467,jaccard,v0-synthetic,met:2588:d188937d8a53,open_share,1.0000,1.0000,1.0000,2,0.00,0.04,fb5462038a93
