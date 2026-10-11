@@ -8,6 +8,24 @@ models:
       Thinking model. Through the OpenAI-style endpoint all output tokens went to a
       separate reasoning field (empty answer); with think=false the reasoning leaked into
       the text. Not usable for rationales as is; try a non-thinking variant in M3.
+  qwen3.5:9b:
+    backend: ollama
+    vram_mib: 7700  # measured 2026-10-12: 7,583 MiB used, 100% on GPU; load 15 s; answer 4.4 s
+    notes: >-
+      Clean answer with think=false; cited only record fields in the probe. Best local
+      generator candidate (ADR-020). Family: qwen-local.
+  qwen2.5:14b:
+    backend: ollama
+    vram_mib: 13400  # measured: 13,357 MiB, 91% on GPU (partly offloaded); answer 5.6 s
+  glm-4.7-flash:Q4_K_M:
+    backend: ollama
+    vram_mib: 14000  # measured: 13,995 MiB, 69% on GPU (rest on CPU); answer 0.6 s
+    notes: >-
+      Mixture-of-experts, so fast despite the offload. Family zhipu: a local judge from a
+      different family than Qwen and DeepSeek (ADR-021), with no API key.
+  gemma4:26b-a4b-it-q4_K_M:
+    backend: ollama
+    vram_mib: 13800  # measured: 13,784 MiB, 70% on GPU; answer 22.9 s (too slow per item)
   kev-4b:
     backend: kev
     vram_mib: null  # measure on the first Kev run (M4); estimate 8.4 GB for merged weights
