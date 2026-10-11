@@ -9,7 +9,7 @@
 1. **No gate without a noise measurement.** A threshold must sit above the measured noise, or the gate fails at random and people learn to ignore it.
 2. **Gate on the right golden set.** `golden-v0-synthetic` can only act as a tripwire (did behaviour change?), never as a quality bar (ADR-018). Quality gates wait for `golden-v1`.
 3. **Compare like with like.** Two scores are comparable only if the golden version, corpus version and `SCORERS_VERSION` all match. The harness refuses or labels anything else.
-4. **Paired, not pooled.** When comparing two versions on the same cases, gate on the per-case differences (paired bootstrap), which is far less noisy than comparing two overall intervals.
+4. **Paired, not pooled.** When comparing two versions on the same cases, gate on the per-case differences (paired bootstrap), which is far less noisy than comparing two overall intervals. Built: `uv run python -m refdesk compare <hashA> <hashB>` (#36).
 
 ## 2. Metric definitions in force
 
@@ -27,6 +27,7 @@ Changing any definition means bumping `SCORERS_VERSION` in `src/refdesk/evals/ha
 | Date | Golden / corpus | System | Run-to-run noise | Case-sampling noise (95% CI width) | Notes |
 |---|---|---|---|---|---|
 | 2026-10-11 | v0-synthetic / met:2588:d188937d8a53 | Jaccard baseline, k=12 | **0** (deterministic over 2 runs) | recall ±0.12, MRR ±0.13 (n=28) | Config `02add712a369`. No model in the loop |
+| 2026-10-12 | v0-synthetic / met:2588:d188937d8a53 | CLIP baseline (ViT-B-32), k=12 | **0** (deterministic over 2 runs) | recall ±0.11, MRR ±0.13 (n=28) | Config `8c995e38a66b`. Paired vs Jaccard: recall −0.201 [−0.323, −0.083] |
 
 How to measure, once a model is in the loop: run the same config **N = [Joe] times**, report the mean and spread per metric, and record the row here. Re-measure when the model, prompts or golden set change.
 

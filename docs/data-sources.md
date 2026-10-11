@@ -31,9 +31,9 @@ One row per source. Read each source's own terms before relying on a row (PRD 9,
 
 `licence_string` stores `rightsAndReproduction` verbatim (for example "© Estate of Philip Guston"), or nothing when it is empty. The API has **no licence field**: the CC0 basis comes from the policy above, not from each record. The provenance pack should cite the policy URL next to the flag.
 
-**Slice:** department 11 "European Paintings", painting-like classifications ("Paintings", "Miniatures", "Pastels & Oil Sketches on Paper"; widened by Joe on 2026-10-11): 2,648 object IDs listed on 2026-10-11 (before the classification filter). That is smaller than the PRD's "10-20k" estimate. At 1 request per second a full slice ingest takes about 45 minutes.
+**Slice:** 2,588 records after the full ingest on 2026-10-11 (2,308 open, 280 permission required, 0 unverified; 60 skipped as drawings, frames or manuscripts). Department 11 "European Paintings", painting-like classifications ("Paintings", "Miniatures", "Pastels & Oil Sketches on Paper"; widened by Joe on 2026-10-11): 2,648 object IDs listed on 2026-10-11 (before the classification filter). That is smaller than the PRD's "10-20k" estimate. At 1 request per second a full slice ingest takes about 45 minutes.
 
-**Images:** store links only. Images are downloaded only for `isPublicDomain: true`, and only if a later task needs them.
+**Images:** downloaded only for records whose stored status is Open (`isPublicDomain: true`), only from `https://images.metmuseum.org`, for the CLIP index (#31, #32). Cached under `data/images/` (gitignored): **2,308 images, 234 MB**, 0 failures (2026-10-12). 8 image URLs contain spaces (e.g. `SF 11.126.2.jpg`); paths are percent-encoded before fetching.
 
 **Known drift and gotchas** (each has a contract test in `tests/sources/test_met.py`):
 - `GET /v1/search` was retired on 2026-10-01 and now returns **410 Gone**. Use `/v1.1/search` (`offset` and `limit`, max 500 per page, `offset + limit <= 10,000`).
