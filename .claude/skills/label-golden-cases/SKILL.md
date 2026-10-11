@@ -7,6 +7,8 @@ description: Help create, format or validate golden evaluation cases (creative b
 
 The user holds the art expertise. You must not assign quality labels or choose expected references.
 
+**One exception (ADR-018, CLAUDE.md):** `golden-v0-synthetic` is written entirely by Claude Code, for building and testing the eval harness only. Every case is marked `provenance: synthetic`, and its expected references come from an explicit `rule` applied to the ingested corpus, never from judgement. It must never support a claim or a published number. From `golden-v1` on, everything below applies in full. Format and validation code: `src/refdesk/evals/golden.py`.
+
 ## What you may do
 
 - Draft candidate briefs in varied styles and difficulty, for the user to edit.
