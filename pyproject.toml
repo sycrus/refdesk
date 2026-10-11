@@ -5,10 +5,19 @@ description = "Rights-checked, explained art-reference workflow from open museum
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "faiss-cpu>=1.15,<2",
     "fastapi>=0.115,<1",
+    "numpy>=2,<3",
     "pydantic>=2.9,<3",
     "pyyaml>=6.0,<7",
     "uvicorn>=0.30,<1",
+]
+
+[project.optional-dependencies]
+embed = [
+    "open-clip-torch>=3.3,<4",
+    "torch==2.11.0",
+    "torchvision>=0.26.0",
 ]
 
 [dependency-groups]
@@ -36,3 +45,15 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["refdesk", "verify", "next_issue"]
+
+# PyTorch with CUDA 12.8 (needed for the RTX 5080, compute capability 12.0) comes from
+# PyTorch's own index. `explicit` keeps every other package on PyPI. Only the optional
+# `embed` extra uses it, so CI (no GPU) never downloads it: uv sync --extra embed.
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
