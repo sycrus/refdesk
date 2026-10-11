@@ -5,11 +5,14 @@ description = "Rights-checked, explained art-reference workflow from open museum
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.115,<1",
     "pydantic>=2.9,<3",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.27",
+    "openapi-spec-validator>=0.7",
     "pytest>=8.3",
     "ruff>=0.8",
 ]

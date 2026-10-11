@@ -1,0 +1,1625 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "refdesk API",
+    "description": "Rights-checked, explained art references from open museum collections. The API enforces approval gates; clients only reflect them (PRD 8B).",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/boards": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Create Board",
+        "description": "Start a run from a brief (S1). G0 intake may decline it with a reason.",
+        "operationId": "create_board_boards_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunCreated"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Declined at G0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "read"
+        ],
+        "summary": "Get Run",
+        "description": "Run state, gates, items, cost and any stop reason (S2, S3, S7).",
+        "operationId": "get_run_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/review": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Review",
+        "description": "G3: keep (with a note) or drop each flagged item.",
+        "operationId": "review_runs__run_id__review_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A gate has not passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateBlocked"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/cap": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Raise Cap",
+        "description": "G1: raise the spend cap (recorded with name and time) and resume from the checkpoint.",
+        "operationId": "raise_cap_runs__run_id__cap_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapRaise"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A gate has not passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateBlocked"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/approve": {
+      "post": {
+        "tags": [
+          "gates"
+        ],
+        "summary": "Approve",
+        "description": "G4: record approval. Blocked (409) until G3 has no undecided items.",
+        "operationId": "approve_runs__run_id__approve_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A gate has not passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateBlocked"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/export": {
+      "post": {
+        "tags": [
+          "gates"
+        ],
+        "summary": "Export",
+        "description": "G5: export the provenance pack. Blocked (409) without an approval record.",
+        "operationId": "export_runs__run_id__export_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportReceipt"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A gate has not passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateBlocked"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Report Error",
+        "description": "S8: \"This is wrong\". Queued for human review.",
+        "operationId": "report_error_reports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ErrorReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportAccepted"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not implemented yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Healthz",
+        "description": "Liveness.",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Readyz",
+        "description": "Readiness: fails when the metadata store, embedding index or model backend is down.",
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApprovalRequest": {
+        "properties": {
+          "approver": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Approver"
+          },
+          "acknowledged": {
+            "type": "boolean",
+            "const": true,
+            "title": "Acknowledged",
+            "description": "Must be true to approve"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "approver",
+          "acknowledged"
+        ],
+        "title": "ApprovalRequest",
+        "description": "G4: rights are as stated by each source; this is not legal advice."
+      },
+      "ArtworkRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source"
+          },
+          "object_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Object Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "medium": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medium"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification"
+          },
+          "subject_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Subject Tags",
+            "default": []
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "record_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Url"
+          },
+          "raw_record_ref": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Raw Record Ref"
+          },
+          "rights": {
+            "$ref": "#/components/schemas/RightsRecord"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "object_id",
+          "raw_record_ref",
+          "rights"
+        ],
+        "title": "ArtworkRecord",
+        "description": "One artwork from one source, normalised. Descriptive fields stay None when the\nsource does not give them; they are never filled in from memory."
+      },
+      "AttributionStatus": {
+        "type": "string",
+        "enum": [
+          "Attribution verified from record",
+          "Needs human check"
+        ],
+        "title": "AttributionStatus"
+      },
+      "BoardItem": {
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/ArtworkRecord"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "attribution_status": {
+            "$ref": "#/components/schemas/AttributionStatus"
+          },
+          "flag_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flag Reasons",
+            "description": "Why the item needs a human check",
+            "default": []
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Confidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tier_used": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier Used"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "default": 0.0
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record",
+          "rationale",
+          "evidence",
+          "attribution_status"
+        ],
+        "title": "BoardItem"
+      },
+      "BoardRequest": {
+        "properties": {
+          "brief": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Brief"
+          },
+          "avoid": {
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": "array",
+            "title": "Avoid",
+            "default": []
+          },
+          "usage_mode": {
+            "$ref": "#/components/schemas/UsageMode",
+            "default": "reference_only"
+          },
+          "anchor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Id",
+            "description": "'<source>:<object_id>' of an anchor work"
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/Conditions",
+            "default": {}
+          },
+          "novelty": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Novelty",
+            "description": "0 = familiar, 1 = unexpected",
+            "default": 0.5
+          },
+          "keep_local": {
+            "type": "boolean",
+            "title": "Keep Local",
+            "description": "Never send this brief to a cloud provider",
+            "default": false
+          },
+          "budget_cap_usd": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Budget Cap Usd",
+            "description": "Spend cap for this board",
+            "default": 0.05
+          },
+          "target_items": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Target Items",
+            "default": 12
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "brief"
+        ],
+        "title": "BoardRequest",
+        "description": "S1 New board."
+      },
+      "CapRaise": {
+        "properties": {
+          "new_cap_usd": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "New Cap Usd"
+          },
+          "raised_by": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Raised By"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "new_cap_usd",
+          "raised_by"
+        ],
+        "title": "CapRaise",
+        "description": "G1: an explicit, recorded decision to raise the spend cap and resume."
+      },
+      "Conditions": {
+        "properties": {
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "material": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material"
+          },
+          "motif": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motif"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Conditions"
+      },
+      "Confidence": {
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Bucket"
+          },
+          "value": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Value",
+            "description": "Calibrated probability, shown on hover"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "bucket",
+          "value"
+        ],
+        "title": "Confidence"
+      },
+      "Cost": {
+        "properties": {
+          "spent_usd": {
+            "type": "number",
+            "title": "Spent Usd"
+          },
+          "cap_usd": {
+            "type": "number",
+            "title": "Cap Usd"
+          },
+          "currency": {
+            "type": "string",
+            "const": "USD",
+            "title": "Currency",
+            "default": "USD"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "spent_usd",
+          "cap_usd"
+        ],
+        "title": "Cost"
+      },
+      "ErrorReport": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "item_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Item Id"
+          },
+          "error_type": {
+            "$ref": "#/components/schemas/ErrorType"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "error_type",
+          "note"
+        ],
+        "title": "ErrorReport",
+        "description": "S8: \"This is wrong\". Queued for human review, then may feed the golden set."
+      },
+      "ErrorType": {
+        "type": "string",
+        "enum": [
+          "attribution",
+          "rights",
+          "irrelevant",
+          "rationale"
+        ],
+        "title": "ErrorType"
+      },
+      "Evidence": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "Record field that supports the rationale, e.g. 'medium'"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "record_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "field",
+          "value"
+        ],
+        "title": "Evidence"
+      },
+      "ExportReceipt": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Exported At"
+          },
+          "approver": {
+            "type": "string",
+            "title": "Approver"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Versions",
+            "description": "Model, adapter and config versions"
+          },
+          "notice": {
+            "type": "string",
+            "title": "Notice"
+          },
+          "not_legal_advice": {
+            "type": "string",
+            "title": "Not Legal Advice"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "file",
+          "exported_at",
+          "approver",
+          "versions",
+          "notice",
+          "not_legal_advice"
+        ],
+        "title": "ExportReceipt"
+      },
+      "ExportRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv",
+              "pdf"
+            ],
+            "title": "Format",
+            "default": "csv"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ExportRequest",
+        "description": "G5: irreversible. Requires an approval record."
+      },
+      "Gate": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/GateId"
+          },
+          "state": {
+            "$ref": "#/components/schemas/GateState"
+          },
+          "status_text": {
+            "type": "string",
+            "title": "Status Text"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor",
+            "description": "Who must act, for human gates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "status_text"
+        ],
+        "title": "Gate"
+      },
+      "GateBlocked": {
+        "properties": {
+          "gate": {
+            "$ref": "#/components/schemas/GateId"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "gate",
+          "reason"
+        ],
+        "title": "GateBlocked"
+      },
+      "GateId": {
+        "type": "string",
+        "enum": [
+          "G0",
+          "G1",
+          "G2",
+          "G3",
+          "G4",
+          "G5"
+        ],
+        "title": "GateId"
+      },
+      "GateState": {
+        "type": "string",
+        "enum": [
+          "passed",
+          "active",
+          "pending",
+          "blocked",
+          "skipped"
+        ],
+        "title": "GateState"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Health"
+      },
+      "LoopState": {
+        "type": "string",
+        "enum": [
+          "init",
+          "retrieve",
+          "decide",
+          "generate",
+          "verify",
+          "assemble",
+          "human_check",
+          "export",
+          "done",
+          "stopped",
+          "cancelled"
+        ],
+        "title": "LoopState",
+        "description": "The loop controller's states (PRD 10.2 state diagram)."
+      },
+      "Problem": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "Problem"
+      },
+      "Readiness": {
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "checks": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Checks",
+            "description": "metadata_store, embedding_index, model_backend"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ready",
+          "checks"
+        ],
+        "title": "Readiness"
+      },
+      "ReportAccepted": {
+        "properties": {
+          "report_id": {
+            "type": "string",
+            "title": "Report Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued for review",
+            "title": "Status",
+            "default": "queued for review"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report_id"
+        ],
+        "title": "ReportAccepted"
+      },
+      "ReviewDecision": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Item Id"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "drop"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "decision"
+        ],
+        "title": "ReviewDecision"
+      },
+      "ReviewRequest": {
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewDecision"
+            },
+            "type": "array",
+            "title": "Decisions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decisions"
+        ],
+        "title": "ReviewRequest",
+        "description": "G3: decisions on items in \"Needs human check\"."
+      },
+      "RightsRecord": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source"
+          },
+          "object_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Object Id"
+          },
+          "flag_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flag Field"
+          },
+          "flag_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flag Value"
+          },
+          "licence_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence String"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RightsStatus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "object_id",
+          "flag_field",
+          "flag_value",
+          "licence_string",
+          "checked_at",
+          "status"
+        ],
+        "title": "RightsRecord",
+        "description": "What the source states about rights, and where it says it. Not legal advice."
+      },
+      "RightsStatus": {
+        "type": "string",
+        "enum": [
+          "Open (as stated by source)",
+          "Unverified",
+          "Permission required"
+        ],
+        "title": "RightsStatus"
+      },
+      "RunCreated": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LoopState"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "state"
+        ],
+        "title": "RunCreated"
+      },
+      "RunView": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LoopState"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_banner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Banner",
+            "description": "Fixed wording; never hidden"
+          },
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/Gate"
+            },
+            "type": "array",
+            "title": "Gates"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BoardItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Cost"
+          },
+          "keep_local": {
+            "type": "boolean",
+            "title": "Keep Local"
+          },
+          "sent_to": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sent To",
+            "description": "Providers this brief was sent to",
+            "default": []
+          },
+          "read_only": {
+            "type": "boolean",
+            "title": "Read Only",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "state",
+          "gates",
+          "items",
+          "cost",
+          "keep_local"
+        ],
+        "title": "RunView"
+      },
+      "StopReason": {
+        "type": "string",
+        "enum": [
+          "budget_cap",
+          "step_cap",
+          "timeout",
+          "no_progress",
+          "pool_exhausted",
+          "source_unavailable",
+          "declined",
+          "cancelled"
+        ],
+        "title": "StopReason",
+        "description": "Why a run ended early (PRD 10.2). The value is the machine code; `banner` is the\nStopBanner title."
+      },
+      "UsageMode": {
+        "type": "string",
+        "enum": [
+          "reference_only",
+          "reproduction"
+        ],
+        "title": "UsageMode"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
