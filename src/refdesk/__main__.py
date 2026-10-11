@@ -6,6 +6,8 @@ rebuild met [--db PATH]
     Re-derive records from stored raw responses (no network). Use after a mapping change.
 stats [--db PATH]
     Record counts by rights status, and ingest progress.
+images met [--db PATH] [--dir data/images] [--limit N]
+    Cache images of open works only (resumable).
 eval [--retriever jaccard] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
 """
@@ -20,9 +22,10 @@ from pathlib import Path
 
 from refdesk.evals.golden import GoldenCase, corpus_version
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
+from refdesk.images import cache_images
 from refdesk.ingest import ingest, rebuild
 from refdesk.retrieval.metadata import JaccardRetriever
-from refdesk.sources.met import SOURCE, MetSource, MetUnavailable
+from refdesk.sources.met import SOURCE, MetClient, MetSource, MetUnavailable
 from refdesk.store import Store
 
 DEFAULT_DB = "data/refdesk.sqlite"
@@ -88,6 +91,11 @@ def main(argv: list[str] | None = None) -> int:
     p_rebuild.add_argument("--db", default=DEFAULT_DB)
     p_stats = commands.add_parser("stats", help="show store counts")
     p_stats.add_argument("--db", default=DEFAULT_DB)
+    p_images = commands.add_parser("images", help="cache images of open works")
+    p_images.add_argument("source", choices=["met"])
+    p_images.add_argument("--db", default=DEFAULT_DB)
+    p_images.add_argument("--dir", default="data/images")
+    p_images.add_argument("--limit", type=int, help="stop after N new downloads")
     p_eval = commands.add_parser("eval", help="evaluate a retriever on a golden set")
     p_eval.add_argument("--retriever", choices=sorted(RETRIEVERS), default="jaccard")
     p_eval.add_argument("--golden", default=DEFAULT_GOLDEN)
@@ -100,6 +108,17 @@ def main(argv: list[str] | None = None) -> int:
     with Store(args.db) as store:
         if args.command == "stats":
             _print_stats(store)
+            return 0
+        if args.command == "images":
+            try:
+                result = cache_images(store, MetClient(), Path(args.dir), limit=args.limit)
+            except (MetUnavailable, KeyboardInterrupt) as stop:
+                print(f"Stopped: {type(stop).__name__} {stop}. Progress is saved; re-run.")
+                return 1
+            print(
+                f"downloaded {result.downloaded}, already cached {result.already_cached}, "
+                f"skipped {dict(result.skipped)}"
+            )
             return 0
         if args.command == "eval":
             return _eval(store, args)

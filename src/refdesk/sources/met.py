@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import Counter
 from collections.abc import Callable, Iterator
@@ -123,6 +124,8 @@ def to_record(raw: dict[str, Any], *, checked_at: datetime) -> ArtworkRecord:
 class Transport(Protocol):
     def get_json(self, url: str) -> tuple[int, Any]: ...
 
+    def get_bytes(self, url: str) -> tuple[int, bytes]: ...
+
 
 class UrllibTransport:
     def __init__(self, timeout: float = 30.0):
@@ -135,6 +138,19 @@ class UrllibTransport:
                 return response.status, json.load(response)
         except urllib.error.HTTPError as error:
             return error.code, error.read().decode("utf-8", errors="replace")
+
+    def get_bytes(self, url: str) -> tuple[int, bytes]:
+        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                return response.status, response.read()
+        except urllib.error.HTTPError as error:
+            return error.code, b""
+
+
+# Image URLs come from museum records, which are untrusted input (CLAUDE.md). Only fetch
+# from the Met's own image host.
+IMAGE_HOSTS = frozenset({"images.metmuseum.org"})
 
 
 class MetClient:
@@ -167,10 +183,19 @@ class MetClient:
         self._last = self._clock()
 
     def get(self, path: str) -> Any:
-        url = BASE_URL + path
+        return self._request(BASE_URL + path, self.transport.get_json)
+
+    def get_bytes(self, url: str) -> bytes:
+        """Fetch an image, with the same throttle and backoff. Met image host only."""
+        host = urllib.parse.urlsplit(url).hostname
+        if urllib.parse.urlsplit(url).scheme != "https" or host not in IMAGE_HOSTS:
+            raise ValueError(f"refusing to fetch from {host!r}: not a Met image host")
+        return self._request(url, self.transport.get_bytes)
+
+    def _request(self, url: str, fetch: Callable[[str], tuple[int, Any]]) -> Any:
         for attempt in range(self.max_retries + 1):
             self._throttle()
-            status, body = self.transport.get_json(url)
+            status, body = fetch(url)
             if status == 200:
                 return body
             if status == 404:
