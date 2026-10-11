@@ -4,7 +4,7 @@
 - **Date:** 2026-10-11
 
 ## Context
-Kev-4B (about 8.4 GB served) and a 7-8B local generation model do not fit together in about 14 GB of free VRAM. Cheap cloud "flash" models (GLM, Claude) are available under budget. The skill being demonstrated is fine-tuning and running the decision model, not local generation (PRD 10, 12).
+Kev-4B (about 8.4 GB served) and a 7-8B local generation model do not fit together in about 14 GB of free VRAM. Cheap cloud "flash" models (GLM, DeepSeek) are available under budget. The skill being demonstrated is fine-tuning and running the decision model, not local generation (PRD 10, 12).
 
 ## Decision
 Tiers are a config list read by the router and the labelling pipeline. Start with `[local-small, cloud-flash]`, where local-small is a 3-4B Q4 model in Ollama. Rationales default to cloud flash. If the local tier fails the end-to-end quality bar, switch to `[cloud-flash, cloud-strong]`. Model IDs are pinned as dated IDs.

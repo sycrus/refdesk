@@ -363,11 +363,11 @@ flowchart LR
 Tiers:
 1. **Mock LLM server**: canned answers, configurable latency, injectable 429s and timeouts. Default for tests, infrastructure drills and CI. Built just before M3, behind the LLM client interface, so it mocks the real request shape.
 2. **Local model** (Ollama): a 3-4B instruct model at Q4. Kept as a routing tier only if the end-to-end test shows its rationales meet the quality bar.
-3. **Capped cloud model**: cheap "flash" models (GLM or Claude) are the default rationale generator. Spend cap enforced in the router.
+3. **Capped cloud model**: cheap "flash" models (GLM or DeepSeek) are the default rationale generator. Spend cap enforced in the router.
 
 The routing tiers are a **config list**, not code. Start with `[local-small, cloud-flash]`. If the local tier fails the end-to-end quality bar, switch to `[cloud-flash, cloud-strong]` and record it in ADR-020. The router and the labelling pipeline read the options from config. Every tier pins a dated model ID, never an alias.
 
-**Providers and data flow.** Each provider in config has a `family` tag (`anthropic`, `zhipu`, `qwen-local`). `keep_local` blocks every non-local provider, GLM included. Sending real operator briefs to a cloud provider needs that provider's switch in S9, off by default. The UI and audit log show where each brief was sent.
+**Providers and data flow.** Each provider in config has a `family` tag (`deepseek`, `zhipu`, `qwen-local`). `keep_local` blocks every non-local provider, GLM and DeepSeek included. Both cloud providers are based in China, so the per-provider switches below are the control for client data. Where a provider only offers alias model names (DeepSeek's `deepseek-flash` and `deepseek-v4-pro`, checked 2026-10-11; retired names are silently served by newer models), record the `model` field from every response in the run manifest, so a silent upgrade shows up as a version change. Sending real operator briefs to a cloud provider needs that provider's switch in S9, off by default. The UI and audit log show where each brief was sent.
 
 **Paid calls.** Three layers, all required: a key in `.env` (the user fills it in), a per-job budget in `config/budgets.yaml`, and a dry run that prints estimated calls, tokens and cost, followed by a run with `--approve` recorded in the run manifest. A blocked paid call is a hard error, never a silent fall back to the mock.
 

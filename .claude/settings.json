@@ -91,7 +91,9 @@
       "WebFetch(domain:docs.astral.sh)",
       "WebFetch(domain:code.claude.com)",
       "WebFetch(domain:docs.github.com)",
-      "WebFetch(domain:pypi.org)"
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:api-docs.deepseek.com)",
+      "WebFetch(domain:docs.z.ai)"
     ],
     "ask": [
       "Bash(git push*)",
