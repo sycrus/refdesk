@@ -105,7 +105,8 @@ class TestRun:
 
     def test_reproduction_cases_report_the_open_rights_share(self, result):
         rows = {r["id"]: r for r in result.rows}
-        assert rows["g0-002"]["open_share"] == 0.5  # met:3 is permission required
+        # met:3 is permission required, so reproduction mode filters it out (#35).
+        assert rows["g0-002"]["open_share"] == 1.0
         assert rows["g0-001"]["open_share"] is None  # reference-only case
 
     def test_every_metric_has_an_interval(self, result):
@@ -165,3 +166,17 @@ class TestOutputs:
         policy.write_text("# Eval gate policy\n\n- **Status:** draft. Tripwire only.\n")
         report = write_outputs(result, root=tmp_path, date="2026-10-11")["report"]
         assert "Gates: draft. Tripwire only." in report.read_text("utf-8")
+
+
+def test_case_query_carries_the_usage_mode():
+    from refdesk.evals.harness import case_query
+
+    assert case_query(CASES[1], k=12).usage_mode == "reproduction"
+
+
+def test_a_second_run_with_a_different_config_never_overwrites_a_report(tmp_path):
+    first = run_eval(JaccardRetriever(RECORDS), CASES, RECORDS, config(k=2))
+    second = run_eval(JaccardRetriever(RECORDS), CASES, RECORDS, config(k=3))
+    a = write_outputs(first, root=tmp_path, date="2026-10-11")["report"]
+    b = write_outputs(second, root=tmp_path, date="2026-10-11")["report"]
+    assert a != b and a.exists() and b.exists()

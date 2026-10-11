@@ -19,7 +19,7 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable
 
-from refdesk.retrieval import Hit, Query
+from refdesk.retrieval import Hit, Query, allowed
 from refdesk.schema import ArtworkRecord
 
 STOPWORDS = frozenset(
@@ -87,6 +87,8 @@ def attributes(record: ArtworkRecord) -> frozenset[str]:
 
 class JaccardRetriever:
     def __init__(self, records: Iterable[ArtworkRecord]):
+        records = list(records)
+        self.records: dict[str, ArtworkRecord] = {r.id: r for r in records}
         self.attrs: dict[str, frozenset[str]] = {r.id: attributes(r) for r in records}
         # word -> attributes whose value contains it ("gogh" -> "artist:vincent van gogh")
         self.vocab: dict[str, set[str]] = defaultdict(set)
@@ -126,6 +128,8 @@ class JaccardRetriever:
         avoid_attrs = set().union(*(self._lookup(a) for a in query.avoid if ":" not in a))
         hits = []
         for record_id, attrs in self.attrs.items():
+            if not allowed(self.records[record_id], query):
+                continue
             if record_id == query.anchor_id or record_id in avoid_ids or attrs & avoid_attrs:
                 continue
             shared = q & attrs

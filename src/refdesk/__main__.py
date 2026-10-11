@@ -24,13 +24,12 @@ from refdesk.evals.golden import GoldenCase, corpus_version
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.images import cache_images
 from refdesk.ingest import ingest, rebuild
-from refdesk.retrieval.metadata import JaccardRetriever
+from refdesk.retrieval.registry import RETRIEVERS
 from refdesk.sources.met import SOURCE, MetClient, MetSource, MetUnavailable
 from refdesk.store import Store
 
 DEFAULT_DB = "data/refdesk.sqlite"
 DEFAULT_GOLDEN = "evals/golden/golden-v0-synthetic.jsonl"
-RETRIEVERS = {"jaccard": JaccardRetriever}
 
 
 def _print_stats(store: Store) -> None:
