@@ -6,18 +6,28 @@ rebuild met [--db PATH]
     Re-derive records from stored raw responses (no network). Use after a mapping change.
 stats [--db PATH]
     Record counts by rights status, and ingest progress.
+eval [--retriever jaccard] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
+    Run a retriever over a golden set; write manifest, report and history row.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from datetime import date
+from pathlib import Path
 
+from refdesk.evals.golden import GoldenCase, corpus_version
+from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.ingest import ingest, rebuild
+from refdesk.retrieval.metadata import JaccardRetriever
 from refdesk.sources.met import SOURCE, MetSource, MetUnavailable
 from refdesk.store import Store
 
 DEFAULT_DB = "data/refdesk.sqlite"
+DEFAULT_GOLDEN = "evals/golden/golden-v0-synthetic.jsonl"
+RETRIEVERS = {"jaccard": JaccardRetriever}
 
 
 def _print_stats(store: Store) -> None:
@@ -26,6 +36,38 @@ def _print_stats(store: Store) -> None:
         print(f"  {status}: {n}")
     for outcome, n in sorted(store.progress_counts(SOURCE).items()):
         print(f"  progress {outcome}: {n}")
+
+
+def _eval(store: Store, args: argparse.Namespace) -> int:
+    golden = Path(args.golden)
+    lines = [line for line in golden.read_text(encoding="utf-8").splitlines() if line]
+    cases = [GoldenCase(**json.loads(line)) for line in lines]
+    records = list(store.iter_records())
+    corpus = corpus_version(records)
+    golden_corpus = {c.corpus_version for c in cases}
+    if golden_corpus != {corpus}:
+        print(f"Not comparable: golden set is for {golden_corpus}, the store is {corpus}.")
+        return 2
+    sha, dirty = git_state(Path.cwd())
+    config = EvalConfig(
+        retriever=args.retriever,
+        retriever_params={},
+        k=args.k,
+        seed=args.seed,
+        n_boot=args.n_boot,
+        golden_path=golden.as_posix(),
+        golden_sha256=file_sha256(golden),
+        golden_version=cases[0].version,
+        corpus_version=corpus,
+        git_sha=sha,
+        git_dirty=dirty,
+    )
+    result = run_eval(RETRIEVERS[args.retriever](records), cases, records, config)
+    paths = write_outputs(result, root=Path.cwd(), date=date.today().isoformat())
+    for metric, s in result.summary.items():
+        print(f"{metric}: {s['mean']:.3f} [{s['low']:.3f}, {s['high']:.3f}] n={s['n']}")
+    print(f"config hash {config.config_hash()}; report {paths['report'].as_posix()}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -46,12 +88,21 @@ def main(argv: list[str] | None = None) -> int:
     p_rebuild.add_argument("--db", default=DEFAULT_DB)
     p_stats = commands.add_parser("stats", help="show store counts")
     p_stats.add_argument("--db", default=DEFAULT_DB)
+    p_eval = commands.add_parser("eval", help="evaluate a retriever on a golden set")
+    p_eval.add_argument("--retriever", choices=sorted(RETRIEVERS), default="jaccard")
+    p_eval.add_argument("--golden", default=DEFAULT_GOLDEN)
+    p_eval.add_argument("--k", type=int, default=12)
+    p_eval.add_argument("--seed", type=int, default=0)
+    p_eval.add_argument("--n-boot", type=int, default=2000)
+    p_eval.add_argument("--db", default=DEFAULT_DB)
     args = parser.parse_args(argv)
 
     with Store(args.db) as store:
         if args.command == "stats":
             _print_stats(store)
             return 0
+        if args.command == "eval":
+            return _eval(store, args)
         if args.command == "rebuild":
             result = rebuild(store, args.source)
             print(f"rebuilt {result.rebuilt}, missing raw {len(result.missing_raw)}")

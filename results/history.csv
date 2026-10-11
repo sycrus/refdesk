@@ -1,0 +1,5 @@
+date,commit,retriever,golden_version,corpus_version,metric,mean,low,high,n,cost_usd,wall_clock_s,config_hash
+2026-10-11,a18ad1a1a750,jaccard,v0-synthetic,met:2588:d188937d8a53,recall,0.6519,0.5323,0.7655,28,0.00,0.03,02add712a369
+2026-10-11,a18ad1a1a750,jaccard,v0-synthetic,met:2588:d188937d8a53,precision,0.6310,0.5030,0.7500,28,0.00,0.03,02add712a369
+2026-10-11,a18ad1a1a750,jaccard,v0-synthetic,met:2588:d188937d8a53,mrr,0.7750,0.6417,0.8929,28,0.00,0.03,02add712a369
+2026-10-11,a18ad1a1a750,jaccard,v0-synthetic,met:2588:d188937d8a53,open_share,0.9583,0.9167,1.0000,2,0.00,0.03,02add712a369
