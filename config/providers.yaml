@@ -16,10 +16,15 @@ providers:
     base_url: https://api.deepseek.com  # OpenAI-compatible; checked 2026-10-11 (api-docs.deepseek.com)
     key_env: DEEPSEEK_API_KEY
   glm:
+    # Do NOT use a GLM Coding Plan key here. Z.ai's usage policy: "GLM Coding Plan may
+    # only be used within officially supported tools and products"; violations can lead to
+    # rate limiting, account freezing and bans (docs.z.ai/devpack/usage-policy, checked
+    # 2026-10-12). refdesk is not a supported tool. Use only a pay-as-you-go API key, with
+    # the general endpoint (https://api.z.ai/api/paas/v4), if GLM is used at all.
     family: zhipu
     cloud: true
     paid: true
-    base_url_env: GLM_BASE_URL          # set in .env from docs.z.ai
+    base_url_env: GLM_BASE_URL
     key_env: GLM_API_KEY
   ollama:
     family: qwen-local
@@ -36,18 +41,21 @@ tiers:
   local-small:
     provider: ollama
     model: null          # a 3-4B instruct model, chosen with the local-tier test (ADR-020)
+  # DeepSeek prices: api-docs.deepseek.com/quick_start/pricing, checked 2026-10-12, in "$".
+  # Configured at PEAK, cache-miss input, so the budget check is a true worst case.
+  # Off-peak (outside 01:00-04:00 and 06:00-10:00 UTC on weekdays) is half price.
   cloud-flash:
     provider: deepseek
-    model: deepseek-flash  # alias: the served model can change; the client records the reported model
-    price_usd_per_mtok: {input: null, output: null}  # [Joe] from DeepSeek's pricing page
+    model: deepseek-flash  # currently DeepSeek-V4.1-Flash; alias, so the reported model is recorded
+    price_usd_per_mtok: {input: 0.30, output: 1.20}
   cloud-strong:
     provider: deepseek
-    model: deepseek-v4-pro
-    price_usd_per_mtok: {input: null, output: null}  # [Joe]
+    model: deepseek-v4-pro  # currently DeepSeek-V4-Pro-0813
+    price_usd_per_mtok: {input: 1.32, output: 3.96}
   glm-flash:
     provider: glm
-    model: null          # [Joe] from docs.z.ai
-    price_usd_per_mtok: {input: null, output: null}  # [Joe]
+    model: null          # off until a pay-as-you-go key is chosen (see the glm provider note)
+    price_usd_per_mtok: {input: null, output: null}
   mock:
     provider: mock
     model: mock-1
