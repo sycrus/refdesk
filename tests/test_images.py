@@ -133,3 +133,30 @@ class TestImageHost:
             c.get_bytes("https://example.org/x.jpg")
         with pytest.raises(ValueError):
             c.get_bytes("http://images.metmuseum.org/x.jpg")  # not https
+
+
+class TestUrlEncoding:
+    def test_spaces_in_the_image_path_are_percent_encoded(self):
+        # Real Met URL shape: ".../web-large/SF 11.126.2.jpg" (8 such URLs in the slice).
+        transport = BytesTransport()
+        client(transport).get_bytes(
+            "https://images.metmuseum.org/CRDImages/ep/web-large/SF 11.126.2.jpg"
+        )
+        assert transport.fetched == [
+            "https://images.metmuseum.org/CRDImages/ep/web-large/SF%2011.126.2.jpg"
+        ]
+
+    def test_an_already_encoded_url_is_not_double_encoded(self):
+        transport = BytesTransport()
+        client(transport).get_bytes("https://images.metmuseum.org/x/SF%2011.jpg")
+        assert transport.fetched == ["https://images.metmuseum.org/x/SF%2011.jpg"]
+
+
+def test_an_off_host_url_fails_that_image_only_and_the_run_continues(store, tmp_path):
+    bad = rec("7").model_copy(update={"image_url": "https://example.org/7.jpg"})
+    store.save(bad, {"objectID": 7})
+    transport = BytesTransport()
+    result = cache_images(store, client(transport), tmp_path / "images")
+    assert "met:7" in result.failed
+    assert result.downloaded == 2  # met:1 and met:2 still downloaded
+    assert store.image_path("met:7") is None  # not marked done, so a rerun retries

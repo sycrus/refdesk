@@ -117,9 +117,11 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             print(
                 f"downloaded {result.downloaded}, already cached {result.already_cached}, "
-                f"skipped {dict(result.skipped)}"
+                f"skipped {dict(result.skipped)}, failed {len(result.failed)}"
             )
-            return 0
+            for record_id, reason in result.failed.items():
+                print(f"  failed {record_id}: {reason}")
+            return 1 if result.failed else 0
         if args.command == "eval":
             return _eval(store, args)
         if args.command == "rebuild":

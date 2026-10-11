@@ -187,10 +187,13 @@ class MetClient:
 
     def get_bytes(self, url: str) -> bytes:
         """Fetch an image, with the same throttle and backoff. Met image host only."""
-        host = urllib.parse.urlsplit(url).hostname
-        if urllib.parse.urlsplit(url).scheme != "https" or host not in IMAGE_HOSTS:
-            raise ValueError(f"refusing to fetch from {host!r}: not a Met image host")
-        return self._request(url, self.transport.get_bytes)
+        parts = urllib.parse.urlsplit(url)
+        if parts.scheme != "https" or parts.hostname not in IMAGE_HOSTS:
+            raise ValueError(f"refusing to fetch from {parts.hostname!r}: not a Met image host")
+        # Some Met image paths contain spaces ("SF 11.126.2.jpg"). Percent-encode the path;
+        # unquote first so an already-encoded path is not encoded twice.
+        path = urllib.parse.quote(urllib.parse.unquote(parts.path), safe="/")
+        return self._request(parts._replace(path=path).geturl(), self.transport.get_bytes)
 
     def _request(self, url: str, fetch: Callable[[str], tuple[int, Any]]) -> Any:
         for attempt in range(self.max_retries + 1):

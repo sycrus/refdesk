@@ -12,6 +12,7 @@ image URL. Resumable: a record whose file exists with the recorded hash is not f
 from __future__ import annotations
 
 import hashlib
+import http.client
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -26,6 +27,7 @@ from refdesk.store import Store
 class CacheResult:
     downloaded: int = 0
     already_cached: int = 0
+    failed: dict[str, str] = field(default_factory=dict)  # record ID -> reason
     skipped: Counter = field(default_factory=Counter)
 
 
@@ -54,7 +56,13 @@ def cache_images(
         if limit is not None and result.downloaded >= limit:
             result.skipped["over_limit"] += 1  # keep counting so the totals stay complete
             continue
-        data = client.get_bytes(record.image_url)  # MetUnavailable propagates; progress kept
+        try:
+            data = client.get_bytes(record.image_url)  # MetUnavailable propagates; progress kept
+        except (ValueError, http.client.InvalidURL) as error:
+            # A malformed or off-host URL fails this image only; it is not marked done,
+            # so a rerun tries again. Outages (MetUnavailable) still stop the run.
+            result.failed[record.id] = f"{type(error).__name__}: {error}"[:200]
+            continue
         suffix = PurePosixPath(urlsplit(record.image_url).path).suffix or ".jpg"
         relative = Path(record.source) / f"{record.object_id}{suffix}"
         target = cache_dir / relative
