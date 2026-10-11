@@ -158,3 +158,10 @@ class TestOutputs:
         second = count(write_outputs(result, root=tmp_path, date="2026-10-11")["history"])
         assert first == len(result.summary)
         assert second == 2 * first  # appended, not overwritten
+
+    def test_report_quotes_the_gate_policy_status(self, result, tmp_path):
+        policy = tmp_path / "docs" / "eval-gate-policy.md"
+        policy.parent.mkdir(parents=True)
+        policy.write_text("# Eval gate policy\n\n- **Status:** draft. Tripwire only.\n")
+        report = write_outputs(result, root=tmp_path, date="2026-10-11")["report"]
+        assert "Gates: draft. Tripwire only." in report.read_text("utf-8")

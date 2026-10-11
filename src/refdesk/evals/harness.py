@@ -10,7 +10,7 @@ and per slice, and writes three things:
 - one row per metric in `results/history.csv`.
 
 No model is called yet (retrieval only), so cost is 0 and the mock server is not needed.
-Nothing is gated: `docs/eval-gate-policy.md` does not exist yet (run-evals skill).
+Gates are governed by `docs/eval-gate-policy.md`; every report quotes its status line.
 """
 
 from __future__ import annotations
@@ -187,7 +187,21 @@ def _fmt(s: dict[str, float]) -> str:
     return f"{s['mean']:.3f} [{s['low']:.3f}, {s['high']:.3f}] (n={s['n']})"
 
 
-def _report(result: EvalResult, date: str) -> str:
+GATE_POLICY = Path("docs") / "eval-gate-policy.md"
+
+
+def gate_policy_status(root: Path) -> str:
+    """The policy's status line, quoted in every report so readers know what was gated."""
+    path = root / GATE_POLICY
+    if not path.exists():
+        return "**No gate policy** (`docs/eval-gate-policy.md` does not exist). Nothing is gated."
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("- **Status:**"):
+            return line.removeprefix("- **Status:**").strip() + " (`docs/eval-gate-policy.md`)"
+    return "`docs/eval-gate-policy.md` has no status line. Treat nothing as gated."
+
+
+def _report(result: EvalResult, date: str, gates: str) -> str:
     c, h = result.config, result.config.config_hash()
     synthetic = "synthetic" in c.golden_version
     lines = [
@@ -214,8 +228,7 @@ def _report(result: EvalResult, date: str) -> str:
         f"Bootstrap: {c.n_boot} resamples, seed {c.seed}",
         f"- Deterministic across two runs: {'yes' if result.deterministic else '**no**'}",
         f"- Wall-clock: {result.wall_clock_s:.2f} s. Cost: USD {result.cost_usd:.2f}",
-        "- Gates: **No gate policy** (`docs/eval-gate-policy.md` does not exist). "
-        "Nothing is gated on these numbers.",
+        f"- Gates: {gates}",
         "",
         "## Scores (mean with 95% CI)",
         "",
@@ -276,7 +289,7 @@ def write_outputs(result: EvalResult, *, root: Path, date: str) -> dict[str, Pat
 
     report = root / "evals" / "reports" / f"eval-report-{date}-{c.retriever}.md"
     report.parent.mkdir(parents=True, exist_ok=True)
-    report.write_text(_report(result, date), encoding="utf-8")
+    report.write_text(_report(result, date, gate_policy_status(root)), encoding="utf-8")
 
     history = root / "results" / "history.csv"
     history.parent.mkdir(parents=True, exist_ok=True)
