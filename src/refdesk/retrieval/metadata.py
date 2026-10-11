@@ -65,6 +65,13 @@ def _period_century(period: str) -> str | None:
     return match.group(1) if match else _century(period)
 
 
+def _record_century(record: ArtworkRecord) -> str | None:
+    """The structured start year if the source gives one, else the display date."""
+    if record.date_begin is not None:
+        return str(record.date_begin // 100 + 1) if record.date_begin > 0 else None
+    return _period_century(record.date or "")
+
+
 def attributes(record: ArtworkRecord) -> frozenset[str]:
     attrs: set[str] = set()
     attrs.update(f"tag:{_phrase(t)}" for t in record.subject_tags if _phrase(t))
@@ -73,7 +80,7 @@ def attributes(record: ArtworkRecord) -> frozenset[str]:
         attrs.add(f"artist:{record.artist.strip().lower()}")
     if record.classification:
         attrs.add(f"classification:{_phrase(record.classification)}")
-    if century := _century(record.date):
+    if century := _record_century(record):
         attrs.add(f"century:{century}")
     return frozenset(attrs)
 

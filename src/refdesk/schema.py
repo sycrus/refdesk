@@ -79,6 +79,8 @@ class ArtworkRecord(_Frozen):
     title: str | None = None
     artist: str | None = None
     date: str | None = None  # the source's display date, verbatim
+    date_begin: int | None = None  # structured start year from the source (negative = BCE)
+    date_end: int | None = None  # structured end year from the source
     medium: str | None = None
     classification: str | None = None
     subject_tags: tuple[str, ...] = ()
@@ -91,6 +93,8 @@ class ArtworkRecord(_Frozen):
     def _consistent_identity(self) -> ArtworkRecord:
         if self.id != f"{self.source}:{self.object_id}":
             raise ValueError(f"id must be '{self.source}:{self.object_id}'")
+        if None not in (self.date_begin, self.date_end) and self.date_begin > self.date_end:
+            raise ValueError("date_begin must not be after date_end")
         if (self.rights.source, self.rights.object_id) != (self.source, self.object_id):
             raise ValueError("rights record belongs to a different object")
         return self

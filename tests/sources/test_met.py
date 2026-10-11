@@ -233,3 +233,25 @@ class TestPaintingClassifications:
         c, _, _ = client([(200, raw)], min_interval=0)
         outcome = met.MetSource(c, now=lambda: CHECKED).fetch_one(436535)
         assert outcome == met.Skipped(436535, f"classification:{classification}")
+
+
+class TestDateRange:
+    def test_structured_years_are_mapped(self):
+        r = met.to_record(OPEN, checked_at=CHECKED)
+        assert (r.date_begin, r.date_end) == (1889, 1889)
+
+    def test_years_are_kept_when_the_display_date_is_empty(self):
+        raw = copy.deepcopy(OPEN) | {
+            "objectDate": "",
+            "objectBeginDate": 1327,
+            "objectEndDate": 1348,
+        }
+        r = met.to_record(raw, checked_at=CHECKED)
+        assert r.date is None
+        assert (r.date_begin, r.date_end) == (1327, 1348)
+
+    @pytest.mark.parametrize("value", [None, "1500", True, 1.5])
+    def test_non_integer_years_are_not_stored(self, value):
+        raw = copy.deepcopy(OPEN) | {"objectBeginDate": value, "objectEndDate": value}
+        r = met.to_record(raw, checked_at=CHECKED)
+        assert r.date_begin is None and r.date_end is None

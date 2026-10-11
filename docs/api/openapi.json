@@ -645,6 +645,28 @@
             ],
             "title": "Date"
           },
+          "date_begin": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Begin"
+          },
+          "date_end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date End"
+          },
           "medium": {
             "anyOf": [
               {

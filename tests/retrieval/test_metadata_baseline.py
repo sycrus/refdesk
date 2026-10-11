@@ -192,3 +192,16 @@ class TestConditionMapping:
     def test_each_condition_becomes_its_named_attribute(self, conditions, expected):
         retriever = JaccardRetriever(CORPUS)
         assert retriever.query_attributes(Query(conditions=conditions)) == expected
+
+
+class TestCenturyFromStructuredYears:
+    def test_begin_year_is_used_when_the_display_date_is_empty(self):
+        r = rec("9").model_copy(update={"date_begin": 1327, "date_end": 1348})
+        assert "century:14" in attributes(r)
+
+    def test_begin_year_wins_over_the_display_date(self):
+        r = rec("9", date="ca. 1650").model_copy(update={"date_begin": 1640})
+        assert "century:17" in attributes(r)
+
+    def test_ordinal_display_date_without_years(self):
+        assert "century:17" in attributes(rec("9", date="early 17th century"))

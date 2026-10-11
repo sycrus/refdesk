@@ -102,3 +102,16 @@ class TestRightsInvariants:
     def test_source_and_object_id_are_required(self):
         with pytest.raises(ValidationError):
             rights(source="")
+
+
+class TestDateRange:
+    def test_begin_and_end_years_are_optional(self):
+        r = record()
+        assert r.date_begin is None and r.date_end is None
+
+    def test_begin_after_end_is_rejected(self):
+        with pytest.raises(ValidationError, match="date_begin"):
+            record(date_begin=1900, date_end=1800)
+
+    def test_bce_years_are_allowed(self):
+        assert record(date_begin=-500, date_end=-450).date_begin == -500
