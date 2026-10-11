@@ -12,6 +12,7 @@ leaking into prompt files. It also counts coverage so gaps are visible.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections import Counter
@@ -19,6 +20,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+from refdesk.schema import ArtworkRecord, RightsStatus
 
 NEAR_DUPLICATE = 0.8  # token Jaccard between two briefs
 _WORD = re.compile(r"[a-z0-9]+")
@@ -120,3 +123,57 @@ def validate_cases(
     report.counts["tags"] = dict(Counter(t for c in report.cases for t in c.tags))
     report.referenced_records = len({e.record_id for c in report.cases for e in c.expected})
     return report
+
+
+# Rules: how golden-v0 expected references are derived. Every clause must hold (AND).
+# Deliberately plain so anyone can re-derive a case by hand from the records.
+
+
+class RuleError(ValueError):
+    pass
+
+
+def _tags(record: ArtworkRecord) -> set[str]:
+    return {t.lower() for t in record.subject_tags}
+
+
+def _century(record: ArtworkRecord) -> int | None:
+    begin = record.date_begin
+    return begin // 100 + 1 if begin is not None and begin > 0 else None
+
+
+def _words(text: str | None) -> set[str]:
+    return set(_WORD.findall((text or "").lower()))
+
+
+_CLAUSES: dict[str, Any] = {
+    "tags_all": lambda r, v: {t.lower() for t in v} <= _tags(r),
+    "tags_any": lambda r, v: bool({t.lower() for t in v} & _tags(r)),
+    "century": lambda r, v: _century(r) == v,
+    "year_range": lambda r, v: r.date_begin is not None and v[0] <= r.date_begin <= v[1],
+    "title_any": lambda r, v: bool({w.lower() for w in v} & _words(r.title)),
+    "medium_any": lambda r, v: bool({w.lower() for w in v} & _words(r.medium)),
+    "artist_contains": lambda r, v: v.lower() in (r.artist or "").lower(),
+    "artist_excludes": lambda r, v: v.lower() not in (r.artist or "").lower(),
+    "classification": lambda r, v: r.classification in v,
+    "rights": lambda r, v: v == "open" and r.rights.status is RightsStatus.OPEN,
+    "exclude_ids": lambda r, v: r.id not in v,
+}
+
+
+def apply_rule(rule: dict[str, Any], records: list[ArtworkRecord]) -> list[str]:
+    """Record IDs (sorted) that satisfy every clause of the rule."""
+    if not rule:
+        raise RuleError("a rule needs at least one clause")
+    unknown = set(rule) - set(_CLAUSES)
+    if unknown:
+        raise RuleError(f"unknown rule clause(s): {sorted(unknown)}")
+    return sorted(r.id for r in records if all(_CLAUSES[k](r, v) for k, v in rule.items()))
+
+
+def corpus_version(records: list[ArtworkRecord]) -> str:
+    """'<source>:<count>:<hash of sorted IDs>'. Changes whenever the corpus does."""
+    ids = sorted(r.id for r in records)
+    sources = "+".join(sorted({r.source for r in records}))
+    digest = hashlib.sha256("\n".join(ids).encode()).hexdigest()[:12]
+    return f"{sources}:{len(ids)}:{digest}"

@@ -99,9 +99,7 @@ class TestValidateCases:
         assert any("line 1" in e for e in report.errors)
 
     def test_leakage_when_a_brief_appears_in_prompt_text(self):
-        prompts = {
-            "prompts/rationale.txt": "Example: " + case()["brief"]
-        }
+        prompts = {"prompts/rationale.txt": "Example: " + case()["brief"]}
         report = validate_cases(lines(case()), CORPUS, CORPUS_VERSION, prompt_texts=prompts)
         assert any("leak" in e for e in report.errors)
 
