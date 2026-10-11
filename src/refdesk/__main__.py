@@ -10,6 +10,8 @@ images met [--db PATH] [--dir data/images] [--limit N]
     Cache images of open works only (resumable).
 eval [--retriever jaccard] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
+compare HASH_A HASH_B
+    Paired comparison of two eval runs (B - A per case, with a 95% CI).
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+from refdesk.evals.compare import NotComparable, compare_runs, format_comparison
 from refdesk.evals.golden import GoldenCase, corpus_version
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.images import cache_images
@@ -95,6 +98,10 @@ def main(argv: list[str] | None = None) -> int:
     p_images.add_argument("--db", default=DEFAULT_DB)
     p_images.add_argument("--dir", default="data/images")
     p_images.add_argument("--limit", type=int, help="stop after N new downloads")
+    p_compare = commands.add_parser("compare", help="paired comparison of two eval runs")
+    p_compare.add_argument("run_a")
+    p_compare.add_argument("run_b")
+    p_compare.add_argument("--db", default=DEFAULT_DB)
     p_eval = commands.add_parser("eval", help="evaluate a retriever on a golden set")
     p_eval.add_argument("--retriever", choices=sorted(RETRIEVERS), default="jaccard")
     p_eval.add_argument("--golden", default=DEFAULT_GOLDEN)
@@ -121,6 +128,13 @@ def main(argv: list[str] | None = None) -> int:
             for record_id, reason in result.failed.items():
                 print(f"  failed {record_id}: {reason}")
             return 1 if result.failed else 0
+        if args.command == "compare":
+            try:
+                print(format_comparison(compare_runs(Path.cwd(), args.run_a, args.run_b)))
+            except NotComparable as error:
+                print(f"Not comparable: {error}")
+                return 2
+            return 0
         if args.command == "eval":
             return _eval(store, args)
         if args.command == "rebuild":
