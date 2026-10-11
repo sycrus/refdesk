@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from refdesk.ingest import ingest
+from refdesk.ingest import ingest, rebuild
 from refdesk.schema import ArtworkRecord, RightsStatus
 from refdesk.sources import met
 from refdesk.store import Store
@@ -163,3 +163,18 @@ class TestRecheckSkipped:
 def test_iter_records_returns_every_record_in_id_order(store):
     ingest(store, source(UrlTransport(OBJECTS)))
     assert [r.id for r in store.iter_records("met")] == ["met:1", "met:2"]
+
+
+class TestRebuild:
+    def test_rebuild_rederives_records_from_stored_raw_without_network(self, store):
+        ingest(store, source(UrlTransport(OBJECTS)))
+        # Simulate records written by the old mapping, which dropped the years.
+        old = store.get_record("met:1").model_copy(update={"date_begin": None, "date_end": None})
+        store.save(old, store.get_raw(old.raw_record_ref))
+        assert store.get_record("met:1").date_begin is None
+
+        result = rebuild(store, "met")
+        record = store.get_record("met:1")
+        assert (record.date_begin, record.date_end) == (1889, 1889)
+        assert record.rights.checked_at == old.rights.checked_at  # rights were not re-checked
+        assert result.rebuilt == 2 and store.count_records() == 2

@@ -63,6 +63,12 @@ def _text(raw: dict[str, Any], key: str) -> str | None:
     return value or None
 
 
+def _year(raw: dict[str, Any], key: str) -> int | None:
+    # Structured years from the source. Only real integers count (bool is an int subclass).
+    value = raw.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _rights(raw: dict[str, Any], checked_at: datetime) -> RightsRecord:
     object_id = str(raw["objectID"])
     if FLAG_FIELD not in raw:
@@ -100,6 +106,8 @@ def to_record(raw: dict[str, Any], *, checked_at: datetime) -> ArtworkRecord:
         title=_text(raw, "title"),
         artist=artist or None,
         date=_text(raw, "objectDate"),
+        date_begin=_year(raw, "objectBeginDate"),
+        date_end=_year(raw, "objectEndDate"),
         medium=_text(raw, "medium"),
         classification=_text(raw, "classification"),
         subject_tags=tuple(t["term"] for t in (raw.get("tags") or []) if t.get("term")),
