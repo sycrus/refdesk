@@ -40,6 +40,14 @@ CREATE TABLE IF NOT EXISTS raw_records (
     body       TEXT NOT NULL,      -- the source response, verbatim JSON
     fetched_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS images (
+    record_id  TEXT PRIMARY KEY,
+    url        TEXT NOT NULL,
+    path       TEXT NOT NULL,      -- file under the image cache directory
+    sha256     TEXT NOT NULL,
+    bytes      INTEGER NOT NULL,
+    fetched_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ingest_progress (
     source     TEXT NOT NULL,
     object_id  TEXT NOT NULL,
@@ -137,6 +145,27 @@ class Store:
             "SELECT outcome FROM ingest_progress WHERE source = ?", (source,)
         ).fetchall()
         return dict(Counter(row[0] for row in rows))
+
+    def save_image(self, record_id: str, url: str, path: str, sha256: str, size: int) -> None:
+        with self.db:
+            self.db.execute(
+                "INSERT OR REPLACE INTO images (record_id, url, path, sha256, bytes, fetched_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (record_id, url, path, sha256, size, _now()),
+            )
+
+    def get_image(self, record_id: str) -> dict[str, Any] | None:
+        row = self.db.execute(
+            "SELECT record_id, url, path, sha256, bytes, fetched_at FROM images "
+            "WHERE record_id = ?",
+            (record_id,),
+        ).fetchone()
+        keys = ("record_id", "url", "path", "sha256", "bytes", "fetched_at")
+        return dict(zip(keys, row, strict=True)) if row else None
+
+    def image_path(self, record_id: str) -> str | None:
+        row = self.get_image(record_id)
+        return row["path"] if row else None
 
     def iter_records(self, source: str | None = None) -> Iterator[ArtworkRecord]:
         """All stored records, ordered by ID (deterministic for baselines and evals)."""
