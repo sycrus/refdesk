@@ -8,8 +8,12 @@ Tags matter for the MCP server (FR-12, ADR-015): it may expose only `read` opera
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from refdesk import __version__
 from refdesk.api.models import (
@@ -145,3 +149,31 @@ def readyz():
         ("metadata_store", "embedding_index", "model_backend"), "not implemented"
     )
     return JSONResponse(status_code=503, content=Readiness(ready=False, checks=checks).model_dump())
+
+
+# The UI (PRD 8A, issue #41): the static build of ui/, served at /. It is mounted after
+# every API route, so API paths always win. It is not an API operation, so it stays out
+# of the OpenAPI spec and can never be exposed through MCP. Without it, the operator
+# would need a second server for the UI (ADR-017 chose one service).
+UI_DIST = Path(
+    os.environ.get("REFDESK_UI_DIST", Path(__file__).resolve().parents[3] / "ui" / "dist")
+)
+
+
+def mount_ui(target: FastAPI, dist: Path) -> None:
+    """Serve `dist` at /, or, if the UI is not built, say how to build it. Checked once at
+    startup: restart the API after the first `npm run build`."""
+    if (dist / "index.html").is_file():
+        target.mount("/", StaticFiles(directory=dist, html=True), name="ui")
+        return
+
+    @target.get("/", include_in_schema=False)
+    def ui_not_built():
+        problem = Problem(
+            code="ui_not_built",
+            message=f"UI not built: run `npm run build` in ui/ ({dist} has no index.html).",
+        )
+        return JSONResponse(status_code=503, content=problem.model_dump())
+
+
+mount_ui(app, UI_DIST)
