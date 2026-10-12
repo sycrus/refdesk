@@ -171,13 +171,19 @@ def run_eval(
     return EvalResult(config, rows, summary, slices, failures, deterministic, wall_clock)
 
 
+OUTPUT_PATHS = ("evals/reports", "results/history.csv")  # written by write_outputs
+
+
 def git_state(root: Path) -> tuple[str, bool]:
     def git(*args: str) -> str:
         return subprocess.run(
             ["git", *args], cwd=root, capture_output=True, text=True, check=True
         ).stdout.strip()
 
-    return git("rev-parse", "HEAD"), bool(git("status", "--porcelain"))
+    # The harness's own outputs do not count: otherwise the second of two back-to-back evals
+    # is marked dirty by the first one's report and history rows, with identical code.
+    outputs = [f":(exclude){path}" for path in OUTPUT_PATHS]
+    return git("rev-parse", "HEAD"), bool(git("status", "--porcelain", "--", ".", *outputs))
 
 
 def file_sha256(path: Path) -> str:
