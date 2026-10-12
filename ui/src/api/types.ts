@@ -44,4 +44,6 @@ export interface BoardItem {
   attribution_status: AttributionStatus;
   flag_reasons: string[];
   selected: boolean;
+  score?: number | null; // retrieval score; higher ranks first
+  score_components?: Record<string, number>; // parts that sum to the score
 }

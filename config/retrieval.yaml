@@ -1,4 +1,4 @@
-# Retrieval settings (issue #34). Part of the eval config hash: changing them gives a new
+# Retrieval settings (issues #34, #45). Part of the eval config hash: changing them gives a new
 # report name rather than overwriting an old one.
 combined:
   # score = similarity * cosine + attributes * jaccard. Untuned placeholder (Joe, 2026-10-12):
@@ -13,3 +13,9 @@ combined:
     material: boost
     motif: boost
     department: boost
+
+# The retriever behind POST /boards (issue #45). If it cannot load (e.g. no torch or no
+# index), the run stops with "source unavailable" and says what is missing. There is no
+# silent fallback to another retriever.
+api:
+  retriever: combined
