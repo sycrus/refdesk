@@ -35,6 +35,7 @@ from refdesk.api.models import (
     RunView,
 )
 from refdesk.boards import BoardService, UnknownAnchor, default_service
+from refdesk.retrieval.combined import ConditionNotUnderstood
 
 app = FastAPI(
     title="refdesk API",
@@ -70,7 +71,9 @@ def _not_implemented() -> JSONResponse:
     status_code=202,
     response_model=RunCreated,
     tags=["runs"],
-    responses={400: {"model": Problem, "description": "Declined, e.g. an unknown anchor"}},
+    responses={
+        400: {"model": Problem, "description": "Declined: unknown anchor or unusable condition"}
+    },
 )
 def create_board(
     request: BoardRequest,
@@ -83,6 +86,9 @@ def create_board(
         view = service.create(request)
     except UnknownAnchor:
         problem = Problem(code="unknown_anchor", message=f"No record {request.anchor_id!r}.")
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    except ConditionNotUnderstood as error:
+        problem = Problem(code="condition_not_understood", message=str(error))
         return JSONResponse(status_code=400, content=problem.model_dump())
     background.add_task(service.execute, view.run_id, request)
     return RunCreated(run_id=view.run_id, state=view.state)

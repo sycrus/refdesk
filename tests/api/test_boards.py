@@ -232,3 +232,38 @@ class TestRetrieverOverride:
 
         monkeypatch.delenv("REFDESK_RETRIEVER", raising=False)
         assert default_service(tmp_path / "store.sqlite").retriever_name == "combined"
+
+
+class TestConditionsThatCannotBeApplied:
+    """Issue #63: a filter that cannot be applied is refused when the board is created."""
+
+    def client_with_filters(self, tmp_path):
+        from refdesk.retrieval.combined import CombinedConfig, check_conditions
+
+        config = CombinedConfig(
+            weights={"similarity": 0.6, "attributes": 0.4}, conditions={"period": "filter"}
+        )
+        svc = BoardService(
+            RunStore(tmp_path / "runs.sqlite"),
+            lambda: RECORDS,
+            JaccardRetriever,
+            "jaccard",
+            check_conditions=lambda conditions: check_conditions(conditions, config),
+        )
+        app.dependency_overrides[get_service] = lambda: svc
+        return TestClient(app)
+
+    def test_an_unparseable_filter_is_400_with_the_reason(self, tmp_path):
+        client = self.client_with_filters(tmp_path)
+        response = client.post(
+            "/boards", json={"brief": "boats", "conditions": {"period": "Baroque"}}
+        )
+        assert response.status_code == 400
+        conforms(response.json(), "Problem")
+        assert response.json()["code"] == "condition_not_understood"
+        assert "'Baroque'" in response.json()["message"]
+
+    def test_a_parseable_filter_is_accepted(self, tmp_path):
+        client = self.client_with_filters(tmp_path)
+        body = {"brief": "boats", "conditions": {"period": "17th-century"}}
+        assert client.post("/boards", json=body).status_code == 202

@@ -38,6 +38,7 @@ from refdesk.api.models import (
     RunView,
 )
 from refdesk.retrieval import Hit, Query, Retriever
+from refdesk.retrieval.combined import ConditionNotUnderstood
 from refdesk.retrieval.metadata import _phrase
 from refdesk.schema import ArtworkRecord
 from refdesk.wording import AttributionStatus, StopReason
@@ -220,11 +221,14 @@ class BoardService:
         load_records: Callable[[], list[ArtworkRecord]],
         build_retriever: Callable[[list[ArtworkRecord]], Retriever],
         retriever_name: str,
+        check_conditions: Callable[[dict[str, str]], None] | None = None,
     ):
         self.runs = runs
         self._load_records = load_records
         self._build = build_retriever
         self.retriever_name = retriever_name
+        # Refuses conditions the retriever cannot apply (issue #63), before anything loads.
+        self._check_conditions = check_conditions
         self._records: dict[str, ArtworkRecord] | None = None
         self._retriever: Retriever | None = None
         self._lock = threading.Lock()  # load the records and retriever once
@@ -245,6 +249,8 @@ class BoardService:
     def create(self, request: BoardRequest) -> RunView:
         if request.anchor_id is not None and request.anchor_id not in self.records():
             raise UnknownAnchor(request.anchor_id)
+        if self._check_conditions is not None:
+            self._check_conditions(to_query(request).conditions)  # ConditionNotUnderstood
         view = _view(f"run-{uuid.uuid4().hex[:12]}", request, LoopState.RETRIEVE)
         self.runs.save(view, request)
         return view
@@ -268,7 +274,14 @@ class BoardService:
             return view
 
         records = self.records()
-        hits = retriever.search(to_query(request))
+        try:
+            hits = retriever.search(to_query(request))
+        except ConditionNotUnderstood as error:  # normally refused at create()
+            view = _view(
+                run_id, request, LoopState.STOPPED, stop=StopReason.DECLINED, detail=str(error)
+            )
+            self.runs.save(view)
+            return view
         items = [
             self._item(hit, records[hit.record_id]) for hit in hits if hit.record_id in records
         ]
@@ -324,6 +337,15 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
         finally:
             store.close()
 
+    check = None
+    if name == "combined":
+        from refdesk.retrieval.combined import check_conditions, load_config
+
+        combined_config = load_config()
+
+        def check(conditions: dict[str, str]) -> None:
+            check_conditions(conditions, combined_config)
+
     return BoardService(
-        RunStore(db_path), load_records, lambda records: build_retriever(name, records), name
+        RunStore(db_path), load_records, lambda records: build_retriever(name, records), name, check
     )
