@@ -1,0 +1,98 @@
+.rd-gates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rd-gate,
+.rd-gate-button {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+.rd-gate-button {
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rd-gate-button:hover {
+  border-color: var(--color-line);
+}
+
+.rd-gate-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rd-gate-node {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--color-line-strong);
+  color: var(--color-ink-muted);
+  background: var(--color-card);
+}
+
+.rd-gate--passed .rd-gate-node {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.rd-gate--active .rd-gate-node {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.rd-gate--blocked .rd-gate-node {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.rd-gate--skipped .rd-gate-node {
+  border-style: dashed;
+  border-color: var(--color-line-strong);
+}
+
+.rd-gate-label {
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+}
+
+.rd-gate-state,
+.rd-gate-who,
+.rd-gate-text {
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-gate-state {
+  font-weight: 600;
+}
+
+.rd-gate--blocked .rd-gate-state {
+  color: var(--color-danger);
+}
+
+.rd-gate-who,
+.rd-gate-text {
+  color: var(--color-ink-muted);
+}
