@@ -56,19 +56,44 @@ def _century(date: str | None) -> str | None:
     return str(int(match.group(1)) // 100 + 1) if match else None
 
 
-_ORDINAL_CENTURY = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)\s+century", re.IGNORECASE)
+# Centuries are written many ways: "17th century", "17th-century", "17th c.", "17th cent.",
+# and BCE as "5th century BC", "5th-century B.C.E.". BCE years: "500 BCE", "500 B.C.".
+_BCE = r"(?:b\.?\s?c\.?(?:\s?e\.?)?)(?![a-z])"
+_ORDINAL_CENTURY = re.compile(
+    rf"\b(\d{{1,2}})(?:st|nd|rd|th)[\s-]*(?:century|cent\.?|c\.?)(?![a-z])\s*({_BCE})?",
+    re.IGNORECASE,
+)
+_BCE_YEAR = re.compile(rf"\b(\d{{1,4}})\s*{_BCE}", re.IGNORECASE)
+
+ACCEPTED_PERIODS = (
+    'a century ("17th century", "17th-century", "17th c.", "5th century BCE") '
+    'or a year ("1650", "c. 1650", "500 BCE")'
+)
+
+
+def _bce_century(year: int) -> str:
+    """Year 500 BCE -> "5bce": 500 to 401 BCE is the 5th century BCE. The suffix keeps a
+    BCE century from ever matching the CE century with the same number."""
+    return f"{(year - 1) // 100 + 1}bce"
 
 
 def _period_century(period: str) -> str | None:
-    """A period condition: "17th century" or a year such as "1650"."""
-    match = _ORDINAL_CENTURY.search(period)
-    return match.group(1) if match else _century(period)
+    """A period condition or display date: a written century, a BCE year, or a CE year.
+    Named periods ("Baroque") give None until there is a cited mapping (issue #64)."""
+    if match := _ORDINAL_CENTURY.search(period):
+        return f"{match.group(1)}bce" if match.group(2) else match.group(1)
+    if match := _BCE_YEAR.search(period):
+        return _bce_century(int(match.group(1)))
+    return _century(period)
 
 
 def _record_century(record: ArtworkRecord) -> str | None:
-    """The structured start year if the source gives one, else the display date."""
+    """The structured start year if the source gives one (negative = BCE), else the
+    display date. There is no year 0, so a start year of 0 gives no century."""
     if record.date_begin is not None:
-        return str(record.date_begin // 100 + 1) if record.date_begin > 0 else None
+        if record.date_begin > 0:
+            return str(record.date_begin // 100 + 1)
+        return _bce_century(-record.date_begin) if record.date_begin < 0 else None
     return _period_century(record.date or "")
 
 

@@ -37,7 +37,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 from refdesk.embeddings import Embedder, EmbeddingIndex
 from refdesk.retrieval import Hit, Query, allowed
-from refdesk.retrieval.metadata import JaccardRetriever, condition_attributes
+from refdesk.retrieval.metadata import ACCEPTED_PERIODS, JaccardRetriever, condition_attributes
 from refdesk.schema import ArtworkRecord
 
 CONDITION_KEYS = ("period", "material", "motif", "department")  # PRD 8
@@ -68,6 +68,27 @@ def load_config(path: Path = Path("config/retrieval.yaml")) -> CombinedConfig:
     return CombinedConfig(**yaml.safe_load(path.read_text(encoding="utf-8"))["combined"])
 
 
+class ConditionNotUnderstood(ValueError):
+    """A condition that cannot be applied as asked (issue #63). Raised instead of being
+    dropped, because a dropped filter makes results look filtered when they are not."""
+
+
+def check_conditions(conditions: dict[str, str], config: CombinedConfig) -> None:
+    """Every condition field must be one of PRD 8's, and every filter must turn into at
+    least one attribute. A boost that gives nothing stays lenient: it only adds nothing.
+    Needs no retriever, so the API can check a board before any model loads."""
+    for key, value in conditions.items():
+        if key not in CONDITION_KEYS:
+            raise ConditionNotUnderstood(
+                f"Unknown condition {key!r}. Conditions are {', '.join(CONDITION_KEYS)}."
+            )
+        if config.mode(key) == "filter" and not condition_attributes(key, value):
+            formats = ACCEPTED_PERIODS if key == "period" else "a word found in the records"
+            raise ConditionNotUnderstood(
+                f"The {key} filter {value!r} cannot be applied. Use {formats}."
+            )
+
+
 class CombinedRetriever:
     def __init__(
         self,
@@ -93,6 +114,7 @@ class CombinedRetriever:
 
     def _split_conditions(self, query: Query) -> tuple[set[str], set[str]]:
         """Query attributes to boost, and attributes every record must have."""
+        check_conditions(query.conditions, self.config)
         filters: set[str] = set()
         for key, value in query.conditions.items():
             if self.config.mode(key) == "filter":
