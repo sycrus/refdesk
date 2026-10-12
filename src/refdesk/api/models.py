@@ -192,6 +192,7 @@ class RunCreated(_Model):
 
 class RunView(_Model):
     run_id: str
+    request: BoardRequest | None = Field(None, description="What was asked (S3 header)")
     state: LoopState
     stop_reason: StopReason | None = None
     stop_banner: str | None = Field(None, description="Fixed wording; never hidden")

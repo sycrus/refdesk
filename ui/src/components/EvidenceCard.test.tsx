@@ -100,4 +100,9 @@ describe("EvidenceCard", () => {
     expect(screen.queryAllByRole("link")).toEqual([]);
     expect(document.querySelector(".rd-chip")?.textContent).toBe("medium Oil"); // still shown, unlinked
   });
+
+  it("shows the score and the parts that sum to it", () => {
+    render(<EvidenceCard item={item({ score: 0.276, score_components: { similarity: 0.176, attributes: 0.1 } })} />);
+    expect(screen.getByText("Score 0.276 = similarity 0.176 + attributes 0.100")).toBeTruthy();
+  });
 });

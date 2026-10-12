@@ -47,3 +47,66 @@ export interface BoardItem {
   score?: number | null; // retrieval score; higher ranks first
   score_components?: Record<string, number>; // parts that sum to the score
 }
+
+export type UsageMode = "reference_only" | "reproduction";
+export type LoopState =
+  | "init"
+  | "retrieve"
+  | "decide"
+  | "generate"
+  | "verify"
+  | "assemble"
+  | "human_check"
+  | "export"
+  | "done"
+  | "stopped"
+  | "cancelled";
+
+export interface Conditions {
+  period?: string | null;
+  material?: string | null;
+  motif?: string | null;
+  department?: string | null;
+}
+
+export interface BoardRequest {
+  brief: string;
+  avoid?: string[];
+  usage_mode?: UsageMode;
+  anchor_id?: string | null;
+  conditions?: Conditions;
+  keep_local?: boolean;
+  budget_cap_usd?: number;
+  target_items?: number;
+}
+
+export interface Cost {
+  spent_usd: number;
+  cap_usd: number;
+  currency: "USD";
+}
+
+export interface RunCreated {
+  run_id: string;
+  state: LoopState;
+}
+
+export interface RunView {
+  run_id: string;
+  request?: BoardRequest | null;
+  state: LoopState;
+  stop_reason?: StopReason | null;
+  stop_banner?: string | null;
+  stop_detail?: string | null;
+  gates: Gate[];
+  items: BoardItem[];
+  cost: Cost;
+  keep_local: boolean;
+  sent_to: string[];
+  read_only: boolean;
+}
+
+export interface Problem {
+  code: string;
+  message: string;
+}

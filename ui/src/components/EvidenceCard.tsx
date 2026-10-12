@@ -73,6 +73,15 @@ export function EvidenceCard({ item, onMoreLikeThis, onReport, onKeepChange }: E
           </ul>
         )}
       </section>
+      {item.score != null && (
+        <p className="rd-card-score">
+          Score {item.score.toFixed(3)}
+          {Object.keys(item.score_components ?? {}).length > 0 &&
+            ` = ${Object.entries(item.score_components ?? {})
+              .map(([name, value]) => `${name} ${value.toFixed(3)}`)
+              .join(" + ")}`}
+        </p>
+      )}
       <div className="rd-card-badges">
         <StatusBadge kind="attribution" status={item.attribution_status} />
         <StatusBadge kind="rights" status={record.rights.status} inferred={!record.rights.flag_field} />

@@ -51,4 +51,16 @@ describe("StopBanner", () => {
     const names = screen.getAllByRole("button").map((b) => b.textContent);
     expect(names).toEqual(["Raise the cap", "Keep the partial board"]);
   });
+
+  it("shows what exactly stopped the run", () => {
+    render(
+      <StopBanner
+        reason={StopReason.SOURCE_UNAVAILABLE}
+        accepted={0}
+        target={12}
+        detail="Retriever 'combined' could not load: No module named 'torch'."
+      />,
+    );
+    expect(screen.getByText("Retriever 'combined' could not load: No module named 'torch'.")).toBeTruthy();
+  });
 });

@@ -137,3 +137,12 @@ a.rd-chip:hover {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+
+/* Why it ranked where it did (PRD 1A): the score and the parts that sum to it. */
+.rd-card-score {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-family: var(--type-mono-family);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+}

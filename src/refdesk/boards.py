@@ -196,6 +196,7 @@ def _view(
 ) -> RunView:
     return RunView(
         run_id=run_id,
+        request=request,
         state=state,
         stop_reason=stop,
         stop_banner=stop.banner if stop else None,
@@ -302,14 +303,19 @@ class BoardService:
 
 def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService:
     """The service the API uses: records from the store, the retriever named in
-    config/retrieval.yaml (`api.retriever`), runs in the same SQLite file."""
+    config/retrieval.yaml (`api.retriever`), runs in the same SQLite file.
+
+    REFDESK_RETRIEVER overrides the configured name. The browser tests use it to run
+    `jaccard` where CLIP cannot load (CI has no torch). It still never falls back."""
+    import os
+
     import yaml
 
     from refdesk.retrieval.registry import build_retriever
     from refdesk.store import Store
 
     config = yaml.safe_load(Path("config/retrieval.yaml").read_text(encoding="utf-8"))
-    name = config["api"]["retriever"]
+    name = os.environ.get("REFDESK_RETRIEVER") or config["api"]["retriever"]
 
     def load_records() -> list[ArtworkRecord]:
         store = Store(db_path)
