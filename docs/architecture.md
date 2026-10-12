@@ -56,6 +56,10 @@ flowchart LR
 
 `api/app.py` is a FastAPI skeleton with the full contract from PRD 13A (`docs/api/openapi.json`, generated from code and checked by a drift test). Every endpoint except `/healthz` returns 501 until implemented. Gate rules already enforced by the models: approval needs an explicit acknowledgement, keeping a flagged item needs a note, and approve/export are tagged `gates` so MCP can never expose them.
 
+## UI
+
+`ui/` is a Vite + React + TypeScript app (issue #41). `npm run build` writes `ui/dist`, which the API serves at `/` (one service, ADR-017). It is mounted after every API route, so API paths win, and it is not in the OpenAPI spec, so MCP can never expose it. Without a build, `/` answers 503 `ui_not_built` with the build command. The API checks for the build once at startup, so restart it after the first build. `REFDESK_UI_DIST` overrides the path. In dev, `npm run dev` proxies API paths to `uvicorn refdesk.api.app:app` on port 8000. The scaffold only shows whether the API is reachable; tokens, components and screens come in #42 to #46. CI builds and type-checks it in a separate `ui` job.
+
 ## Commands
 
 All via `uv run python -m refdesk <command>` (PowerShell or WSL2):
@@ -75,7 +79,7 @@ Also: `uv run python -m refdesk.llm.mock_server`, `scripts/judge_probe.py`, `scr
 ## Not built yet
 
 - Combined score of conditions and similarity (#34), the comparison report (#37).
-- API endpoints beyond the skeleton (#45), the UI and design library (#41 to #46).
+- API endpoints beyond the skeleton (#45); UI tokens, components, design library and screens (#42 to #46).
 - M3: rationales as structured claims, the verifier (code checks, then Granite Guardian per claim, phi4 on the fit sentence), provenance pack, golden-v1.
 - M4: routing labels, Kev-4B fine-tune and calibration, the loop controller, MCP server.
 - M5: Docker, kind, drills, LangGraph port, bake-off.
