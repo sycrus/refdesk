@@ -54,7 +54,9 @@ flowchart LR
 
 ## API
 
-`api/app.py` is a FastAPI skeleton with the full contract from PRD 13A (`docs/api/openapi.json`, generated from code and checked by a drift test). Every endpoint except `/healthz` returns 501 until implemented. Gate rules already enforced by the models: approval needs an explicit acknowledgement, keeping a flagged item needs a note, and approve/export are tagged `gates` so MCP can never expose them.
+`api/app.py` is a FastAPI skeleton with the full contract from PRD 13A (`docs/api/openapi.json`, generated from code and checked by a drift test). `POST /boards` and `GET /runs/{id}` work for retrieval-only runs (`boards.py`, issue #45). Every other endpoint except `/healthz` returns 501 until implemented.
+
+A board runs the retriever named in `config/retrieval.yaml` (`api.retriever`, default `combined`) as a background task after `POST` returns 202, so `GET` shows `retrieve` and then `done` or `stopped`. Each item carries evidence: record fields with the record's own values, such as `medium: Oil on canvas`, never normalised tokens. It also carries `score` and `score_components`. There are no rationales or verifier yet, so every attribution is "Needs human check", and G0 and G2 show as skipped, never passed. Nothing is sent to a model: cost is 0 and `sent_to` is empty. If the retriever cannot load, the run stops with "source unavailable", and `stop_detail` says what is missing; there is no fallback. Runs live in a `runs` table in the store, with one connection per call because the background task runs on another thread. `novelty` is accepted but not applied yet. Gate rules already enforced by the models: approval needs an explicit acknowledgement, keeping a flagged item needs a note, and approve/export are tagged `gates` so MCP can never expose them.
 
 ## UI
 

@@ -12,7 +12,7 @@
           "runs"
         ],
         "summary": "Create Board",
-        "description": "Start a run from a brief (S1). G0 intake may decline it with a reason.",
+        "description": "Start a run from a brief (S1). The search runs after this returns; poll\nGET /runs/{run_id}. Retrieval only for now (issue #45): no model is called.",
         "operationId": "create_board_boards_post",
         "requestBody": {
           "content": {
@@ -35,18 +35,8 @@
               }
             }
           },
-          "501": {
-            "description": "Not implemented yet",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
           "400": {
-            "description": "Declined at G0",
+            "description": "Declined, e.g. an unknown anchor",
             "content": {
               "application/json": {
                 "schema": {
@@ -100,16 +90,6 @@
           },
           "404": {
             "description": "Unknown run",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "501": {
-            "description": "Not implemented yet",
             "content": {
               "application/json": {
                 "schema": {
@@ -813,6 +793,27 @@
             "type": "boolean",
             "title": "Selected",
             "default": false
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "Retrieval score; higher ranks first"
+          },
+          "score_components": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Score Components",
+            "description": "Named parts of the score that sum to it, e.g. similarity, attributes",
+            "default": {}
           }
         },
         "additionalProperties": false,
@@ -1530,6 +1531,18 @@
             ],
             "title": "Stop Banner",
             "description": "Fixed wording; never hidden"
+          },
+          "stop_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Detail",
+            "description": "What exactly stopped the run"
           },
           "gates": {
             "items": {

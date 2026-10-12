@@ -179,6 +179,10 @@ class BoardItem(_Model):
     tier_used: str | None = None
     cost_usd: float = 0.0
     selected: bool = False
+    score: float | None = Field(None, description="Retrieval score; higher ranks first")
+    score_components: dict[str, float] = Field(
+        {}, description="Named parts of the score that sum to it, e.g. similarity, attributes"
+    )
 
 
 class RunCreated(_Model):
@@ -191,6 +195,7 @@ class RunView(_Model):
     state: LoopState
     stop_reason: StopReason | None = None
     stop_banner: str | None = Field(None, description="Fixed wording; never hidden")
+    stop_detail: str | None = Field(None, description="What exactly stopped the run")
     gates: list[Gate]
     items: list[BoardItem]
     cost: Cost

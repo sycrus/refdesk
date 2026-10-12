@@ -9,9 +9,11 @@ Tags matter for the MCP server (FR-12, ADR-015): it may expose only `read` opera
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -32,6 +34,7 @@ from refdesk.api.models import (
     RunCreated,
     RunView,
 )
+from refdesk.boards import BoardService, UnknownAnchor, default_service
 
 app = FastAPI(
     title="refdesk API",
@@ -41,6 +44,16 @@ app = FastAPI(
         "The API enforces approval gates; clients only reflect them (PRD 8B)."
     ),
 )
+
+
+@lru_cache(maxsize=1)
+def get_service() -> BoardService:
+    """The board service: one per process, created on first use. Tests override this
+    dependency with a service over a temporary store."""
+    return default_service(os.environ.get("REFDESK_DB", "data/refdesk.sqlite"))
+
+
+Service = Annotated[BoardService, Depends(get_service)]
 
 NOT_FOUND = {404: {"model": Problem, "description": "Unknown run"}}
 NOT_IMPLEMENTED = {501: {"model": Problem, "description": "Not implemented yet"}}
@@ -57,22 +70,37 @@ def _not_implemented() -> JSONResponse:
     status_code=202,
     response_model=RunCreated,
     tags=["runs"],
-    responses={**NOT_IMPLEMENTED, 400: {"model": Problem, "description": "Declined at G0"}},
+    responses={400: {"model": Problem, "description": "Declined, e.g. an unknown anchor"}},
 )
-def create_board(request: BoardRequest):
-    """Start a run from a brief (S1). G0 intake may decline it with a reason."""
-    return _not_implemented()
+def create_board(
+    request: BoardRequest,
+    background: BackgroundTasks,
+    service: Service,
+):
+    """Start a run from a brief (S1). The search runs after this returns; poll
+    GET /runs/{run_id}. Retrieval only for now (issue #45): no model is called."""
+    try:
+        view = service.create(request)
+    except UnknownAnchor:
+        problem = Problem(code="unknown_anchor", message=f"No record {request.anchor_id!r}.")
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    background.add_task(service.execute, view.run_id, request)
+    return RunCreated(run_id=view.run_id, state=view.state)
 
 
 @app.get(
     "/runs/{run_id}",
     response_model=RunView,
     tags=["read"],
-    responses={**NOT_FOUND, **NOT_IMPLEMENTED},
+    responses={**NOT_FOUND},
 )
-def get_run(run_id: str):
+def get_run(run_id: str, service: Service):
     """Run state, gates, items, cost and any stop reason (S2, S3, S7)."""
-    return _not_implemented()
+    view = service.get(run_id)
+    if view is None:
+        problem = Problem(code="unknown_run", message=f"No run {run_id!r}.")
+        return JSONResponse(status_code=404, content=problem.model_dump())
+    return view
 
 
 @app.post(

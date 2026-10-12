@@ -1,5 +1,6 @@
 """API contract (issue #13, PRD 13A): the OpenAPI spec is valid, lists every endpoint,
-matches the committed file, and the skeleton contains no business logic yet."""
+matches the committed file, and endpoints not built yet are honest stubs. POST /boards and
+GET /runs/{id} are tested in test_boards.py."""
 
 import json
 from pathlib import Path
@@ -82,8 +83,6 @@ class TestNoBusinessLogicYet:
     @pytest.mark.parametrize(
         ("method", "path", "body"),
         [
-            ("post", "/boards", {"brief": "Mid-Autumn tin, festive but not red and gold"}),
-            ("get", "/runs/r1", None),
             ("post", "/runs/r1/review", {"decisions": []}),
             ("post", "/runs/r1/cap", {"new_cap_usd": 0.1, "raised_by": "Joe"}),
             ("post", "/runs/r1/approve", {"approver": "Joe", "acknowledged": True}),
