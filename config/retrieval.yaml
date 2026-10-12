@@ -1,0 +1,15 @@
+# Retrieval settings (issue #34). Part of the eval config hash: changing them gives a new
+# report name rather than overwriting an old one.
+combined:
+  # score = similarity * cosine + attributes * jaccard. Untuned placeholder (Joe, 2026-10-12):
+  # tune on golden-v1, never on the synthetic golden-v0.
+  weights:
+    similarity: 0.6
+    attributes: 0.4
+  # boost: adds to the attribute score. filter: a record must have it.
+  # Boost by default, because a filter drops records whose source leaves the field empty.
+  conditions:
+    period: boost
+    material: boost
+    motif: boost
+    department: boost

@@ -49,9 +49,28 @@ def _clip(records: list[ArtworkRecord], resources: Resources) -> Retriever:
     return EmbeddingRetriever(records, resources.load_index(), resources.load_embedder())
 
 
+def _combined(records: list[ArtworkRecord], resources: Resources) -> Retriever:
+    from refdesk.retrieval.combined import CombinedRetriever, load_config
+
+    return CombinedRetriever(
+        records, resources.load_index(), resources.load_embedder(), load_config()
+    )
+
+
+def retriever_params(name: str) -> dict:
+    """Settings that change a retriever's output, recorded in the eval config (and so its
+    hash). Without this, re-weighting `combined` would overwrite the earlier report."""
+    if name == "combined":
+        from refdesk.retrieval.combined import load_config
+
+        return load_config().model_dump()
+    return {}
+
+
 RETRIEVERS: dict[str, Callable[[list[ArtworkRecord], Resources], Retriever]] = {
     "jaccard": lambda records, resources: JaccardRetriever(records),
     "clip": _clip,
+    "combined": _combined,
 }
 
 

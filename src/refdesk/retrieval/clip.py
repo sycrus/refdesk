@@ -42,10 +42,7 @@ class EmbeddingRetriever:
         return None
 
     def _excluded(self, query: Query) -> set[str]:
-        excluded = {a for a in query.avoid if ":" in a}
-        terms = set().union(*(self._terms._lookup(a) for a in query.avoid if ":" not in a))
-        if terms:
-            excluded |= {rid for rid, attrs in self._terms.attrs.items() if attrs & terms}
+        excluded = self._terms.excluded(query)
         if query.anchor_id is not None:
             excluded.add(query.anchor_id)
         return excluded

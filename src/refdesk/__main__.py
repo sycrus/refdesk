@@ -10,7 +10,7 @@ images met [--db PATH] [--dir data/images] [--limit N]
     Cache images of open works only (resumable).
 embed met [--model ViT-B-32] [--pretrained laion2b_s34b_b79k] [--device cuda]
     Embed cached images of open works into a FAISS index (needs: uv sync --extra embed).
-eval [--retriever jaccard] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
+eval [--retriever jaccard|clip|combined] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
 compare HASH_A HASH_B
     Paired comparison of two eval runs (B - A per case, with a 95% CI).
@@ -30,7 +30,7 @@ from refdesk.evals.golden import GoldenCase, corpus_version
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.images import cache_images
 from refdesk.ingest import ingest, rebuild
-from refdesk.retrieval.registry import RETRIEVERS, build_retriever
+from refdesk.retrieval.registry import RETRIEVERS, build_retriever, retriever_params
 from refdesk.sources.met import SOURCE, MetClient, MetSource, MetUnavailable
 from refdesk.store import Store
 
@@ -59,7 +59,7 @@ def _eval(store: Store, args: argparse.Namespace) -> int:
     sha, dirty = git_state(Path.cwd())
     config = EvalConfig(
         retriever=args.retriever,
-        retriever_params={},
+        retriever_params=retriever_params(args.retriever),
         k=args.k,
         seed=args.seed,
         n_boot=args.n_boot,
