@@ -2,13 +2,13 @@
 
 A rights-checked, explained art-reference workflow for small creative studios.
 
-- Status: draft v0.1, October 2026
+- Status: draft v0.3, 12 October 2026 (M1 done, M2 in progress)
 - Owner: Joe Chung
 - Audience for this file: Claude Code (as the working spec), and humans reviewing the project
 - Companion files: `CLAUDE.md`, `docs/adr/`, `.claude/skills/`
 - Learning objectives live in a separate tracker (milestones and tiers are in Section 17). This PRD does not repeat them.
 - Work items live in GitHub Issues on `sycrus/refdesk` (see `docs/agents/issue-tracker.md`). This PRD is the single source of truth for scope; the root `PRD.md` was removed.
-- Revision log: v0.2 (2026-10-11) applies the planning grilling decisions; see Section 23.
+- Revision log: v0.2 (2026-10-11) applied the planning grilling decisions; v0.3 (2026-10-12) records the decisions since. See Section 23.
 
 ---
 
@@ -361,20 +361,22 @@ flowchart LR
 ```
 
 Tiers:
-1. **Mock LLM server**: canned answers, configurable latency, injectable 429s and timeouts. Default for tests, infrastructure drills and CI. Built just before M3, behind the LLM client interface, so it mocks the real request shape.
-2. **Local model** (Ollama): a 3-4B instruct model at Q4. Kept as a routing tier only if the end-to-end test shows its rationales meet the quality bar.
-3. **Capped cloud model**: cheap "flash" models (GLM or DeepSeek) are the default rationale generator. Spend cap enforced in the router.
+1. **Mock LLM server** (`refdesk.llm.mock_server`, built): deterministic answers, configurable latency, scripted 429, 500 and timeout responses, changeable at runtime. Default for tests, infrastructure drills and CI.
+2. **Local model** (Ollama): `qwen3.5:9b` (ADR-020; 7.6 GB, thinking off). Kept as a routing tier only if its rationales meet the M3 quality bar.
+3. **Capped cloud model**: `deepseek-flash` (ADR-020), with `deepseek-v4-pro` as a reserve tier. Spend cap enforced in the client and router. GLM is not used: the Coding Plan's usage policy limits it to supported coding tools.
 
 The routing tiers are a **config list**, not code. Start with `[local-small, cloud-flash]`. If the local tier fails the end-to-end quality bar, switch to `[cloud-flash, cloud-strong]` and record it in ADR-020. The router and the labelling pipeline read the options from config. Every tier pins a dated model ID, never an alias.
 
-**Providers and data flow.** Each provider in config has a `family` tag (`deepseek`, `zhipu`, `qwen-local`). `keep_local` blocks every non-local provider, GLM and DeepSeek included. Both cloud providers are based in China, so the per-provider switches below are the control for client data. Where a provider only offers alias model names (DeepSeek's `deepseek-flash` and `deepseek-v4-pro`, checked 2026-10-11; retired names are silently served by newer models), record the `model` field from every response in the run manifest, so a silent upgrade shows up as a version change. Sending real operator briefs to a cloud provider needs that provider's switch in S9, off by default. The UI and audit log show where each brief was sent.
+**Providers and data flow.** Each provider in config has a `family` tag (`deepseek`, `qwen-local`, and for judges `ibm`, `microsoft`). `keep_local` blocks every cloud provider. Both cloud providers are based in China, so the per-provider switches below are the control for client data. Where a provider only offers alias model names (DeepSeek's `deepseek-flash` and `deepseek-v4-pro`, checked 2026-10-11; retired names are silently served by newer models), record the `model` field from every response in the run manifest, so a silent upgrade shows up as a version change. Sending real operator briefs to a cloud provider needs that provider's switch in S9, off by default. The UI and audit log show where each brief was sent.
 
 **Paid calls.** Three layers, all required: a key in `.env` (the user fills it in), a per-job budget in `config/budgets.yaml`, and a dry run that prints estimated calls, tokens and cost, followed by a run with `--approve` recorded in the run manifest. A blocked paid call is a hard error, never a silent fall back to the mock.
 
-**GPU.** One GPU-heavy job at a time. Every GPU script checks free VRAM with `nvidia-smi` before it starts and refuses below its stated need. Windows uses about 2.1 GB at idle, so about 14 GB is usable. With cloud rationales, Kev-4B stays loaded for a whole run. A small `ModelManager` (swap once per phase, load time logged as an event) is built in M2 only for the local-tier path.
+**GPU.** One GPU-heavy job at a time. Windows uses about 2.1 GB at idle, so about 14 GB is usable. Measured needs live in `config/models.yaml`: no local generator or judge fits next to Kev-4B (about 8.4 GB), so models are swapped **once per phase** (decide, generate, judge) by the `ModelManager` (`refdesk.llm.model_manager`, built), which unloads everything else, checks free VRAM against the measured need, and logs each load time as an event.
+
+**Rationale verification (FR-5; ADR-021; proposed for M3).** The generator returns structured claims, each naming the record field it comes from (the evidence chips in 8A), plus a separate sentence about fit. Field-value claims are checked by plain code; the rest are checked one claim at a time by `granite3-guardian:8b`; `phi4` checks that the fit sentence adds no fact absent from the record. Any failure makes the item "Needs human check", naming the failing claim. Rationales are not split after the fact, because a splitting model can drop or merge the very claim that is wrong.
 
 Components and decisions (see ADRs):
-- Retrieval backend: reuse an off-the-shelf similarity approach (OpenCLIP embeddings with FAISS, Qdrant or Chroma). Put effort into evidence and evals.
+- Retrieval backend: OpenCLIP image embeddings (default `ViT-B-32/laion2b_s34b_b79k`; model choice is ADR-010) in an exact FAISS `IndexFlatIP`, kept as FAISS so an approximate index can replace it if the corpus grows. Images are cached for open works only. Retrievers share one interface and registry: the metadata-only Jaccard baseline and the CLIP similarity baseline exist; the combined score (FR-3) is next. Put effort into evidence and evals.
 - Decision model: fine-tune Kev-4B (LoRA from the released `kev-4b@v1.0` checkpoint). Kev-0.8B is kept as a size ablation only, because its accuracy on unseen tasks (0.648 dev) is close to a rule. Compare against a confidence cascade and LightGBM on structured features. Kev runs in its own WSL2 clone (`~/kev`) and is called over HTTP.
 - Tracing: Arize Phoenix locally. Evals are plain code (pytest), not in a platform.
 - Memory: SQLite for state. Mem0 deferred.
@@ -490,7 +492,7 @@ Do not write scenarios for answer quality. That is covered by evals and trajecto
 
 Covers the Kev fine-tune for Q1 (tier choice). Learning-critical: the quality bar behind the labels and the cost of each error are mine to define.
 
-- **Labels.** About 1,500 synthetic briefs, run through each configured tier. The label is the cheapest tier that met the quality bar: verifier pass plus an LLM judge. The judge is calibrated against my ratings on 100 sampled rows, and its agreement is reported before any label is trusted. **A model never judges its own family's output**: the judge is picked per row from a different `family` than the generator, startup fails if no valid judge exists, and both families are written to each label record. Budget: `labelling_budget_usd: 20`. Kev's own README found a 400-record fine-tune gain inside noise, so do not train on fewer than about 1,000 rows; 50 golden cases are far too few.
+- **Labels.** About 1,500 synthetic briefs, run through each configured tier. The label is the cheapest tier that met the quality bar: verifier pass plus an LLM judge. The judge is calibrated against my ratings on 100 sampled rows, and its agreement is reported before any label is trusted. **A model never judges its own family's output**: the judge is picked per row from a different `family` than the generator, startup fails if no valid judge exists, and both families are written to each label record. Judges (ADR-021): `granite3-guardian:8b` one claim at a time, `phi4` as cross-check, both local. Budget: `labelling_budget_usd: 20` (generation only; judging is local). Kev's own README found a 400-record fine-tune gain inside noise, so do not train on fewer than about 1,000 rows; 50 golden cases are far too few.
 - **Split.** By source or time, not random rows. Check for near-duplicates across splits. The golden set stays held out.
 - **Model.** Kev-4B, trained in WSL2. Try locally first (estimated 9-10 GB for short routing inputs; measure on the first run). Fall back to Modal under `training_budget_usd: 10`. Record base size, LoRA rank, seed and adapter hash for every run. If Kev does not beat LightGBM or the cascade, report that honestly.
 - **Baselines on the same split.** Majority class, rules, zero-shot logits on a local model, confidence cascade, LightGBM on pre-decision features (token count, option count, top retrieval score, number of conditions, usage mode, avoid-list present), a hosted model if budget allows, and fine-tuned Kev.
@@ -527,8 +529,8 @@ Evals are code in the repo. A golden set and a bake-off decide the product hypot
    - `golden-v1` onwards: 40-50 cases where the user labels quality and expected references (Claude Code may draft briefs only). Required before any eval number goes public.
    - Expected references come only from records actually ingested. Every case carries a `corpus_version` (v1 = the Met paintings slice), and reports never compare across corpus versions. Versions are frozen; changes create a new version.
 2. **Metrics**: attribution error rate (against museum records), retrieval recall@k and MRR on labelled briefs, citation faithfulness (does the cited record support the claim), rationale factual accuracy, diversity or non-obviousness, cost per resolved board, latency.
-3. **Confidence intervals** on everything. Measure run-to-run noise. Set gate thresholds above noise.
-4. **Judge calibration**: if an LLM judge is used, report agreement with human labels and test position bias.
+3. **Confidence intervals** on everything (seeded percentile bootstrap). recall@k is **capped** (hits ÷ min(relevant, k)) until graded golden data exists. Compare two runs with a **paired** comparison over per-case differences (`refdesk compare`). Measure run-to-run noise. Set gate thresholds above noise in `docs/eval-gate-policy.md`; until then golden-v0 is a non-blocking tripwire.
+4. **Judge calibration**: report agreement with human labels and test position bias (for any pairwise judging, run each pair in both orders, as in JudgeBench). A synthetic judge probe (60 items with one planted false fact each) screens candidate judges before human calibration (`evals/reports/judge-probe-*.md`).
 5. **Bake-off** (20 briefs): the system versus a metadata-only baseline, an off-the-shelf similarity baseline (such as ArtLens), a well-prompted general assistant with search, and manual use of Cosmos Public.Work or Rawpixel. Three art directors rate blind on usefulness, non-obviousness and time to a usable board. Attribution errors and rights-record presence are counted separately.
 6. **Honest reporting**: state where baselines won or tied. Do not use "has the queried attribute" as the quality metric, because it can hardly fail.
 7. **Trajectory evals** (the loop, not just the answer). Classify failed runs by step (wrong retrieval, bad decision, rationale error, verification miss, bad stop). Run each brief k times and report the share where all k runs succeed, next to single-run success. Record tool outputs so runs replay deterministically with mocked tools. Keep a regression suite where a deliberately bad change fails CI.
@@ -598,10 +600,10 @@ Write an ADR comparing this workload on Kubernetes with Cloud Run, including wha
 
 ## 14. Constraints
 
-- Hardware: RTX 5080 with 16 GB VRAM (16,303 MiB reported; about 2.1 GB used by Windows at idle), 32 GB RAM, Windows 11. WSL2 Ubuntu-24.04 sees the GPU and gets 23 GB RAM and 8 cores. Kev training and serving run in WSL2; the API, UI and Ollama run natively on Windows. The 9B size needs about 17 GB to serve, so it is out of scope locally.
+- Hardware: RTX 5080 with 16 GB VRAM (16,303 MiB reported; about 2.1 GB used by Windows at idle), 32 GB RAM, Windows 11. WSL2 Ubuntu-24.04 sees the GPU and gets 23 GB RAM and 8 cores. Kev training and serving run in WSL2; the API, UI and Ollama run natively on Windows. Kev-9B needs about 17 GB to serve, so it is out of scope locally. PyTorch needs CUDA 12.8+ for this GPU (compute capability 12.0); it is an optional `embed` extra so CI never installs it.
 - Do not run everything at once: Ollama, kind, Docker Desktop and a tracing stack compete for 32 GB RAM.
 - Windows: prefer a task runner that works natively (Python scripts or `just`) or WSL2. Do not assume `make`.
-- Index build: start with a paintings slice (about 10-20k works). A full three-museum build has been reported to take 15-18 hours elsewhere.
+- Index build: the Met European Paintings slice is 2,588 records (2,308 open, 280 permission required); its 2,308 images embed in about 9 s on the GPU. That is smaller than the 10-20k first assumed. A full three-museum build has been reported to take 15-18 hours elsewhere.
 - Cloud tokens are limited. Use the mock server by default.
 - Singapore users: personal data, if ever stored, falls under local data protection law. v1 stores none.
 
@@ -742,3 +744,4 @@ Project skills live in `.claude/skills/<name>/SKILL.md`.
 |---|---|---|
 | v0.1 | 2026-10 | First draft |
 | v0.2 | 2026-10-11 | Planning grilling applied. Build is no longer gated on interviews; bar is functional and demo-ready. Milestones get day budgets. Golden set split into synthetic v0 and hand-labelled v1, with `corpus_version`. GitHub Issues replace `tasks/queue.md`; PR-tier CI from M0. Mock server moved to just before M3. Target country parked. Kev-4B (not the smallest base), local WSL2 training with Modal fallback, pre-merged weights. Routing tiers as a config list; cloud flash models generate rationales by default. Synthetic routing labels with a cross-family judge. Paid calls need a key, a budget and `--approve`. All 8 components and a `/design` page before the screens. ADR-018 to ADR-021 added. |
+| v0.3 | 2026-10-12 | M1 done, M2 in progress. Tiers chosen (ADR-020): local `qwen3.5:9b`, cloud `deepseek-flash`, reserve `deepseek-v4-pro`; GLM dropped (Coding Plan policy). Judges chosen (ADR-021): Granite Guardian per claim, phi4 cross-check; structured-claims verification proposed for M3. Retrieval: CLIP + FAISS (exact), images for open works only; slice is 2,588 records. Evaluation: capped recall, paired comparison, gate policy with a golden-v0 tripwire, judge probe. GPU: measured needs in `config/models.yaml`, swap once per phase. Mock LLM server built. |
