@@ -13,8 +13,11 @@ flowchart LR
   STORE --> JACCARD[retrieval/metadata.py<br/>Jaccard baseline]
   EMBED --> CLIP[retrieval/clip.py<br/>similarity baseline]
   STORE --> CLIP
+  JACCARD --> COMBINED[retrieval/combined.py<br/>weighted score<br/>config/retrieval.yaml]
+  CLIP --> COMBINED
   JACCARD --> REG[retrieval/registry.py]
   CLIP --> REG
+  COMBINED --> REG
   REG --> EVAL[evals/harness.py<br/>scores, CIs, manifest, report]
   GOLDEN[evals/golden/*.jsonl] --> EVAL
 ```
@@ -29,6 +32,7 @@ flowchart LR
 | `images.py` | Caches images for open works only, atomically, with sha256. | No image embeddings; risk of fetching non-open images. |
 | `embeddings.py` | FAISS exact index over normalised CLIP vectors; manifest skips unchanged rebuilds; VRAM check before loading. | No similarity retrieval. |
 | `retrieval/` | `Query`, `Hit`, `Retriever` protocol; rights filter `allowed()` shared by every retriever; Jaccard and CLIP retrievers; registry with lazy resources. | Retrievers would diverge on rights and avoid lists. |
+| `retrieval/combined.py` | FR-3 score: `w_similarity x cosine + w_attributes x jaccard`, each hit's two terms in `Hit.components` (they sum to the score). Conditions boost or filter per field; records without an image vector rank on attributes alone. Weights in `config/retrieval.yaml` feed the eval config hash. | No search that uses both conditions and similarity; no per-hit explanation of a mixed score. |
 | `evals/` | Golden-case format and validator, rule engine (golden-v0), scorers, bootstrap CIs, harness, paired comparison, judge probe. | No measured claims. |
 
 ## Model path
@@ -62,7 +66,7 @@ All via `uv run python -m refdesk <command>` (PowerShell or WSL2):
 | `rebuild met` | Re-derive records from stored raw responses (no network) |
 | `images met` | Cache images of open works |
 | `embed met [--model] [--pretrained]` | Build the FAISS index (needs `uv sync --extra embed`) |
-| `eval [--retriever jaccard\|clip] [--k 12]` | Run a retriever on a golden set; write manifest, report, history |
+| `eval [--retriever jaccard\|clip\|combined] [--k 12]` | Run a retriever on a golden set; write manifest, report, history |
 | `compare HASH_A HASH_B` | Paired comparison of two eval runs |
 | `stats` | Record counts by rights status and ingest progress |
 
