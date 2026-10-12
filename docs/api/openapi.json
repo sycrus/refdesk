@@ -1507,6 +1507,17 @@
             "type": "string",
             "title": "Run Id"
           },
+          "request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoardRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What was asked (S3 header)"
+          },
           "state": {
             "$ref": "#/components/schemas/LoopState"
           },

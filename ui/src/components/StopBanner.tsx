@@ -16,6 +16,7 @@ export interface StopBannerProps {
   accepted: number;
   target: number;
   exported?: boolean;
+  detail?: string | null; // what exactly stopped the run (RunView.stop_detail); shown in full
   actions?: ReactNode; // Buttons: raise the cap, relax conditions, keep the partial board
 }
 
@@ -23,7 +24,7 @@ export function stopTitle(reason: string): string {
   return (STOP_REASON_BANNER as Record<string, string>)[reason] ?? `Stopped: ${reason}`;
 }
 
-export function StopBanner({ reason, accepted, target, exported = false, actions }: StopBannerProps) {
+export function StopBanner({ reason, accepted, target, exported = false, detail, actions }: StopBannerProps) {
   const tone = DANGER.has(reason) ? "danger" : "warn";
   return (
     <section className={`rd-stop rd-stop--${tone}`} role="alert">
@@ -33,6 +34,7 @@ export function StopBanner({ reason, accepted, target, exported = false, actions
         <p>
           {accepted} of {target} items accepted.{exported ? "" : " Nothing was exported."}
         </p>
+        {detail && <p className="rd-stop-detail">{detail}</p>}
         {actions && <div className="rd-stop-actions">{actions}</div>}
       </div>
     </section>

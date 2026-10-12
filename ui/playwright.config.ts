@@ -1,9 +1,11 @@
-// Accessibility check of the built design library (issue #44): Playwright serves ui/dist
-// with `vite preview` and runs axe in headless Chromium. A real browser is needed: in jsdom
-// axe cannot compute colours, so it would skip the contrast rules.
+// Browser tests (issues #44, #46) against the real API: Playwright starts the FastAPI app,
+// which serves the built UI (ui/dist) and /design/. The store is rebuilt from the recorded
+// Met fixtures (scripts/make_e2e_store.py), offline, and the retriever is Jaccard, because
+// CI cannot load CLIP. Run `npm run build` first.
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 4173;
+const STORE = "runs/e2e/store.sqlite"; // relative to the repo root (uv runs from there)
 
 export default defineConfig({
   testDir: "e2e",
@@ -14,8 +16,12 @@ export default defineConfig({
   use: { baseURL: `http://127.0.0.1:${PORT}`, reducedMotion: "reduce" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `npx vite preview --host 127.0.0.1 --port ${PORT} --strictPort`,
-    url: `http://127.0.0.1:${PORT}/design/`,
+    command:
+      `uv run --directory .. python scripts/make_e2e_store.py ${STORE} && ` +
+      `uv run --directory .. uvicorn refdesk.api.app:app --host 127.0.0.1 --port ${PORT}`,
+    url: `http://127.0.0.1:${PORT}/healthz`,
+    env: { REFDESK_DB: STORE, REFDESK_RETRIEVER: "jaccard" },
     reuseExistingServer: false,
+    timeout: 120_000,
   },
 });

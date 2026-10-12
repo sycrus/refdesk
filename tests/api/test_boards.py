@@ -210,3 +210,25 @@ class TestPersistence:
         finally:
             app.dependency_overrides.clear()
         assert view["run_id"] == run_id and view["state"] == "done"
+
+
+class TestRunViewCarriesTheRequest:
+    def test_the_view_shows_what_was_asked(self, client):
+        run_id = create(client, brief="boats", usage_mode="reproduction")["run_id"]
+        view = client.get(f"/runs/{run_id}").json()
+        assert view["request"]["brief"] == "boats"
+        assert view["request"]["usage_mode"] == "reproduction"
+
+
+class TestRetrieverOverride:
+    def test_env_names_the_retriever(self, tmp_path, monkeypatch):
+        from refdesk.boards import default_service
+
+        monkeypatch.setenv("REFDESK_RETRIEVER", "jaccard")
+        assert default_service(tmp_path / "store.sqlite").retriever_name == "jaccard"
+
+    def test_config_names_it_otherwise(self, tmp_path, monkeypatch):
+        from refdesk.boards import default_service
+
+        monkeypatch.delenv("REFDESK_RETRIEVER", raising=False)
+        assert default_service(tmp_path / "store.sqlite").retriever_name == "combined"

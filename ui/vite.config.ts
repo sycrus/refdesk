@@ -2,7 +2,7 @@
 // In dev (`npm run dev`), API paths are proxied to a local `uvicorn refdesk.api.app:app`,
 // so the UI always talks to the real API, which enforces the gates (PRD 8B).
 // `npm test` runs component tests in jsdom (issue #43). Two pages: the app at / and the
-// design library at /design/ (issue #44); `npm run test:a11y` runs axe on the built library.
+// design library at /design/ (issue #44); `npm run test:e2e` runs the browser tests.
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 

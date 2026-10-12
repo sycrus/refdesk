@@ -1,5 +1,5 @@
 // axe on /design (issue #44): zero serious or critical violations, in both themes and with
-// the approval dialog open. Run `npm run build` first; `npm run test:a11y` serves the build.
+// the approval dialog open. Run `npm run build` first; `npm run test:e2e` starts the API, which serves the build.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 

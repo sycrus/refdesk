@@ -43,6 +43,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      # axe on /design in both themes (issue #44); needs a real browser for contrast.
+      # Browser tests against the real API (issues #44, #46): S1 -> S3 on a fixture store,
+      # and axe on the screens and /design in both themes (a real browser for contrast).
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - run: uv sync --locked
+        working-directory: .
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:a11y
+      - run: npm run test:e2e
