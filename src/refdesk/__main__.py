@@ -12,8 +12,9 @@ embed met [--model ViT-B-32] [--pretrained laion2b_s34b_b79k] [--device cuda]
     Embed cached images of open works into a FAISS index (needs: uv sync --extra embed).
 eval [--retriever jaccard|clip|combined] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
-compare HASH_A HASH_B
-    Paired comparison of two eval runs (B - A per case, with a 95% CI).
+compare HASH_A HASH_B [HASH ...] [--write]
+    Paired comparison of eval runs (B - A per case, with a 95% CI), for every pair.
+    --write saves one report to evals/reports/ (named by the run hashes).
 """
 
 from __future__ import annotations
@@ -25,7 +26,12 @@ import time
 from datetime import date
 from pathlib import Path
 
-from refdesk.evals.compare import NotComparable, compare_runs, format_comparison
+from refdesk.evals.compare import (
+    NotComparable,
+    compare_runs,
+    format_comparison,
+    write_comparison_report,
+)
 from refdesk.evals.golden import GoldenCase, corpus_version
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.images import cache_images
@@ -101,9 +107,9 @@ def main(argv: list[str] | None = None) -> int:
     p_images.add_argument("--db", default=DEFAULT_DB)
     p_images.add_argument("--dir", default="data/images")
     p_images.add_argument("--limit", type=int, help="stop after N new downloads")
-    p_compare = commands.add_parser("compare", help="paired comparison of two eval runs")
-    p_compare.add_argument("run_a")
-    p_compare.add_argument("run_b")
+    p_compare = commands.add_parser("compare", help="paired comparison of eval runs")
+    p_compare.add_argument("runs", nargs="+", metavar="HASH", help="two or more run hashes")
+    p_compare.add_argument("--write", action="store_true", help="save one comparison report")
     p_compare.add_argument("--db", default=DEFAULT_DB)
     p_embed = commands.add_parser("embed", help="build the image embedding index")
     p_embed.add_argument("source", choices=["met"])
@@ -140,10 +146,23 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  failed {record_id}: {reason}")
             return 1 if result.failed else 0
         if args.command == "compare":
+            if len(args.runs) < 2:
+                print("compare needs at least two run hashes")
+                return 2
             try:
-                print(format_comparison(compare_runs(Path.cwd(), args.run_a, args.run_b)))
+                if args.write:
+                    path = write_comparison_report(Path.cwd(), args.runs, date.today().isoformat())
+                    print(f"wrote {path.relative_to(Path.cwd()).as_posix()}")
+                    return 0
+                for i, run_a in enumerate(args.runs):
+                    for run_b in args.runs[i + 1 :]:
+                        print(format_comparison(compare_runs(Path.cwd(), run_a, run_b)))
+                        print()
             except NotComparable as error:
                 print(f"Not comparable: {error}")
+                return 2
+            except FileExistsError as error:
+                print(error)
                 return 2
             return 0
         if args.command == "embed":
