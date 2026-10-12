@@ -1,5 +1,5 @@
-// Scaffold only (issue #41). Styling waits for the design tokens (#42), so there is no
-// CSS here: never hardcode colours. Screens S1 to S3 arrive in #46.
+// Scaffold only (issue #41). Page styles come from the design tokens (#42, base.css);
+// never hardcode colours. Screens S1 to S3 arrive in #46.
 import { useEffect, useState } from "react";
 
 type ApiState = { kind: "checking" } | { kind: "up" } | { kind: "down"; reason: string };
