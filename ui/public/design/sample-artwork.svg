@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <title>Placeholder image, not an artwork</title>
+  <rect width="400" height="300" fill="#d9d4ca"/>
+  <path d="M0 220 L120 140 L200 190 L290 110 L400 200 L400 300 L0 300 Z" fill="#a39a8a"/>
+  <circle cx="300" cy="70" r="28" fill="#efe9de"/>
+</svg>

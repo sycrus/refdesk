@@ -14,6 +14,8 @@ __pycache__/
 # Node / UI
 node_modules/
 ui/dist/
+ui/test-results/
+ui/playwright-report/
 
 # Runs, data and models (large or regenerable). All of data/ is derived: the SQLite
 # store, raw responses and cached images. Never commit it.

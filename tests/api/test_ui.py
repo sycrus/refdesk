@@ -34,6 +34,17 @@ def test_serves_built_assets(tmp_path):
     assert api_with_ui(built(tmp_path)).get("/assets/app.js").status_code == 200
 
 
+def test_serves_the_design_library(tmp_path):
+    dist = built(tmp_path)
+    (dist / "design").mkdir()
+    (dist / "design" / "index.html").write_text(
+        "<title>refdesk design library</title>", encoding="utf-8"
+    )
+    client = api_with_ui(dist)
+    assert "design library" in client.get("/design/").text
+    assert "design library" in client.get("/design").text  # redirects to /design/
+
+
 def test_api_routes_win_over_the_ui(tmp_path):
     assert api_with_ui(built(tmp_path)).get("/healthz").json() == {"status": "ok"}
 

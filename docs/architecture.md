@@ -64,6 +64,8 @@ Design tokens and fixed wording are generated, never hand-written (issue #42): `
 
 The 8 components from `design/components/` live in `ui/src/components/` (issue #43), each with its spec rules as tests (`npm test`, Vitest in jsdom). The safety rules sit in the components, so no screen can skip them. StatusBadge maps an inferred or unrecognised status to the cautious label. EvidenceCard shows an image only for works the source states are open with a structured flag, and drops non-http(s) URLs from museum data. GateStepper shows a missing gate as pending. StopBanner shows an unknown reason code instead of hiding it. ConfirmDialog keeps the forward action disabled, with its reason, until the acknowledgement and approver are given, and traps focus. A Button can only be disabled by giving a reason.
 
+`/design/` (issue #44) is a second Vite page (`ui/design/index.html`) that shows every component in every documented state, using sample data that is marked as invented. A theme switch sets `data-theme`. `npm run test:a11y` serves the build with `vite preview` and runs axe in headless Chromium (Playwright), in both themes and with the approval dialog open. CI fails on any serious or critical violation. Reduced motion is on during the check, so colours are measured at rest, not mid-transition.
+
 ## Commands
 
 All via `uv run python -m refdesk <command>` (PowerShell or WSL2):
