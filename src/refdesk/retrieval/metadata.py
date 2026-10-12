@@ -85,6 +85,21 @@ def attributes(record: ArtworkRecord) -> frozenset[str]:
     return frozenset(attrs)
 
 
+def condition_attributes(key: str, value: str) -> set[str]:
+    """The attributes one query condition stands for. A condition names its field, so it
+    maps straight to that attribute namespace. Unknown keys and unparseable periods give
+    an empty set."""
+    if key == "period":
+        century = _period_century(value)
+        return {f"century:{century}"} if century else set()
+    namespace = _CONDITION_FIELD.get(key)
+    if namespace == "medium":
+        return {f"medium:{w}" for w in _words(value)}
+    if namespace:
+        return {f"{namespace}:{_phrase(value)}"}
+    return set()
+
+
 class JaccardRetriever:
     def __init__(self, records: Iterable[ArtworkRecord]):
         records = list(records)
@@ -106,19 +121,19 @@ class JaccardRetriever:
     def query_attributes(self, query: Query) -> set[str]:
         attrs = self._lookup(query.brief)
         for key, value in query.conditions.items():
-            if key == "period":
-                if century := _period_century(value):
-                    attrs.add(f"century:{century}")
-            elif key in _CONDITION_FIELD:
-                # A condition names its field, so it maps straight to that attribute.
-                namespace = _CONDITION_FIELD[key]
-                if namespace == "medium":
-                    attrs |= {f"medium:{w}" for w in _words(value)}
-                else:
-                    attrs.add(f"{namespace}:{_phrase(value)}")
+            attrs |= condition_attributes(key, value)
         if query.anchor_id is not None:
             attrs |= self.attrs[query.anchor_id]  # KeyError for an unknown anchor
         return attrs
+
+    def excluded(self, query: Query) -> set[str]:
+        """Record IDs the avoid list rules out: named IDs, plus records that share an
+        attribute with an avoid term ("avoid Monet")."""
+        excluded = {a for a in query.avoid if ":" in a}
+        terms = set().union(*(self._lookup(a) for a in query.avoid if ":" not in a))
+        if terms:
+            excluded |= {rid for rid, attrs in self.attrs.items() if attrs & terms}
+        return excluded
 
     def search(self, query: Query) -> list[Hit]:
         q = self.query_attributes(query)

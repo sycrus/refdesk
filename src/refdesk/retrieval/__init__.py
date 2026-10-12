@@ -32,6 +32,9 @@ class Hit:
     score: float
     matched: tuple[str, ...]  # evidence: which attributes or features produced the score
     union_size: int = 0
+    # Named contributions that sum to `score`, e.g. (("similarity", 0.3), ("attributes", 0.13)).
+    # Empty for single-signal retrievers, whose score is the one signal.
+    components: tuple[tuple[str, float], ...] = ()
 
 
 def allowed(record: ArtworkRecord, query: Query) -> bool:
