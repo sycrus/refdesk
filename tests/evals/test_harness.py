@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from refdesk.evals.golden import GoldenCase
-from refdesk.evals.harness import EvalConfig, run_eval, write_outputs
+from refdesk.evals.harness import EvalConfig, git_state, run_eval, write_outputs
 from refdesk.retrieval.metadata import JaccardRetriever
 from refdesk.schema import ArtworkRecord, RightsRecord, RightsStatus
 
@@ -180,3 +180,45 @@ def test_a_second_run_with_a_different_config_never_overwrites_a_report(tmp_path
     a = write_outputs(first, root=tmp_path, date="2026-10-11")["report"]
     b = write_outputs(second, root=tmp_path, date="2026-10-11")["report"]
     assert a != b and a.exists() and b.exists()
+
+
+class TestGitState:
+    """`git_dirty` marks a run whose code or config differs from its commit. The harness's
+    own outputs (reports, history) must not count, or the second of two back-to-back evals
+    is wrongly marked dirty by the first one's report."""
+
+    def repo(self, tmp_path):
+        import subprocess
+
+        def git(*args):
+            subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+        git("init", "-q")
+        git("config", "user.email", "t@example.org")
+        git("config", "user.name", "t")
+        (tmp_path / "code.py").write_text("x = 1\n", encoding="utf-8")
+        (tmp_path / "results").mkdir()
+        (tmp_path / "results" / "history.csv").write_text("date\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-q", "-m", "init")
+        return tmp_path
+
+    def test_clean_repo_is_clean(self, tmp_path):
+        assert git_state(self.repo(tmp_path))[1] is False
+
+    def test_eval_outputs_do_not_make_it_dirty(self, tmp_path):
+        root = self.repo(tmp_path)
+        (root / "evals" / "reports").mkdir(parents=True)
+        (root / "evals" / "reports" / "eval-report-x.md").write_text("r", encoding="utf-8")
+        (root / "results" / "history.csv").write_text("date\nrow\n", encoding="utf-8")
+        assert git_state(root)[1] is False
+
+    def test_a_code_change_makes_it_dirty(self, tmp_path):
+        root = self.repo(tmp_path)
+        (root / "code.py").write_text("x = 2\n", encoding="utf-8")
+        assert git_state(root)[1] is True
+
+    def test_an_untracked_file_makes_it_dirty(self, tmp_path):
+        root = self.repo(tmp_path)
+        (root / "new.py").write_text("y = 1\n", encoding="utf-8")
+        assert git_state(root)[1] is True
