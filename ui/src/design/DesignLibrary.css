@@ -1,0 +1,63 @@
+.dl {
+  display: grid;
+  gap: var(--space-6);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dl-header p {
+  margin: 0 0 var(--space-3);
+  color: var(--color-ink-muted);
+}
+
+.dl-theme {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.dl-theme legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+
+.dl-theme label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dl-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-line);
+}
+
+.dl-section-title {
+  margin: 0;
+  font-family: var(--type-display-m-family);
+  font-size: var(--type-display-m-size);
+  line-height: var(--type-display-m-line);
+  font-weight: var(--type-display-m-weight);
+}
+
+.dl-state {
+  margin: 0;
+}
+
+.dl-state figcaption {
+  margin-bottom: var(--space-2);
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.dl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
