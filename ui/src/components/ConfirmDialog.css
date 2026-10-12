@@ -1,0 +1,111 @@
+.rd-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-ink) 40%, transparent);
+}
+
+.rd-dialog {
+  display: grid;
+  gap: var(--space-4);
+  width: min(560px, 100%);
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+}
+
+.rd-dialog-title {
+  margin: 0;
+  font-family: var(--type-display-m-family);
+  font-size: var(--type-display-m-size);
+  line-height: var(--type-display-m-line);
+  font-weight: var(--type-display-m-weight);
+}
+
+.rd-dialog-subtitle {
+  margin: 0 0 var(--space-1);
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+}
+
+.rd-dialog-counts,
+.rd-dialog-reviewed {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rd-dialog-counts li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-line);
+  padding: var(--space-1) 0;
+}
+
+.rd-dialog-count,
+.rd-dialog-id {
+  font-family: var(--type-mono-family);
+  font-size: var(--type-mono-size);
+}
+
+.rd-dialog-next {
+  margin: 0;
+  color: var(--color-ink-muted);
+}
+
+.rd-dialog-field {
+  display: grid;
+  gap: var(--space-1);
+  font-weight: 600;
+}
+
+.rd-dialog-field input {
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.rd-dialog-ack {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+}
+
+.rd-dialog-ack input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--color-accent);
+}
+
+.rd-dialog input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rd-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

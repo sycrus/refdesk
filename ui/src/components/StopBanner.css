@@ -1,0 +1,54 @@
+.rd-stop {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-lg);
+}
+
+.rd-stop--warn {
+  color: var(--color-warn);
+  background: var(--color-warn-soft);
+}
+
+.rd-stop--danger {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.rd-stop > .rd-icon {
+  flex: none;
+  margin-top: 4px;
+}
+
+.rd-stop-body {
+  color: var(--color-ink);
+}
+
+.rd-stop-title {
+  margin: 0;
+  font-family: var(--type-title-family);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+}
+
+.rd-stop--warn .rd-stop-title {
+  color: var(--color-warn);
+}
+
+.rd-stop--danger .rd-stop-title {
+  color: var(--color-danger);
+}
+
+.rd-stop-body p {
+  margin: var(--space-1) 0 0;
+}
+
+.rd-stop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}

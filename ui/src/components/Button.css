@@ -1,0 +1,78 @@
+.rd-button-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.rd-button {
+  height: 40px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font-family: var(--type-body-family);
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease-out,
+    border-color 150ms ease-out;
+}
+
+.rd-button:hover {
+  border-color: var(--color-ink-muted);
+}
+
+.rd-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rd-button--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.rd-button--primary:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.rd-button--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-accent);
+}
+
+.rd-button--ghost:hover {
+  background: var(--color-accent-soft);
+  border-color: transparent;
+}
+
+.rd-button--danger {
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.rd-button[aria-disabled="true"] {
+  background: var(--color-sunken);
+  border-color: var(--color-line);
+  color: var(--color-ink-muted);
+  cursor: not-allowed;
+}
+
+.rd-button-reason {
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-button {
+    transition: none;
+  }
+}

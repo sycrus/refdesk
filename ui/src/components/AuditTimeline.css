@@ -1,0 +1,107 @@
+.rd-audit {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.rd-audit-versions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--color-sunken);
+  border-radius: var(--radius-sm);
+  font-family: var(--type-mono-family);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+}
+
+.rd-audit-versions dt {
+  color: var(--color-ink-muted);
+}
+
+.rd-audit-versions dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.rd-audit-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rd-audit-event {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-left: 1px solid var(--color-line);
+  margin-left: 13px;
+  padding-left: 0;
+}
+
+.rd-audit-event > div {
+  padding-left: var(--space-1);
+}
+
+.rd-audit-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--color-line-strong);
+  background: var(--color-card);
+  color: var(--color-ink-muted);
+}
+
+.rd-audit-event--ok .rd-audit-dot {
+  border-color: var(--color-ok);
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
+}
+
+.rd-audit-event--warn .rd-audit-dot {
+  border-color: var(--color-warn);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+}
+
+.rd-audit-event--danger .rd-audit-dot {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.rd-audit-heading {
+  margin: 0;
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+  font-weight: 400;
+  color: var(--color-ink-muted);
+}
+
+.rd-audit-label {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.rd-audit-what {
+  margin: var(--space-1) 0 0;
+}
+
+.rd-audit-meta {
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink-muted);
+  font-family: var(--type-mono-family);
+  font-size: var(--type-mono-size);
+  line-height: var(--type-mono-line);
+  white-space: pre-wrap;
+}
+
+.rd-audit-empty {
+  margin: 0;
+  color: var(--color-ink-muted);
+}
