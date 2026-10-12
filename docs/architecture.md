@@ -60,6 +60,8 @@ flowchart LR
 
 `ui/` is a Vite + React + TypeScript app (issue #41). `npm run build` writes `ui/dist`, which the API serves at `/` (one service, ADR-017). It is mounted after every API route, so API paths win, and it is not in the OpenAPI spec, so MCP can never expose it. Without a build, `/` answers 503 `ui_not_built` with the build command. The API checks for the build once at startup, so restart it after the first build. `REFDESK_UI_DIST` overrides the path. In dev, `npm run dev` proxies API paths to `uvicorn refdesk.api.app:app` on port 8000. The scaffold only shows whether the API is reachable; tokens, components and screens come in #42 to #46. CI builds and type-checks it in a separate `ui` job.
 
+Design tokens and fixed wording are generated, never hand-written (issue #42): `scripts/generate_ui.py` (via `ui_codegen.py`) writes `ui/src/generated/tokens.css` from `design/tokens.json` (both themes; dark follows the system unless `data-theme` forces one) and `ui/src/generated/wording.ts` from `wording.py`. Tests check the documented contrast pairs (text 4.5:1, borders and focus 3:1, and the exact ratios stated in `tokens.json`), fail when a committed generated file is stale, and fail on any hex colour in `ui/src` outside `generated/`.
+
 ## Commands
 
 All via `uv run python -m refdesk <command>` (PowerShell or WSL2):

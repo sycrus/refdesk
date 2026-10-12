@@ -1,0 +1,35 @@
+/* Page defaults from the design tokens (issue #42). No colour values here: every colour
+   is a token from generated/tokens.css (CLAUDE.md). */
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--type-body-family);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+a {
+  color: var(--color-accent);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+main {
+  padding: var(--space-6) var(--space-4);
+}
+
+h1 {
+  font-family: var(--type-display-l-family);
+  font-size: var(--type-display-l-size);
+  line-height: var(--type-display-l-line);
+  font-weight: var(--type-display-l-weight);
+  margin: 0 0 var(--space-4);
+}
