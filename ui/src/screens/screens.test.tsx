@@ -5,6 +5,7 @@ import type { BoardItem, Gate, RunView } from "../api/types";
 import { AttributionStatus, NOT_LEGAL_ADVICE, RightsStatus, STOP_REASON_BANNER, StopReason } from "../generated/wording";
 import { ItemDetail } from "./ItemDetail";
 import { NewBoard } from "./NewBoard";
+import { ReviewScreen } from "./ReviewScreen";
 import { RunScreen } from "./RunScreen";
 
 const GATES: Gate[] = [
@@ -227,5 +228,45 @@ describe("S4 ItemDetail", () => {
     respond({ body: view() });
     render(<ItemDetail runId="run-1" itemId="met:999" onBack={vi.fn()} />);
     expect((await screen.findByRole("alert")).textContent).toBe("This board has no item met:999.");
+  });
+});
+
+describe("S5 ReviewScreen", () => {
+  const flaggedItem: BoardItem = { ...ITEM, flag_reasons: ["claim 2 (date): the judge found it unsupported"] };
+
+  it("keeps Continue disabled with the reason until every flagged item is decided", async () => {
+    respond({ body: view({ items: [flaggedItem] }) });
+    render(<ReviewScreen runId="run-1" onBack={vi.fn()} onContinue={vi.fn()} />);
+    expect(await screen.findByRole("heading", { name: "Needs human check" })).toBeTruthy();
+    expect(screen.getByText("claim 2 (date): the judge found it unsupported")).toBeTruthy();
+    expect(screen.getByText("1 flagged item still needs a saved decision.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Continue to approval" }).getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("shows the API's refusal, then saves a decision and opens Continue", async () => {
+    const decided = {
+      ...flaggedItem,
+      review: { decision: "drop" as const, decided_by: "Joe", decided_at: "2026-10-27T10:00:00Z" },
+    };
+    const fetchMock = respond(
+      { body: view({ items: [flaggedItem] }) },
+      { status: 422, body: { detail: [{ loc: ["body", "decisions", 0], msg: "Value error, keeping a flagged item requires a note (G3)" }] } },
+      { body: view({ items: [decided] }) },
+    );
+    const onContinue = vi.fn();
+    render(<ReviewScreen runId="run-1" onBack={vi.fn()} onContinue={onContinue} />);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Your name (recorded with each decision)"), "Joe");
+    await user.click(screen.getByLabelText("Keep"));
+    await user.click(screen.getByRole("button", { name: "Save decisions" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("requires a note");
+
+    await user.click(screen.getByLabelText("Drop"));
+    await user.click(screen.getByRole("button", { name: "Save decisions" }));
+    expect(await screen.findByText("Saved: dropped by Joe")).toBeTruthy();
+    const body = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(body).toEqual({ reviewer: "Joe", decisions: [{ item_id: "met:436535", decision: "drop", note: null }] });
+    await user.click(screen.getByRole("button", { name: "Continue to approval" }));
+    expect(onContinue).toHaveBeenCalled();
   });
 });

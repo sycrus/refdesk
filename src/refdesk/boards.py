@@ -39,7 +39,9 @@ from refdesk.api.models import (
     Gate,
     GateId,
     GateState,
+    ItemReview,
     LoopState,
+    ReviewRequest,
     RunView,
 )
 from refdesk.rationale import field_value
@@ -274,6 +276,56 @@ def _gates(state: LoopState, items: int, cap: float) -> list[Gate]:
     ]
 
 
+def review_gates(gates: list[Gate], items: list[BoardItem], ended: bool) -> list[Gate]:
+    """G3 and G4 from the items' review decisions (issue #100). Approval (G4) opens only
+    when every flagged item is decided; the API enforces it at approval too (#101)."""
+    if not ended or not items:
+        return gates
+    flagged = [i for i in items if i.attribution_status is not AttributionStatus.VERIFIED]
+    decided = [i for i in flagged if i.review is not None]
+    by_id = {g.id: g for g in gates}
+    g3, g4 = by_id[GateId.G3_REVIEW], by_id[GateId.G4_APPROVE]
+    ready = Gate(
+        id=GateId.G4_APPROVE,
+        state=GateState.ACTIVE,
+        status_text="Ready for approval.",
+        actor="approver",
+    )
+    if not flagged:
+        g4 = ready
+    elif len(decided) == len(flagged):
+        kept = sum(1 for i in decided if i.review.decision == "keep")
+        g3 = Gate(
+            id=GateId.G3_REVIEW,
+            state=GateState.PASSED,
+            status_text=(
+                f"All {len(flagged)} flagged items decided: "
+                f"{kept} kept, {len(flagged) - kept} dropped."
+            ),
+            actor="operator",
+        )
+        g4 = ready
+    elif decided:
+        g3 = Gate(
+            id=GateId.G3_REVIEW,
+            state=GateState.ACTIVE,
+            status_text=f"{len(decided)} of {len(flagged)} flagged items decided.",
+            actor="operator",
+        )
+        g4 = Gate(
+            id=GateId.G4_APPROVE,
+            state=GateState.PENDING,
+            status_text=(
+                f"Waiting for review: {len(flagged) - len(decided)} flagged items still need "
+                "a decision."
+            ),
+            actor="approver",
+        )
+    return [
+        g3 if g.id == GateId.G3_REVIEW else g4 if g.id == GateId.G4_APPROVE else g for g in gates
+    ]
+
+
 def _view(
     run_id: str,
     request: BoardRequest,
@@ -288,6 +340,7 @@ def _view(
         gates = _reasoned_gates(state, list(items), request.budget_cap_usd, outcome)
     else:
         gates = _gates(state, len(items), request.budget_cap_usd)
+    gates = review_gates(gates, list(items), state in (LoopState.DONE, LoopState.STOPPED))
     return RunView(
         run_id=run_id,
         request=request,
@@ -306,6 +359,23 @@ def _view(
 
 class UnknownAnchor(KeyError):
     pass
+
+
+class UnknownRun(KeyError):
+    pass
+
+
+class UnknownItem(KeyError):
+    pass
+
+
+class GateRefused(Exception):
+    """A gate's rule refused the request; the API answers 409 with the gate and reason."""
+
+    def __init__(self, gate: GateId, reason: str):
+        super().__init__(reason)
+        self.gate = gate
+        self.reason = reason
 
 
 class BoardService:
@@ -485,6 +555,40 @@ class BoardService:
 
     def get(self, run_id: str) -> RunView | None:
         return self.runs.get(run_id)
+
+    def review(self, run_id: str, request: ReviewRequest) -> RunView:
+        """G3: record keep (with a note) or drop for flagged items, with who and when."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        if view.read_only:
+            raise GateRefused(GateId.G3_REVIEW, "the board is exported and read-only")
+        if view.state not in (LoopState.DONE, LoopState.STOPPED):
+            raise GateRefused(GateId.G3_REVIEW, "the run is still working")
+        approval = next(g for g in view.gates if g.id == GateId.G4_APPROVE)
+        if approval.state is GateState.PASSED:
+            raise GateRefused(GateId.G3_REVIEW, "the board is already approved")
+        items = {i.record.id: i for i in view.items}
+        now = datetime.now(UTC)
+        for d in request.decisions:
+            if d.item_id not in items:
+                raise UnknownItem(d.item_id)
+            if items[d.item_id].attribution_status is AttributionStatus.VERIFIED:
+                raise GateRefused(
+                    GateId.G3_REVIEW, f"{d.item_id} is not flagged; only flagged items are reviewed"
+                )
+        for d in request.decisions:
+            note = d.note.strip() if d.note else None
+            review = ItemReview(
+                decision=d.decision, note=note or None, decided_by=request.reviewer, decided_at=now
+            )
+            items[d.item_id] = items[d.item_id].model_copy(update={"review": review})
+        new_items = [items[i.record.id] for i in view.items]
+        updated = view.model_copy(
+            update={"items": new_items, "gates": review_gates(view.gates, new_items, True)}
+        )
+        self.runs.save(updated)
+        return updated
 
 
 def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService:

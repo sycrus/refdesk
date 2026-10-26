@@ -53,6 +53,7 @@ export interface BoardItem {
   score?: number | null; // retrieval score; higher ranks first
   score_components?: Record<string, number>; // parts that sum to the score
   confidence?: { bucket: "high" | "medium" | "low"; value: number } | null;
+  review?: ItemReview | null; // G3 decision, for flagged items
   tier_used?: string | null;
   cost_usd?: number;
 }
@@ -119,4 +120,16 @@ export interface RunView {
 export interface Problem {
   code: string;
   message: string;
+}
+
+export interface ItemReview {
+  decision: "keep" | "drop";
+  note?: string | null;
+  decided_by: string;
+  decided_at: string;
+}
+
+export interface ReviewRequest {
+  reviewer: string;
+  decisions: { item_id: string; decision: "keep" | "drop"; note?: string | null }[];
 }

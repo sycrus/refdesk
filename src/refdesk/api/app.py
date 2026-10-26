@@ -34,7 +34,14 @@ from refdesk.api.models import (
     RunCreated,
     RunView,
 )
-from refdesk.boards import BoardService, UnknownAnchor, default_service
+from refdesk.boards import (
+    BoardService,
+    GateRefused,
+    UnknownAnchor,
+    UnknownItem,
+    UnknownRun,
+    default_service,
+)
 from refdesk.retrieval.combined import ConditionNotUnderstood
 
 app = FastAPI(
@@ -113,11 +120,26 @@ def get_run(run_id: str, service: Service):
     "/runs/{run_id}/review",
     response_model=RunView,
     tags=["runs"],
-    responses={**NOT_FOUND, **GATE_BLOCKED, **NOT_IMPLEMENTED},
+    responses={
+        **NOT_FOUND,
+        **GATE_BLOCKED,
+        400: {"model": Problem, "description": "The board has no such item"},
+    },
 )
-def review(run_id: str, request: ReviewRequest):
-    """G3: keep (with a note) or drop each flagged item."""
-    return _not_implemented()
+def review(run_id: str, request: ReviewRequest, service: Service):
+    """G3: keep (with a note) or drop each flagged item, recorded with who and when.
+    Only flagged items can be reviewed; approval (G4) opens when all are decided."""
+    try:
+        return service.review(run_id, request)
+    except UnknownRun:
+        problem = Problem(code="unknown_run", message=f"No run {run_id!r}.")
+        return JSONResponse(status_code=404, content=problem.model_dump())
+    except UnknownItem as error:
+        problem = Problem(code="unknown_item", message=f"This board has no item {error.args[0]!r}.")
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    except GateRefused as error:
+        blocked = GateBlocked(gate=error.gate, reason=error.reason)
+        return JSONResponse(status_code=409, content=blocked.model_dump())
 
 
 @app.post(

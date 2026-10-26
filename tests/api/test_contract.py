@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from openapi_spec_validator import validate
 
-from refdesk.api.app import app
+from refdesk.api.app import app, get_service
 from refdesk.wording import AttributionStatus, RightsStatus, StopReason
 
 SPEC_FILE = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.json"
@@ -83,7 +83,6 @@ class TestNoBusinessLogicYet:
     @pytest.mark.parametrize(
         ("method", "path", "body"),
         [
-            ("post", "/runs/r1/review", {"decisions": []}),
             ("post", "/runs/r1/cap", {"new_cap_usd": 0.1, "raised_by": "Joe"}),
             ("post", "/runs/r1/approve", {"approver": "Joe", "acknowledged": True}),
             ("post", "/runs/r1/export", {"format": "csv"}),
@@ -105,7 +104,10 @@ class TestRequestValidation:
         assert response.status_code == 422
 
     def test_keep_decision_requires_a_note(self, client):
-        body = {"decisions": [{"item_id": "met:1", "decision": "keep"}]}
+        # Review is implemented (#100), so the service dependency resolves; the body is
+        # still refused before it is used.
+        app.dependency_overrides[get_service] = lambda: None
+        body = {"reviewer": "Joe", "decisions": [{"item_id": "met:1", "decision": "keep"}]}
         assert client.post("/runs/r1/review", json=body).status_code == 422
 
     def test_cap_must_be_positive(self, client):

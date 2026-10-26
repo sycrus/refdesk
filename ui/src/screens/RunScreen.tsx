@@ -31,9 +31,10 @@ export interface RunScreenProps {
   onNewBoard: () => void;
   onMoreLikeThis: (run: RunView, item: BoardItem) => void;
   onOpenItem?: (itemId: string) => void;
+  onReview?: () => void;
 }
 
-export function RunScreen({ runId, onNewBoard, onMoreLikeThis, onOpenItem }: RunScreenProps) {
+export function RunScreen({ runId, onNewBoard, onMoreLikeThis, onOpenItem, onReview }: RunScreenProps) {
   const [run, setRun] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,6 +123,12 @@ export function RunScreen({ runId, onNewBoard, onMoreLikeThis, onOpenItem }: Run
             ? `Done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"}. ${doneText}`
             : STATE_TEXT[run.state] ?? run.state}
       </p>
+
+      {!working && onReview && run.items.some((i) => i.attribution_status !== AttributionStatus.VERIFIED) && (
+        <Button variant="primary" onClick={onReview}>
+          {`Review flagged items (${run.items.filter((i) => i.attribution_status !== AttributionStatus.VERIFIED).length})`}
+        </Button>
+      )}
 
       {run.stop_reason && (
         <StopBanner

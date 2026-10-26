@@ -110,7 +110,17 @@ class ReviewDecision(_Model):
 class ReviewRequest(_Model):
     """G3: decisions on items in "Needs human check"."""
 
+    reviewer: NonEmpty = Field(description="Who decided; recorded with each decision")
     decisions: list[ReviewDecision]
+
+
+class ItemReview(_Model):
+    """A recorded G3 decision on one flagged item."""
+
+    decision: Literal["keep", "drop"]
+    note: str | None = None
+    decided_by: str
+    decided_at: datetime
 
 
 class CapRaise(_Model):
@@ -183,6 +193,7 @@ class BoardItem(_Model):
     score_components: dict[str, float] = Field(
         {}, description="Named parts of the score that sum to it, e.g. similarity, attributes"
     )
+    review: ItemReview | None = Field(None, description="G3 decision, for flagged items")
 
 
 class RunCreated(_Model):
