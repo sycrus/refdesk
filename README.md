@@ -28,16 +28,46 @@ Reasoning sections in the ADRs are still to be written by the owner.
 
 ## Quick start (PowerShell or WSL2)
 
-```
-uv sync                                 # add --extra embed for PyTorch + OpenCLIP (GPU, ~3 GB)
-uv run pytest -q
-uv run python -m refdesk ingest met     # ~45 min at 1 request/s; resumable
-uv run python -m refdesk images met     # images of open works only
-uv run python -m refdesk embed met      # FAISS index (needs --extra embed)
-uv run python -m refdesk eval --retriever jaccard
-uv run python -m refdesk compare <hashA> <hashB>
-uv run python -m refdesk.llm.mock_server --port 8100
-```
+Run the steps in order. Each one builds on the one before. Run `uv run python -m refdesk --help` to see every command.
+
+1. **Install.** Installs the Python dependencies. Add `--extra embed` to get PyTorch and OpenCLIP as well (GPU, about 3 GB). Only step 5 needs them.
+   ```
+   uv sync
+   ```
+2. **Test.** Runs the test suite offline. It needs no data or keys.
+   ```
+   uv run pytest -q
+   ```
+3. **Ingest.** Fetches the Met's European Paintings records into the SQLite store under `data/`. Each record keeps its raw response and a rights record read from the Met's `isPublicDomain` flag. This takes about 45 minutes at 1 request/s. It is resumable, so you can stop and re-run it. Use `--limit N` for a quick partial run, and `stats` to see the counts.
+   ```
+   uv run python -m refdesk ingest met
+   uv run python -m refdesk stats
+   ```
+4. **Cache images.** Downloads images from the Met's own image host into `data/images/`, for open works only.
+   ```
+   uv run python -m refdesk images met
+   ```
+5. **Embed.** Builds the CLIP + FAISS similarity index from the cached images, in `data/index/met-clip`. It needs `--extra embed` and the GPU. Skip this step if you only use the `jaccard` retriever.
+   ```
+   uv run python -m refdesk embed met
+   ```
+6. **Evaluate.** Scores a retriever against the golden set (synthetic `golden-v0` by default). It writes a report named with the config hash and prints that hash.
+   ```
+   uv run python -m refdesk eval --retriever jaccard
+   ```
+7. **Compare.** Gives a paired comparison of two or more eval runs, by the hashes from step 6. Add `--write` to save the comparison as a report.
+   ```
+   uv run python -m refdesk compare <hashA> <hashB>
+   ```
+8. **Mock LLM (optional).** Starts the local mock LLM server, which is the default instead of paid providers. Its answers are deterministic, and it can script failures (`--script ok,429`).
+   ```
+   uv run python -m refdesk.llm.mock_server --port 8100
+   ```
+9. **UI and API.** Builds the static UI once, then starts the API, which serves both the UI and the endpoints at http://localhost:8000. Restart the API after the first build. Set `REFDESK_RETRIEVER=jaccard` if you skipped step 5.
+   ```
+   cd ui; npm install; npm run build; cd ..
+   uv run uvicorn refdesk.api.app:app --port 8000
+   ```
 
 Copy `.env.example` to `.env` for API keys (DeepSeek). Paid calls also need a budget in `config/budgets.yaml` and an explicit `--approve`. Before committing: `uv run python scripts/verify.py` (frozen golden files, `.env`, secrets). Kev runs in WSL2 through `scripts/kev.ps1`.
 
