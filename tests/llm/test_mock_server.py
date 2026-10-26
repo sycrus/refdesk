@@ -117,3 +117,67 @@ def test_script_can_be_changed_at_runtime(mock):
 def test_unreachable_server_is_a_provider_error():
     with pytest.raises(llm.ProviderError):
         call(client(free_port(), max_retries=0))
+
+
+class TestRationaleAnswers:
+    """The mock answers rationale prompts with structured claims built from the record
+    block, and can be scripted to return malformed ones (issue #94)."""
+
+    @staticmethod
+    def ask(app, record):
+        from fastapi.testclient import TestClient
+
+        from refdesk.rationale import load_prompt, rationale_messages
+
+        messages = rationale_messages("Flowers for a tea tin", record, load_prompt())
+        with TestClient(app) as http:
+            body = http.post("/v1/chat/completions", json={"messages": messages}).json()
+        return body["choices"][0]["message"]["content"]
+
+    @staticmethod
+    def record():
+        from datetime import UTC, datetime
+
+        from refdesk.schema import ArtworkRecord, RightsRecord, RightsStatus
+
+        rights = RightsRecord(
+            source="met", object_id="1", flag_field="isPublicDomain", flag_value=True,
+            licence_string=None, checked_at=datetime(2026, 10, 27, tzinfo=UTC),
+            status=RightsStatus.OPEN,
+        )  # fmt: skip
+        return ArtworkRecord(
+            id="met:1", source="met", object_id="1", title="Still Life with Flowers",
+            artist="Workshop of Jan van Huysum", date="ca. 1720", date_begin=1715,
+            date_end=1725, medium="Oil on canvas", classification="Paintings",
+            subject_tags=("Flowers", "Still Life"), raw_record_ref="met/objects/1.json",
+            rights=rights,
+        )  # fmt: skip
+
+    def test_valid_claims_from_the_record(self):
+        from refdesk.rationale import parse_rationale
+
+        rec = self.record()
+        r = parse_rationale(self.ask(create_app(), rec), rec)
+        values = {c.field: c.value for c in r.claims}
+        assert values["medium"] == "Oil on canvas"
+        assert values["artist"] == "Workshop of Jan van Huysum"
+        assert r.fit
+
+    @pytest.mark.parametrize(
+        ("behaviour", "error"),
+        [("malformed", "JSON"), ("nofit", "fit"), ("badfield", "provenance")],
+    )
+    def test_scripted_malformed_answers(self, behaviour, error):
+        from refdesk.rationale import RationaleError, parse_rationale
+
+        rec = self.record()
+        text = self.ask(create_app(script=[behaviour]), rec)
+        with pytest.raises(RationaleError, match=error):
+            parse_rationale(text, rec)
+
+    def test_other_prompts_keep_the_plain_answer(self):
+        from fastapi.testclient import TestClient
+
+        with TestClient(create_app()) as http:
+            body = http.post("/v1/chat/completions", json={"messages": MESSAGES}).json()
+        assert body["choices"][0]["message"]["content"].startswith("MOCK:")

@@ -52,6 +52,12 @@ flowchart LR
 - **`ModelManager`**: unloads every other model, checks free VRAM against the measured need in `config/models.yaml`, loads, and logs the load time.
 - **Mock server**: deterministic answers with scripted failures (latency, 429, 500, timeout), used by tests and the M5 drills.
 
+### Rationales (M3)
+
+- **`rationale.py`** (issue #94, ADR-022): a rationale is JSON, a list of claims (`field`, `value`, `text`) plus a separate `fit` sentence. `parse_rationale` rejects non-JSON, missing fit, and any claim on a field records do not have or this record leaves empty. Claims may rest on title, artist, date, date_begin, date_end, medium, classification and subject_tags; never on rights, which come only from the rights record.
+- **Prompts** are versioned files in `src/refdesk/prompts/` (`rationale-v1.md`) with a changelog line per version. `load_prompt` returns the text and its SHA-256, which goes into `EvalConfig.prompt_hashes`, so a prompt change changes the config hash.
+- **Mock server** answers rationale prompts with claims built from the record block, and can be scripted to return `malformed`, `nofit` or `badfield` answers.
+
 ## API
 
 `api/app.py` is a FastAPI skeleton with the full contract from PRD 13A (`docs/api/openapi.json`, generated from code and checked by a drift test). `POST /boards` and `GET /runs/{id}` work for retrieval-only runs (`boards.py`, issue #45). Every other endpoint except `/healthz` returns 501 until implemented.
