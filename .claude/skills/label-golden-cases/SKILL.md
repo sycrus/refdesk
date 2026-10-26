@@ -30,11 +30,11 @@ The user holds the art expertise. From `golden-v1` on you may **propose** expect
 ## Process
 
 1. Ask the user for the briefs, or offer drafts to react to.
-2. **Blind subset first:** pick about 10 cases; present unranked candidates without system names and without your proposals; the user labels them.
+2. **Blind subset first:** pick 20 cases; present unranked candidates without system names and without your proposals; the user labels them.
 3. Propose references and grades for every case, run the cross-family judges, and flag disagreements.
 4. The user reviews every label (accept or correct). Record per case who proposed, who judged, and whether the user changed it.
 5. Report your agreement with the blind labels and the share of proposals the user corrected.
-6. Ask the user to relabel 10 cases a day later and report agreement. Below 90%, tighten `evals/labelling-guide.md` before continuing.
+6. A day later, ask the user to relabel the same 20 blind cases without looking, and report self-agreement. Apply the trust rules in ADR-018 (gap, anchoring) before freezing. Below 90%, tighten `evals/labelling-guide.md` before continuing.
 7. Record the error taxonomy from real failures, with counts.
 
 Include hard cases: ambiguous briefs, culturally sensitive symbols, over-popular references, and briefs that should be declined (living-artist style requests, authentication).
