@@ -58,6 +58,7 @@ flowchart LR
 - **Prompts** are versioned files in `src/refdesk/prompts/` (`rationale-v1.md`) with a changelog line per version. `load_prompt` returns the text and its SHA-256, which goes into `EvalConfig.prompt_hashes`, so a prompt change changes the config hash.
 - **Mock server** answers rationale prompts with claims built from the record block, and can be scripted to return `malformed`, `nofit` or `badfield` answers.
 - **`generator.py`** (issue #95): `generate_rationale` calls `LLMClient` for one record and the brief, retries an unusable answer once, then returns it as failed with the reason (the item becomes "Needs human check"). Keep-local, budget and approval refusals stay hard errors. It records tier, provider, family, requested and reported model, tokens, cost summed over attempts, and the prompt's name and hash.
+- **`verifier.py`, stage 1** (issue #96): plain-code checks of each claim's value against the record (normalised equality; a date inside the record's years; a subject among its tags). Attribution is checked in the claim's text too, so "by X" for "Workshop of X" fails before any model. Item checks: the record gives an attribution, and rights come from a structured source field. `item_status` is "Attribution verified from record" only when code checks and the judge (stage 2) both pass; otherwise "Needs human check".
 
 ## API
 
