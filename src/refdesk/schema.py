@@ -86,6 +86,7 @@ class ArtworkRecord(_Frozen):
     subject_tags: tuple[str, ...] = ()
     image_url: str | None = None
     record_url: str | None = None
+    credit_line: str | None = None  # the source's credit line, verbatim
     raw_record_ref: NonEmpty  # where the raw source response is stored
     rights: RightsRecord
 

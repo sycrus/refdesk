@@ -699,6 +699,17 @@
             ],
             "title": "Record Url"
           },
+          "credit_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Line"
+          },
           "raw_record_ref": {
             "type": "string",
             "minLength": 1,

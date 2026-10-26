@@ -58,6 +58,15 @@ class TestToRecord:
         raw = copy.deepcopy(OPEN) | {"tags": [{"term": "Landscapes"}, {"term": "Trees"}]}
         assert met.to_record(raw, checked_at=CHECKED).subject_tags == ("Landscapes", "Trees")
 
+    def test_credit_line_is_kept_verbatim(self):
+        # Shown in S4 and the provenance pack as the source gives it (issue #99).
+        r = met.to_record(OPEN, checked_at=CHECKED)
+        assert r.credit_line == "Purchase, The Annenberg Foundation Gift, 1993"
+
+    def test_an_empty_credit_line_is_none(self):
+        raw = copy.deepcopy(OPEN) | {"creditLine": ""}
+        assert met.to_record(raw, checked_at=CHECKED).credit_line is None
+
     def test_missing_tags_give_an_empty_tuple(self):
         raw = copy.deepcopy(OPEN) | {"tags": None}
         assert met.to_record(raw, checked_at=CHECKED).subject_tags == ()

@@ -137,3 +137,25 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* S4 Item detail (issue #99) */
+.rd-detail {
+  max-width: 48rem;
+}
+
+.rd-detail h2 {
+  font-family: var(--type-title-family);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.rd-back {
+  display: inline-block;
+  margin-bottom: var(--space-3);
+}
+
+.rd-note {
+  color: var(--color-ink-muted);
+}
