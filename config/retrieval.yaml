@@ -19,3 +19,11 @@ combined:
 # silent fallback to another retriever.
 api:
   retriever: combined
+  # Rationales and verification for each item (issue #98, ADR-022). The default is the
+  # mock server for both (CLAUDE.md: default to the mock); start it with
+  # `uv run python -m refdesk.llm.mock_server --port 8100`. For real models, set
+  # generator_tier to local-small and judge_tier to auto (picks judge-phi4).
+  # REFDESK_GENERATOR_TIER overrides generator_tier; "none" gives retrieval-only boards.
+  reasoning:
+    generator_tier: mock
+    judge_tier: mock-judge

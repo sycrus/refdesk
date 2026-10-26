@@ -1585,6 +1585,15 @@
             "description": "Providers this brief was sent to",
             "default": []
           },
+          "models_used": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Models Used",
+            "description": "Model each role reported, e.g. generator and judge",
+            "default": {}
+          },
           "read_only": {
             "type": "boolean",
             "title": "Read Only",
