@@ -23,7 +23,7 @@ The user holds the art expertise. From `golden-v1` on you may **propose** expect
 
 - Do not mark a label final. The user accepts or corrects every one.
 - Do not show your proposals for the blind subset before the user has labelled it.
-- Do not judge your own proposals: judges come from other families (`phi4`, `granite3-guardian:8b`; ADR-021).
+- Do not judge your own proposals: the judge comes from another family (`phi4`; ADR-021, ADR-022).
 - Do not edit a frozen version. Create `golden-vN+1.jsonl` and keep the old file unchanged.
 - Do not add cases whose expected attributions you cannot verify against museum records.
 

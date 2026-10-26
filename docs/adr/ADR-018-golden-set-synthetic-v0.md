@@ -12,7 +12,7 @@ The eval harness, scorers and reports (M1) need cases before Joe has time to lab
 1. Claude Code drafts the briefs; Joe edits them.
 2. **Blind subset first:** Joe labels 20 cases from unranked candidates, before seeing any proposal. A day later he relabels the same 20 without looking, to measure his self-agreement.
 3. Claude Code proposes expected references and grades for every case, each citing the record fields it rests on.
-4. Judges from other families than Claude check each proposal (ADR-021: `phi4` on relevance to the brief, `granite3-guardian:8b` on any stated fact against the record). Disagreements are flagged for Joe.
+4. A judge from another family than Claude, `phi4` (ADR-021, ADR-022), checks each proposal for relevance to the brief and any stated fact against the record. Disagreements are flagged for Joe.
 5. **Joe reviews every label** and accepts or corrects it. Each case records who proposed, who judged, and whether Joe changed it.
 6. The report states Claude's agreement with Joe's blind labels, Joe's self-agreement, and the share of proposals Joe corrected.
 

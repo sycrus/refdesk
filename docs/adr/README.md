@@ -26,5 +26,5 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [018](ADR-018-golden-set-synthetic-v0.md) | Golden set: synthetic v0, reviewed v1 (proposed by Claude, judged cross-family, reviewed by Joe) | proposed |
 | [019](ADR-019-ci-github-actions.md) | GitHub Actions CI tiers and runner policy | proposed |
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
-| [021](ADR-021-routing-labels-cross-family-judge.md) | Synthetic routing labels with a cross-family judge (judges: Granite Guardian per claim, phi4) | accepted (reasoning [Joe]) |
-| [022](ADR-022-rationale-verification-structured-claims.md) | Rationale verification by structured claims | proposed |
+| [021](ADR-021-routing-labels-cross-family-judge.md) | Synthetic routing labels with a cross-family judge (judge: phi4 per claim; Granite dropped 2026-10-27) | accepted (reasoning [Joe]) |
+| [022](ADR-022-rationale-verification-structured-claims.md) | Rationale verification by structured claims (code checks, then phi4 per claim) | accepted |
