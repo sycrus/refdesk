@@ -498,7 +498,7 @@ Covers the Kev fine-tune for Q1 (tier choice). Learning-critical: the quality ba
 - **Baselines on the same split.** Majority class, rules, zero-shot logits on a local model, confidence cascade, LightGBM on pre-decision features (token count, option count, top retrieval score, number of conditions, usage mode, avoid-list present), a hosted model if budget allows, and fine-tuned Kev.
 - **Calibration.** Fit temperature scaling on validation data, not test. Report a reliability diagram, ECE, and coverage at a 5% error budget. Choose the abstention threshold from this.
 - **Out of domain.** Hold out a whole source or brief type. Report the drop and name the failure modes. Unfamiliar inputs go to the human check.
-- **Serve behind the contract.** Kev, the cascade and any other backend are interchangeable by changing a base URL. Log the adapter hash with every decision.
+- **Serve behind the contract.** The typed-question contract (choice, yes/no, score, with calibrated probabilities) is fixed; backends are adapters behind it. Kev-4B is the first; the cascade, LightGBM and other decision models that speak the contract (for example H2O-Lightning-4B) are interchangeable by changing a base URL (ADR-001). Log the backend and adapter hash with every decision.
 - **Explanation.** Probabilities and the evidence used for Kev. Tree SHAP only for LightGBM.
 - **Artifacts.** `docs/decision-contract.md`, `docs/model-card.md`, `reports/baselines.md`, `reports/calibration.md`.
 
@@ -670,7 +670,7 @@ Create these in `docs/adr/` (use the `write-adr` skill). Statuses reflect decisi
 
 | ADR | Decision |
 |---|---|
-| 001 | Fine-tune Kev for the decision model, over Laya and hosted Jev. Popularity is not evidence. Amended 2026-10-11: Kev-4B, local WSL2 training first, Modal fallback under budget, 0.8B as ablation |
+| 001 | Fine-tune Kev for the decision model, over Laya and hosted Jev. Popularity is not evidence. Amended 2026-10-11: Kev-4B, local WSL2 training first, Modal fallback under budget, 0.8B as ablation. Accepted 2026-10-26: decision models are adapters behind one typed-question contract; Kev-4B is the first |
 | 002 | LightGBM as a baseline for structured-feature routing |
 | 003 | Three-tier local-first plan with a mock server as the default |
 | 004 | Phoenix for local tracing. Langfuse remains an option for prompt management |
@@ -745,4 +745,5 @@ Project skills live in `.claude/skills/<name>/SKILL.md`.
 | v0.1 | 2026-10 | First draft |
 | v0.2 | 2026-10-11 | Planning grilling applied. Build is no longer gated on interviews; bar is functional and demo-ready. Milestones get day budgets. Golden set split into synthetic v0 and hand-labelled v1, with `corpus_version`. GitHub Issues replace `tasks/queue.md`; PR-tier CI from M0. Mock server moved to just before M3. Target country parked. Kev-4B (not the smallest base), local WSL2 training with Modal fallback, pre-merged weights. Routing tiers as a config list; cloud flash models generate rationales by default. Synthetic routing labels with a cross-family judge. Paid calls need a key, a budget and `--approve`. All 8 components and a `/design` page before the screens. ADR-018 to ADR-021 added. |
 | v0.3 | 2026-10-12 | M1 done, M2 in progress. Tiers chosen (ADR-020): local `qwen3.5:9b`, cloud `deepseek-flash`, reserve `deepseek-v4-pro`; GLM dropped (Coding Plan policy). Judges chosen (ADR-021): Granite Guardian per claim, phi4 cross-check; structured-claims verification proposed for M3. Retrieval: CLIP + FAISS (exact), images for open works only; slice is 2,588 records. Evaluation: capped recall, paired comparison, gate policy with a golden-v0 tripwire, judge probe. GPU: measured needs in `config/models.yaml`, swap once per phase. Mock LLM server built. |
+| v0.3 (amended) | 2026-10-26 | ADR-001 accepted: decision models are adapters behind one typed-question contract (Kev-4B first; others such as H2O-Lightning-4B can be added); the base Kev-4B is served first and the fine-tune replaces it only on a significant validation gain. Section 10.3 "Serve behind the contract" and the ADR-001 seed line updated. |
 | v0.3 (amended) | 2026-10-26 | ADR-018 amended: golden-v1 references are proposed by Claude Code, checked by cross-family judges, and every label reviewed by Joe, who labels a blind subset first. Section 11 and the M3 line updated; CLAUDE.md and the `label-golden-cases` skill match. |
