@@ -6,7 +6,7 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 
 | ADR | Title | Status |
 |---|---|---|
-| [001](ADR-001-kev-decision-model.md) | Fine-tune Kev-4B as the decision model | proposed |
+| [001](ADR-001-kev-decision-model.md) | Fine-tune Kev-4B as the decision model | accepted |
 | [002](ADR-002-lightgbm-routing-baseline.md) | LightGBM as a baseline for structured-feature routing | proposed |
 | [003](ADR-003-three-tier-local-first.md) | Three-tier local-first plan, mock server as the default | proposed |
 | [004](ADR-004-phoenix-local-tracing.md) | Phoenix for local tracing | proposed |
