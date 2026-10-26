@@ -11,3 +11,4 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [019](ADR-019-ci-github-actions.md) | GitHub Actions CI tiers and runner policy | proposed |
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
 | [021](ADR-021-routing-labels-cross-family-judge.md) | Synthetic routing labels with a cross-family judge (judges: Granite Guardian per claim, phi4) | accepted (reasoning [Joe]) |
+| [022](ADR-022-rationale-verification-structured-claims.md) | Rationale verification by structured claims | proposed |
