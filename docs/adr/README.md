@@ -21,6 +21,7 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [013](ADR-013-decision-step-v1-one-question.md) | Decision step v1: one Kev question (tier choice) | proposed |
 | [014](ADR-014-fastapi.md) | FastAPI for the API | proposed |
 | [015](ADR-015-mcp-after-api-read-only.md) | MCP server after the API, read-only, no approval or export | proposed |
+| [016](ADR-016-plain-loop-then-langgraph-port.md) | Plain-code loop first, then a LangGraph port | proposed |
 | [018](ADR-018-golden-set-synthetic-v0.md) | Golden set: synthetic v0, hand-labelled v1 | proposed |
 | [019](ADR-019-ci-github-actions.md) | GitHub Actions CI tiers and runner policy | proposed |
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
