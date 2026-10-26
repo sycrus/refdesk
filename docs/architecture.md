@@ -59,6 +59,7 @@ flowchart LR
 - **Mock server** answers rationale prompts with claims built from the record block, and can be scripted to return `malformed`, `nofit` or `badfield` answers.
 - **`generator.py`** (issue #95): `generate_rationale` calls `LLMClient` for one record and the brief, retries an unusable answer once, then returns it as failed with the reason (the item becomes "Needs human check"). Keep-local, budget and approval refusals stay hard errors. It records tier, provider, family, requested and reported model, tokens, cost summed over attempts, and the prompt's name and hash.
 - **`verifier.py`, stage 1** (issue #96): plain-code checks of each claim's value against the record (normalised equality; a date inside the record's years; a subject among its tags). Attribution is checked in the claim's text too, so "by X" for "Workshop of X" fails before any model. Item checks: the record gives an attribution, and rights come from a structured source field. `item_status` is "Attribution verified from record" only when code checks and the judge (stage 2) both pass; otherwise "Needs human check".
+- **`judge.py`, stage 2** (issue #97): `phi4` (tier `judge-phi4`, provider `ollama-microsoft`, family microsoft) judges each claim's text with `prompts/judge-v1.md` (the probed wording) and the fit sentence with `prompts/fit-v1.md`, one statement at a time, temperature 0. A same-family judge is refused before any request. A malformed answer gets one retry, then counts as a fail. `scripts/smoke_judge.py` runs it against local Ollama (manual).
 
 ## API
 

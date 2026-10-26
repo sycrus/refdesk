@@ -45,15 +45,16 @@ class ProvidersConfig(_Model):
     providers: dict[str, Provider]
     tiers: dict[str, Tier]
     routing: list[str]
+    judges: list[str] = []  # judge tiers, first callable one outside the generator's family
 
     @model_validator(mode="after")
     def _references_exist(self) -> ProvidersConfig:
         for name, tier in self.tiers.items():
             if tier.provider not in self.providers:
                 raise ValueError(f"tier {name}: unknown provider {tier.provider}")
-        unknown = [t for t in self.routing if t not in self.tiers]
+        unknown = [t for t in self.routing + self.judges if t not in self.tiers]
         if unknown:
-            raise ValueError(f"routing names unknown tiers: {unknown}")
+            raise ValueError(f"routing or judges name unknown tiers: {unknown}")
         return self
 
     @classmethod

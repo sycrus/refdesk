@@ -12,7 +12,9 @@ Failure modes for tests and drills (PRD 13A: "provider 429s from the mock server
 Rationale prompts (system message containing "Task: refdesk-rationale", issue #94) get
 structured claims built from the record block, so the pipeline runs end to end without a
 model. Scripted bad answers for those prompts: "malformed" (not JSON), "nofit" (no fit
-sentence), "badfield" (a claim on a field records do not have).
+sentence), "badfield" (a claim on a field records do not have). Judge prompts (issue #97)
+answer SUPPORTED, or UNSUPPORTED / a malformed answer when scripted "unsupported" /
+"malformed".
 
 Run: uv run python -m refdesk.llm.mock_server --port 8100 [--latency 0.2] [--script ok,429]
 """
@@ -28,8 +30,12 @@ from typing import Annotated, Any
 from fastapi import Body, FastAPI
 from fastapi.responses import JSONResponse
 
-BEHAVIOURS = {"ok", "429", "500", "timeout", "malformed", "nofit", "badfield"}
+BEHAVIOURS = {"ok", "429", "500", "timeout", "malformed", "nofit", "badfield", "unsupported"}
 RATIONALE_TASK = "Task: refdesk-rationale"
+JUDGE_TASKS = (
+    "You check a rationale against a museum record.",  # prompts/judge-v1.md
+    "You check one sentence of opinion about an artwork",  # prompts/fit-v1.md
+)
 
 
 def _record_fields(user: str) -> dict[str, str]:
@@ -73,6 +79,8 @@ def _answer(payload: dict[str, Any], behaviour: str = "ok") -> dict[str, Any]:
     system = next((m.get("content", "") for m in messages if m.get("role") == "system"), "")
     if RATIONALE_TASK in system:
         text = _rationale(last, behaviour)
+    elif any(task in system for task in JUDGE_TASKS):
+        text = {"unsupported": "UNSUPPORTED", "malformed": "Maybe."}.get(behaviour, "SUPPORTED")
     else:
         text = f"MOCK: {last[:60]}"
     prompt_tokens = sum(len(m.get("content", "")) for m in messages) // 4

@@ -211,12 +211,15 @@ class LLMClient:
         job: str,
         keep_local: bool,
         max_tokens: int = 512,
+        temperature: float | None = None,
     ) -> Completion:
         estimate = self.estimate(tier, messages, max_tokens=max_tokens)
         key = self._check(tier, estimate, job=job, keep_local=keep_local)
         model = self.config.tiers[tier].model
         headers = {"Authorization": f"Bearer {key}"} if key else {}
         payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
+        if temperature is not None:
+            payload["temperature"] = temperature
         url = f"{self._base_url(tier)}/chat/completions"
         start = time.perf_counter()
         for attempt in range(1, self.max_retries + 2):
