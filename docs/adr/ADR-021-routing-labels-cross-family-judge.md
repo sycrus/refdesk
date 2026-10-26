@@ -13,7 +13,7 @@ Generate about 1,500 synthetic briefs, run them through each configured tier, an
 - **Primary: `granite3-guardian:8b` (IBM), checking one factual claim at a time** in its groundedness mode.
 - **Cross-check: `phi4` (Microsoft)** as a general judge, including on the free-text "fit" sentence (does it slip in any fact that is not in the record?).
 
-**How claims reach the judge (proposed for M3, not yet built):** the generator returns structured claims, each naming the record field it comes from, plus a separate opinion sentence about fit. Field-value claims are checked by plain code first; Granite checks the rest one claim at a time; phi4 checks the fit sentence. Any failure makes the item "Needs human check" with the failing claim named. Rationales are not split after the fact, because a splitting model can drop or merge the very claim that is wrong.
+**How claims reach the judge (proposed for M3, not yet built; now recorded in [ADR-022](ADR-022-rationale-verification-structured-claims.md)):** the generator returns structured claims, each naming the record field it comes from, plus a separate opinion sentence about fit. Field-value claims are checked by plain code first; Granite checks the rest one claim at a time; phi4 checks the fit sentence. Any failure makes the item "Needs human check" with the failing claim named. Rationales are not split after the fact, because a splitting model can drop or merge the very claim that is wrong.
 
 ## Options considered
 | Option | Why not chosen |
