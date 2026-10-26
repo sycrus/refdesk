@@ -1,12 +1,17 @@
 """Judge probe: synthetic faithfulness items with known answers, and scoring."""
 
+import re
 from datetime import UTC, datetime
 
 import pytest
 
 from refdesk.evals.judge_probe import (
     ERROR_TYPES,
+    HARD_ERROR_TYPES,
+    OPINIONS,
+    build_hard_items,
     build_items,
+    hard_document,
     parse_verdict,
     record_document,
     score_judge,
@@ -158,3 +163,136 @@ class TestClaims:
                     s in " ".join(item.claims)
                     for s in ("lighthouse", "balloon", "locomotive", "windmill")
                 )
+
+
+# --- Hard set (issue #122): multi-claim, paraphrased, subtle errors -------------------
+
+PREFIXES = ["Workshop of", "Attributed to", "Style of", "Follower of"]
+SUBJECTS = [("Flowers", "Still Life"), ("Dogs",), ("Horses", "Landscapes"), ("Men", "Portraits")]
+
+
+def hard_rec(i):
+    base = rec(i)
+    prefix = PREFIXES[i % len(PREFIXES)]
+    return base.model_copy(
+        update={
+            "artist": f"{prefix} {ARTISTS[i % len(ARTISTS)]}" if i % 2 else ARTISTS[i % 4],
+            "date": f"ca. {1640 + i}" if i % 3 else None,
+            "date_begin": 1640 + i,
+            "date_end": 1645 + i,
+            "medium": "Oil on wood" if i % 2 else "Oil on canvas",
+            "subject_tags": SUBJECTS[i % len(SUBJECTS)],
+        }
+    )
+
+
+HARD_RECORDS = [hard_rec(i) for i in range(1, 81)]
+
+
+@pytest.fixture(scope="module")
+def hard_items():
+    return build_hard_items(HARD_RECORDS, n_per_type=5, seed=0)
+
+
+def _pairs(items):
+    by_id = {i.id: i for i in items}
+    return [(by_id[i.id[:-1] + "a"], i) for i in items if i.label == "unsupported"]
+
+
+def _changed(good, bad):
+    diff = [(g, b) for g, b in zip(good.claims, bad.claims, strict=True) if g != b]
+    assert len(diff) == 1, (good.claims, bad.claims)
+    return diff[0]
+
+
+class TestHardItems:
+    def test_balanced_labels_and_every_hard_error_type(self, hard_items):
+        labels = [i.label for i in hard_items]
+        assert labels.count("supported") == labels.count("unsupported") == 20
+        types = [i.error_type for i in hard_items if i.label == "unsupported"]
+        assert {t: types.count(t) for t in HARD_ERROR_TYPES} == {t: 5 for t in HARD_ERROR_TYPES}
+
+    def test_each_corruption_changes_exactly_one_claim(self, hard_items):
+        for good, bad in _pairs(hard_items):
+            assert len(good.claims) == len(bad.claims) == 5
+            _changed(good, bad)
+
+    def test_rationale_is_the_claims_plus_an_opinion(self, hard_items):
+        for item in hard_items:
+            for claim in item.claims:
+                assert claim in item.rationale
+            assert any(o in item.rationale for o in OPINIONS)
+
+    def test_the_false_claim_is_not_always_in_the_same_place(self, hard_items):
+        positions = set()
+        for good, bad in _pairs(hard_items):
+            g, _ = _changed(good, bad)
+            positions.add(good.claims.index(g))
+        assert len(positions) > 2
+
+    def test_near_dates_fall_just_outside_the_record_range(self, hard_items):
+        for good, bad in _pairs(hard_items):
+            if bad.error_type != "near_date":
+                continue
+            r = next(x for x in HARD_RECORDS if x.id == bad.record_id)
+            _, claim = _changed(good, bad)
+            year = int(re.search(r"\d{4}", claim).group(0))
+            assert not r.date_begin <= year <= r.date_end
+            assert min(abs(year - r.date_begin), abs(year - r.date_end)) <= 40
+
+    def test_dropped_prefix_states_the_master_as_the_artist(self, hard_items):
+        for good, bad in _pairs(hard_items):
+            if bad.error_type != "dropped_prefix":
+                continue
+            r = next(x for x in HARD_RECORDS if x.id == bad.record_id)
+            prefix, master = next(
+                (p, r.artist[len(p) + 1 :]) for p in PREFIXES if r.artist.startswith(p)
+            )
+            g, b = _changed(good, bad)
+            assert master in b and prefix.lower() not in b.lower()
+            assert master in g and prefix.split()[0].lower() in g.lower()
+
+    def test_overspecific_subject_is_not_a_record_tag(self, hard_items):
+        for good, bad in _pairs(hard_items):
+            if bad.error_type != "overspecific_subject":
+                continue
+            r = next(x for x in HARD_RECORDS if x.id == bad.record_id)
+            _, b = _changed(good, bad)
+            assert all(t.lower() not in b.lower() for t in r.subject_tags)
+
+    def test_near_medium_swaps_the_support(self, hard_items):
+        for good, bad in _pairs(hard_items):
+            if bad.error_type != "near_medium":
+                continue
+            r = next(x for x in HARD_RECORDS if x.id == bad.record_id)
+            _, b = _changed(good, bad)
+            wrong = "canvas" if "wood" in r.medium.lower() else "wood"
+            assert wrong in b.lower()
+
+    def test_faithful_items_are_paraphrased_not_copied(self, hard_items):
+        for item in hard_items:
+            if item.label == "supported":
+                r = next(x for x in HARD_RECORDS if x.id == item.record_id)
+                assert r.medium not in item.rationale  # e.g. "an oil painting on canvas"
+                assert "oil painting on" in item.rationale
+
+    def test_the_document_gives_the_structured_years(self):
+        doc = hard_document(HARD_RECORDS[0])
+        assert "Years: 1641 to 1646" in doc and "Artist:" in doc
+
+    def test_deterministic(self):
+        assert build_hard_items(HARD_RECORDS, n_per_type=5, seed=0) == build_hard_items(
+            HARD_RECORDS, n_per_type=5, seed=0
+        )
+
+    def test_refuses_when_too_few_eligible_records(self):
+        with pytest.raises(ValueError, match="dropped_prefix"):
+            build_hard_items([hard_rec(2), hard_rec(4)], n_per_type=1, seed=0)
+
+    def test_scores_report_hard_error_types(self, hard_items):
+        preds = [
+            "unsupported" if i.error_type == "dropped_prefix" else "supported" for i in hard_items
+        ]
+        result = score_judge(hard_items, preds, seed=0)
+        assert result.catch_by_type["dropped_prefix"] == 1.0
+        assert result.catch_by_type["near_date"] == 0.0
