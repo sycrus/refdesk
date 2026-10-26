@@ -11,6 +11,7 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [003](ADR-003-three-tier-local-first.md) | Three-tier local-first plan, mock server as the default | proposed |
 | [004](ADR-004-phoenix-local-tracing.md) | Phoenix for local tracing | proposed |
 | [005](ADR-005-evals-as-plain-code.md) | Evals as plain code in the repo | proposed |
+| [006](ADR-006-drop-parlant.md) | Drop Parlant; routing via the decision step | proposed |
 | [018](ADR-018-golden-set-synthetic-v0.md) | Golden set: synthetic v0, hand-labelled v1 | proposed |
 | [019](ADR-019-ci-github-actions.md) | GitHub Actions CI tiers and runner policy | proposed |
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
