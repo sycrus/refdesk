@@ -9,7 +9,7 @@ Two goals, judged separately: (1) a product hypothesis, and (2) a demonstration 
 ## Learning mode (important)
 
 Do not complete these silently. Draft scaffolding and ask me for the judgment:
-- Golden-set quality labels and expected references. One exception (ADR-018): you may generate `golden-v0-synthetic` in full, every case marked `provenance: synthetic`, for building the harness only. It is never used for product claims or published numbers. From `golden-v1` on, I label.
+- Golden-set quality labels and expected references. One exception (ADR-018): you may generate `golden-v0-synthetic` in full, every case marked `provenance: synthetic`, for building the harness only. It is never used for product claims or published numbers. From `golden-v1` on (ADR-018, amended): you draft briefs and propose expected references and grades; judges from other families (`phi4`, `granite3-guardian:8b`) check them; I label a blind subset first and review every label. You never mark a v1 label final.
 - ADR reasoning and rejected options.
 - Decision contract definitions (option meanings, cost of each wrong decision).
 - Threat-model attacker paths and residual-risk statements.

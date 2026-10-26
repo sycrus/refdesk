@@ -7,7 +7,7 @@ Evals are plain code in this repo (ADR-005). The rules: every score has a confid
 | File | What | Use |
 |---|---|---|
 | `golden-v0-synthetic.jsonl` | 31 cases written by Claude Code; expected references derived by an explicit rule per case over the ingested corpus (`corpus_version met:2588:d188937d8a53`) | Building and testing the harness **only**. Rules over metadata favour the metadata baseline, so it cannot rank retrievers (ADR-018) |
-| `golden-v1` (not yet) | 40-50 cases labelled by Joe | Required before any number goes public |
+| `golden-v1` (not yet) | 40-50 cases: references proposed by Claude Code, checked by cross-family judges, every label reviewed by Joe, blind subset labelled by Joe first (ADR-018) | Required before any number goes public |
 
 Frozen: `scripts/verify.py` fails any edit, deletion or rename of a committed `golden-vN*.jsonl`. Changes mean a new version. Validation: `evals/reports/golden-v0-synthetic-validation.md`.
 
