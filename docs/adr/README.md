@@ -6,7 +6,7 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 
 | ADR | Title | Status |
 |---|---|---|
-| [001](ADR-001-kev-decision-model.md) | Fine-tune Kev-4B as the decision model | proposed |
+| [001](ADR-001-kev-decision-model.md) | Fine-tune Kev-4B as the decision model | accepted |
 | [018](ADR-018-golden-set-synthetic-v0.md) | Golden set: synthetic v0, hand-labelled v1 | proposed |
 | [019](ADR-019-ci-github-actions.md) | GitHub Actions CI tiers and runner policy | proposed |
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
