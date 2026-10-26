@@ -90,6 +90,6 @@ Also: `uv run python -m refdesk.llm.mock_server`, `scripts/judge_probe.py`, `scr
 
 - Combined score of conditions and similarity (#34), the comparison report (#37).
 - API endpoints beyond the skeleton (#45); UI tokens, components, design library and screens (#42 to #46).
-- M3: rationales as structured claims, the verifier (code checks, then Granite Guardian per claim, phi4 on the fit sentence), provenance pack, golden-v1.
+- M3: rationales as structured claims, the verifier (code checks, then phi4 per claim and on the fit sentence), provenance pack, golden-v1.
 - M4: routing labels, Kev-4B fine-tune and calibration, the loop controller, MCP server.
 - M5: Docker, kind, drills, LangGraph port, bake-off.

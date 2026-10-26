@@ -22,7 +22,7 @@ The project has two goals, judged separately (PRD Section 3): a **product hypoth
 | Golden sets | Synthetic v0 for the harness; hand-labelled v1 for claims | 018 |
 | CI | GitHub Actions PR tier now; self-hosted nightly later, while private | 019 |
 | Generators | Local `qwen3.5:9b`; cloud `deepseek-flash`; reserve `deepseek-v4-pro` | 020 |
-| Judges | Local `granite3-guardian:8b` one claim at a time, `phi4` cross-check; never the generator's family | 021 |
+| Judge | Local `phi4`, one claim at a time; never the generator's family (Granite Guardian dropped after a harder probe) | 021, 022 |
 
 Reasoning sections in the ADRs are still to be written by the owner.
 

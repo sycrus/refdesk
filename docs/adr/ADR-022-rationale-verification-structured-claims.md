@@ -1,25 +1,27 @@
 # ADR-022: Rationale verification by structured claims
 
-- **Status:** proposed (draft; reasoning sections are Joe's to write)
-- **Date:** 2026-10-26
+- **Status:** accepted by Joe, 2026-10-27. Open: the judge's pass rule, set in issue #97.
+- **Date:** 2026-10-26; judge changed 2026-10-27
 
 ## Context
-FR-5: rationales come only from retrieved records, and a verifier checks each factual claim against the record. FR-6: an inferred or unverifiable attribution is "Needs human check". The UI shows evidence chips linked to record fields (PRD 8A) and must never show an unverified claim as verified (gate G2, PRD 8B). ADR-021 chose the judges (`granite3-guardian:8b` per claim, `phi4` as cross-check, never the generator's family) and sketched this design as "proposed for M3". It is a separate decision from routing labels, so it gets its own record.
+FR-5: rationales come only from retrieved records, and a verifier checks each factual claim against the record. FR-6: an inferred or unverifiable attribution is "Needs human check". The UI shows evidence chips linked to record fields (PRD 8A) and must never show an unverified claim as verified (gate G2, PRD 8B). ADR-021 first chose two judges (`granite3-guardian:8b` per claim, `phi4` as cross-check, never the generator's family) and sketched this design as "proposed for M3". It is a separate decision from routing labels, so it gets its own record.
 
 ## Decision
-The generator returns a rationale as structured claims, each naming the record field it rests on, plus one separate sentence about fit. Checks run in order: (1) plain code checks each field claim against the record's own value; (2) `granite3-guardian:8b` checks each remaining claim, one at a time; (3) `phi4` checks that the fit sentence adds no fact absent from the record. Any failure makes the item "Needs human check" and names the failing claim. Judge pass thresholds: **[Joe]**, decided in issue #97 and recorded here.
+The generator returns a rationale as structured claims, each naming the record field it rests on, plus one separate sentence about fit. Checks run in order: (1) plain code checks each field claim against the record's own value; (2) **`phi4` alone** checks each remaining claim, one at a time; (3) `phi4` checks that the fit sentence adds no fact absent from the record. Any failure makes the item "Needs human check" and names the failing claim. `granite3-guardian:8b` is dropped (Joe, 2026-10-27): in the hard probe, built closer to how rationales will actually be produced, it missed every dropped attribution prefix, while phi4 per claim caught all 40 errors with no false alarms. phi4 returns a SUPPORTED/UNSUPPORTED verdict; the pass rule (for example, whether a malformed answer counts as a failure) is set in issue #97 and recorded here.
 
 ## Options considered
 | Option | Why not chosen |
 |---|---|
-| Free-text rationale, split into claims afterwards by a model | A splitting model can drop or merge the very claim that is wrong (PRD 10). **[Joe]** |
-| One judge call on the whole rationale | **[Joe]** |
-| Code checks only, no model judge | **[Joe]** |
+| Free-text rationale, split into claims afterwards by a model | A splitting model can drop or merge the very claim that is wrong (PRD 10) |
+| One judge call on the whole rationale | Measured worse: on the hard probe, phi4 on the whole rationale caught 82% and missed 7 of 10 dropped attribution prefixes; per claim it caught 100% |
+| Code checks only, no model judge | Code can only compare values. It may miss the meaning of claims that paraphrase or combine longer text fields, which needs a semantic check |
+| Two judges (Granite per claim, phi4 as cross-check), as first chosen in ADR-021 | phi4 alone was as good or better on every probe, and Granite missed all dropped attribution prefixes (FR-6). A second judge also means a second model swap |
 
 ## Consequences
 - Easier: each evidence chip maps to one checked claim; a failure names the claim; most claims are checked by code, with no model call.
-- Harder: the generator must return valid structure (malformed output needs a retry and a failure path); the prompt and schema are versioned together; judging needs the judge models loaded once per phase (`ModelManager`).
-- **[Joe]**
+- Harder: the generator must return valid structure (malformed output needs a retry and a failure path); the prompt and schema are versioned together; judging needs the judge model loaded once per phase (`ModelManager`).
+- Harder: a model swap between generating and judging (the local generator and phi4 cannot share the GPU). With one judge, that is one swap, not two.
+- Harder: one judge means no second opinion; a blind spot in phi4 would go unnoticed until the rationale eval (#102) or Joe's ratings (#16) find it.
 
 ## Evidence
 Judge probe, 2026-10-12 (issue #58, `evals/reports/judge-probe-2026-10-12.md`): 60 synthetic one-sentence rationales, half with one planted false fact. `granite3-guardian:8b` checking one claim at a time caught 100% of false facts with 0% false alarms; the same model on the whole sentence caught 97% with 23% false alarms. `phi4` on the whole sentence: 97% caught, 0% false alarms. Synthetic and short, so this screens judges; it is not agreement with Joe (#16).
@@ -32,4 +34,4 @@ Judge probe v2, 2026-10-27 (issue #122), both judges in both modes:
 No measurement yet of the full verifier; the rationale eval (issue #102) supplies it, on golden-v1 for any claim.
 
 ## Revisit trigger
-Code checks cover too few claims to matter, a judge misses planted false facts above the threshold in #97, or generators cannot return valid structure reliably.
+Code checks cover too few claims to matter, phi4 misses planted false facts beyond the rule in #97 (including on records with long description text, once a source has them), or generators cannot return valid structure reliably.
