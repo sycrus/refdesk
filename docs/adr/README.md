@@ -17,6 +17,7 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [009](ADR-009-kind-for-learning-vs-cloud-run.md) | Kubernetes (kind) for learning, compared with Cloud Run | proposed |
 | [010](ADR-010-reuse-off-the-shelf-retrieval.md) | Reuse off-the-shelf retrieval | proposed |
 | [011](ADR-011-cc0-only-sources.md) | CC0-only sources; no scraping of permission-required collections | proposed |
+| [012](ADR-012-metadata-baseline-first.md) | Metadata-only baseline built first | proposed |
 | [018](ADR-018-golden-set-synthetic-v0.md) | Golden set: synthetic v0, hand-labelled v1 | proposed |
 | [019](ADR-019-ci-github-actions.md) | GitHub Actions CI tiers and runner policy | proposed |
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
