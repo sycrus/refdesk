@@ -23,7 +23,7 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [015](ADR-015-mcp-after-api-read-only.md) | MCP server after the API, read-only, no approval or export | proposed |
 | [016](ADR-016-plain-loop-then-langgraph-port.md) | Plain-code loop first, then a LangGraph port | proposed |
 | [017](ADR-017-react-ui-served-by-api.md) | UI: React + TypeScript static app served by the API | proposed |
-| [018](ADR-018-golden-set-synthetic-v0.md) | Golden set: synthetic v0, hand-labelled v1 | proposed |
+| [018](ADR-018-golden-set-synthetic-v0.md) | Golden set: synthetic v0, reviewed v1 (proposed by Claude, judged cross-family, reviewed by Joe) | proposed |
 | [019](ADR-019-ci-github-actions.md) | GitHub Actions CI tiers and runner policy | proposed |
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
 | [021](ADR-021-routing-labels-cross-family-judge.md) | Synthetic routing labels with a cross-family judge (judges: Granite Guardian per claim, phi4) | accepted (reasoning [Joe]) |
