@@ -1,11 +1,16 @@
 """Run the judge probe over local Ollama models and write a report (issue: judge probe).
 
 For each model, one at a time on the GPU: unload everything, load the model, measure the
-VRAM it took, judge every item, unload. Predictions go to runs/judge-probe/<model>.jsonl
-(gitignored); the summary goes to evals/reports/judge-probe-<date>.md.
+VRAM it took, judge every item, unload. Predictions go to
+runs/judge-probe/<set>-<model>.jsonl (gitignored); the summary goes to
+evals/reports/judge-probe-<date>-<set>.md, so a second set the same day never overwrites it.
 
 Usage (PowerShell or WSL2, Ollama running):
-    uv run python scripts/judge_probe.py MODEL [MODEL ...]
+    uv run python scripts/judge_probe.py [--set v1|hard] [--per-claim] MODEL [MODEL ...]
+
+--set hard     five-claim rationales with subtle errors (issue #122); default v1.
+--per-claim    also run general judges (phi4) one claim at a time, as the fact-check
+               models already are, so every judge is compared in both modes.
 """
 
 from __future__ import annotations
@@ -19,7 +24,14 @@ import urllib.request
 from datetime import date
 from pathlib import Path
 
-from refdesk.evals.judge_probe import ERROR_TYPES, build_items, parse_verdict, score_judge
+from refdesk.evals.judge_probe import (
+    ERROR_TYPES,
+    HARD_ERROR_TYPES,
+    build_hard_items,
+    build_items,
+    parse_verdict,
+    score_judge,
+)
 from refdesk.llm.model_manager import nvidia_free_vram_mib
 from refdesk.store import Store
 
@@ -120,9 +132,13 @@ def judge_claims(model: str, item) -> tuple[str | None, str, float]:
     return overall, " | ".join(texts), seconds
 
 
-def main(models: list[str]) -> None:
+def main(models: list[str], item_set: str = "v1", per_claim_all: bool = False) -> None:
     with Store(ROOT / "data" / "refdesk.sqlite") as store:
-        items = build_items(list(store.iter_records()), n_records=30, seed=0)
+        records = list(store.iter_records())
+    if item_set == "hard":
+        items = build_hard_items(records, n_per_type=10, seed=0)
+    else:
+        items = build_items(records, n_records=30, seed=0)
     out_dir = ROOT / "runs" / "judge-probe"
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -138,12 +154,12 @@ def main(models: list[str]) -> None:
         gpu_pct = round(100 * info.get("size_vram", 0) / info["size"]) if info.get("size") else 0
         vram = free_before - nvidia_free_vram_mib()
         modes = [("", judge)]
-        if style(model) in ("minicheck", "guardian"):
+        if per_claim_all or style(model) in ("minicheck", "guardian"):
             modes.append((" (per claim)", judge_claims))
         for suffix, run in modes:
             name = model + suffix
             predictions, latencies = [], []
-            out = out_dir / f"{re.sub(r'[^A-Za-z0-9.-]', '_', name)}.jsonl"
+            out = out_dir / f"{item_set}-{re.sub(r'[^A-Za-z0-9.-]', '_', name)}.jsonl"
             with out.open("w") as f:
                 for item in items:
                     verdict, text, seconds = run(model, item)
@@ -161,21 +177,38 @@ def main(models: list[str]) -> None:
                 f"false alarm {score.false_alarm_rate:.2f} invalid {score.invalid_rate:.2f}"
             )
     unload_all()
-    write_report(rows, len(items))
+    write_report(rows, len(items), item_set)
 
 
-def write_report(rows, n):
-    lines = [
-        f"# Judge probe ({date.today().isoformat()})",
-        "",
+INTROS = {
+    "v1": [
         "> **Synthetic test with known answers.** Each item is a one-sentence rationale built from",
         "> a real record's fields. Half are faithful (record facts plus an opinion about mood);",
         "> half contain exactly one false fact. It measures whether a model catches a false",
         "> fact against the record. It is not agreement with Joe's judgement (needs the 100",
         "> ratings, #16), and real rationales are longer and harder.",
+    ],
+    "hard": [
+        "> **Synthetic test with known answers, hard set (#122).** Each item is a five-claim",
+        "> rationale built from a real record, claims in random order, plus an opinion. Faithful",
+        "> items are paraphrased (to tempt false alarms); corrupted items carry one subtle error:",
+        "> a date just outside the record's range, a dropped attribution prefix, a subject more",
+        "> specific than the record, or canvas and wood swapped. Not agreement with Joe's",
+        "> judgement (#16). Met records have no long description text, so checks across",
+        "> paragraph fields remain untested.",
+    ],
+}
+
+
+def write_report(rows, n, item_set="v1"):
+    types = HARD_ERROR_TYPES if item_set == "hard" else ERROR_TYPES
+    lines = [
+        f"# Judge probe, {item_set} set ({date.today().isoformat()})",
         "",
-        f"- Items: {n} ({n // 2} faithful, {n // 2} corrupted: {n // 10} each of "
-        f"{', '.join(ERROR_TYPES)}). Seed 0, temperature 0, thinking off where supported.",
+        *INTROS[item_set],
+        "",
+        f"- Items: {n} ({n // 2} faithful, {n // 2} corrupted: {n // 2 // len(types)} each of "
+        f"{', '.join(types)}). Seed 0, temperature 0, thinking off where supported.",
         "- Hardware: RTX 5080 (16 GB), Ollama. One model on the GPU at a time.",
         "",
         "| Model | Accuracy [95% CI] | Catches false facts | False alarms | Invalid | "
@@ -192,16 +225,28 @@ def write_report(rows, n):
         "",
         "## Catch rate by error type",
         "",
-        "| Model | " + " | ".join(ERROR_TYPES) + " |",
-        "|---|" + "---|" * len(ERROR_TYPES),
+        "| Model | " + " | ".join(types) + " |",
+        "|---|" + "---|" * len(types),
     ]
     for model, s, *_ in sorted(rows, key=lambda r: -r[1].accuracy):
-        cells = " | ".join(f"{s.catch_by_type.get(t, 0):.0%}" for t in ERROR_TYPES)
+        cells = " | ".join(f"{s.catch_by_type.get(t, 0):.0%}" for t in types)
         lines.append(f"| `{model}` | {cells} |")
-    path = ROOT / "evals" / "reports" / f"judge-probe-{date.today().isoformat()}.md"
+    path = ROOT / "evals" / "reports" / f"judge-probe-{date.today().isoformat()}-{item_set}.md"
+    if path.exists():
+        raise SystemExit(f"{path.name} exists; reports are never overwritten (CLAUDE.md)")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {path.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    args = sys.argv[1:]
+    item_set = "v1"
+    if "--set" in args:
+        at = args.index("--set")
+        item_set = args[at + 1]
+        del args[at : at + 2]
+    per_claim_all = "--per-claim" in args
+    args = [a for a in args if a != "--per-claim"]
+    if item_set not in INTROS or not args:
+        raise SystemExit(__doc__)
+    main(args, item_set, per_claim_all)
