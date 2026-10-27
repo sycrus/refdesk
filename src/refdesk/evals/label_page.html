@@ -14,162 +14,205 @@
     --line: GrayText;
     --accent: Highlight;
     --accent-ink: HighlightText;
-    --space: 12px;
     font-family: system-ui, sans-serif;
   }
+  * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); }
-  header { display: flex; flex-wrap: wrap; gap: var(--space); align-items: baseline;
-    padding: var(--space) 16px; border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 1rem; margin: 0; }
-  main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
-    gap: 24px; padding: 16px; }
-  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
-  figure { margin: 0; display: flex; align-items: flex-start; justify-content: center; }
-  figure img { max-width: 100%; max-height: 82vh; object-fit: contain; }
-  .no-image { color: var(--muted); padding: 48px 0; }
-  .brief { font-size: 1.4rem; font-weight: 600; margin: 0 0 4px; }
-  .new-brief { display: inline-block; font-size: 0.8rem; padding: 2px 6px;
-    border: 1px solid var(--ink); margin-bottom: 8px; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 8px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px;
+    font-size: 0.85rem; color: var(--muted); padding: 4px 0 8px; }
+  .bar { height: 4px; background: color-mix(in srgb, var(--ink) 15%, transparent); margin-bottom: 10px; }
+  .bar span { display: block; height: 100%; background: var(--accent); }
+  .brief { font-size: 1.15rem; font-weight: 600; margin: 0 0 2px; }
+  .mode { color: var(--muted); font-size: 0.85rem; margin: 0 0 10px; }
+  .new-brief { display: inline-block; font-size: 0.75rem; padding: 1px 6px; border: 1px solid var(--ink);
+    margin-bottom: 6px; }
   .new-brief[hidden] { display: none; }
-  .mode { color: var(--muted); margin: 0 0 16px; }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 20px; }
-  dt { color: var(--muted); }
-  dd { margin: 0; }
-  fieldset { border: 1px solid var(--line); margin: 0 0 12px; padding: 8px 12px; }
-  legend { padding: 0 4px; }
-  button { font: inherit; padding: 6px 12px; margin: 2px 4px 2px 0; cursor: pointer;
-    background: var(--bg); color: var(--ink); border: 1px solid var(--ink); }
-  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink);
-    border-color: var(--accent); font-weight: 600; }
+
+  .card { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    background: var(--bg); touch-action: pan-y; user-select: none; cursor: grab;
+    transition: transform 0.2s ease; }
+  .card.dragging { transition: none; cursor: grabbing; }
+  .card figure { margin: 0; display: flex; justify-content: center; align-items: center;
+    min-height: 200px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .card img { max-width: 100%; max-height: 55vh; object-fit: contain; display: block;
+    pointer-events: none; }
+  .no-image { color: var(--muted); padding: 48px 16px; text-align: center; }
+  .facts { padding: 10px 12px; font-size: 0.9rem; }
+  .facts .title { font-weight: 600; }
+  .facts .sub { color: var(--muted); }
+  .stamp { position: absolute; top: 16px; padding: 4px 10px; border: 3px solid currentColor;
+    border-radius: 6px; font-weight: 800; font-size: 1.4rem; opacity: 0; background: var(--bg); }
+  .stamp.yes { left: 16px; transform: rotate(-12deg); }
+  .stamp.no { right: 16px; transform: rotate(12deg); }
+  .current { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 0.8rem;
+    padding: 2px 8px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); }
+  .current[hidden] { display: none; }
+
+  .actions { display: flex; justify-content: center; gap: 20px; margin: 14px 0 6px; }
+  .round { width: 72px; height: 72px; border-radius: 50%; font-size: 1.8rem; font: inherit;
+    font-size: 1.6rem; font-weight: 700; border: 2px solid var(--ink); background: var(--bg);
+    color: var(--ink); cursor: pointer; }
+  .back { align-self: center; padding: 8px 14px; border-radius: 20px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; cursor: pointer; }
+  .grades { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 6px; }
+  .grades[hidden], .actions[hidden] { display: none; }
+  .grades button { padding: 16px 8px; border-radius: 10px; font: inherit; font-weight: 600;
+    border: 2px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  .grades button.part { background: var(--bg); color: var(--ink); }
+  .grades .cancel { grid-column: 1 / -1; padding: 8px; font-weight: 400; background: var(--bg);
+    color: var(--ink); border: 1px solid var(--line); }
   button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent);
     outline-offset: 2px; }
-  input[type=text] { font: inherit; width: 100%; box-sizing: border-box; padding: 6px; }
+  .status { min-height: 1.4em; text-align: center; font-size: 0.9rem; margin: 4px 0; }
+  .status.error { font-weight: 700; }
+
+  .more { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 16px; font-size: 0.9rem; }
+  .more label { display: block; margin-bottom: 4px; }
+  .more input[type=text] { font: inherit; width: 100%; padding: 8px; }
+  .more p { color: var(--muted); line-height: 1.6; }
   kbd { font-family: ui-monospace, monospace; font-size: 0.85em; border: 1px solid var(--line);
     padding: 0 4px; }
-  .status { min-height: 1.5em; margin: 8px 0; }
-  .status.error { font-weight: 600; }
-  .keys { color: var(--muted); font-size: 0.9rem; line-height: 1.8; }
-  nav { margin: 12px 0; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Blind labelling: <span id="sheet">…</span></h1>
-  <span id="progress" aria-live="polite"></span>
-  <span id="case-progress"></span>
-</header>
-<main>
-  <figure id="figure"></figure>
-  <section aria-label="Candidate">
-    <span id="new-brief" class="new-brief" hidden>New brief</span>
-    <p class="brief" id="brief"></p>
-    <p class="mode" id="mode"></p>
-    <dl id="fields"></dl>
-    <fieldset>
-      <legend>Relevant?</legend>
-      <button type="button" data-relevant="y">Yes <kbd>y</kbd></button>
-      <button type="button" data-relevant="n">No <kbd>n</kbd></button>
-    </fieldset>
-    <fieldset>
-      <legend>Grade (only if relevant)</legend>
-      <button type="button" data-grade="2">2: fits the whole brief <kbd>2</kbd></button>
-      <button type="button" data-grade="1">1: fits part of it <kbd>1</kbd></button>
-    </fieldset>
-    <label for="note">Note (optional) <kbd>e</kbd></label>
+<div class="wrap">
+  <header>
+    <span>Blind labelling: <span id="sheet">…</span></span>
+    <span id="progress" aria-live="polite"></span>
+  </header>
+  <div class="bar"><span id="bar"></span></div>
+
+  <span id="new-brief" class="new-brief" hidden>New brief</span>
+  <p class="brief" id="brief"></p>
+  <p class="mode" id="mode"></p>
+
+  <div class="card" id="card" aria-label="Candidate">
+    <span class="stamp yes" id="stamp-yes">YES</span>
+    <span class="stamp no" id="stamp-no">NO</span>
+    <span class="current" id="current" hidden></span>
+    <figure id="figure"></figure>
+    <div class="facts" id="facts"></div>
+  </div>
+
+  <div class="actions" id="actions">
+    <button type="button" class="round" id="no" aria-label="Not relevant (swipe left)">✕</button>
+    <button type="button" class="back" id="back">↶ Back</button>
+    <button type="button" class="round" id="yes" aria-label="Relevant (swipe right)">✓</button>
+  </div>
+  <div class="grades" id="grades" hidden>
+    <button type="button" data-grade="2">2 · fits the whole brief</button>
+    <button type="button" data-grade="1" class="part">1 · fits part of it</button>
+    <button type="button" class="cancel" id="cancel">Cancel</button>
+  </div>
+  <p class="status" id="status" role="status"></p>
+
+  <section class="more" aria-label="Note and details">
+    <label for="note">Note on this work (optional)</label>
     <input type="text" id="note" maxlength="500" autocomplete="off">
-    <p class="status" id="status" role="status"></p>
-    <nav>
-      <button type="button" id="prev">Previous <kbd>←</kbd></button>
-      <button type="button" id="next">Next <kbd>→</kbd></button>
-      <button type="button" id="unlabelled">Next unlabelled <kbd>u</kbd></button>
-      <button type="button" id="clear">Clear this row <kbd>c</kbd></button>
-    </nav>
-    <p class="keys">
-      <kbd>n</kbd> saves "not relevant" and moves on. <kbd>y</kbd> saves "relevant"; then
-      <kbd>1</kbd> or <kbd>2</kbd> saves the grade and moves on (a grade on its own also
-      sets "relevant"). In the note, <kbd>Enter</kbd> saves and <kbd>Esc</kbd> leaves it.
-      Every label is written to the sheet as soon as it is given.
-    </p>
+    <p>Saved when you leave the box or press <kbd>Enter</kbd>.
+      <a id="record" target="_blank" rel="noopener noreferrer">Museum record</a></p>
+    <p>Swipe right or tap ✓ for relevant, then choose the grade. Swipe left or tap ✕ for not
+      relevant. Keys: <kbd>→</kbd>/<kbd>y</kbd>, then <kbd>2</kbd>/<kbd>1</kbd>;
+      <kbd>←</kbd>/<kbd>n</kbd>; <kbd>Backspace</kbd> goes back; <kbd>e</kbd> edits the note.
+      Every label is written to the sheet as soon as it is given. On the second pass the
+      works come in a different order from the first.</p>
   </section>
-</main>
+</div>
 <script>
 "use strict";
 let rows = [];
-let at = 0;
-
+let order = [];  // indices into rows, in the order shown
+let pos = 0;     // position in order
+let queue = Promise.resolve();
+const failed = new Set();
 const $ = (id) => document.getElementById(id);
 const done = (r) => r.relevant === "n" || (r.relevant === "y" && r.grade !== "");
+
+// A seeded shuffle, so a reload shows the same order. Pass 2 shows briefs and works in a
+// different order from pass 1, so answers cannot be recalled by position.
+function rng(seed) {
+  let s = 0;
+  for (const c of seed) s = (s * 31 + c.charCodeAt(0)) >>> 0;
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+}
+function shuffle(list, rand) {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+function makeOrder(sheet) {
+  if (!sheet.includes("pass2")) return rows.map((r) => r.index);
+  const rand = rng(sheet);
+  const byBrief = new Map();
+  for (const r of rows) byBrief.set(r.draft_id, [...(byBrief.get(r.draft_id) || []), r.index]);
+  return shuffle([...byBrief.keys()], rand).flatMap((k) => shuffle(byBrief.get(k), rand));
+}
 
 function setStatus(text, isError = false) {
   $("status").textContent = text;
   $("status").classList.toggle("error", isError);
 }
 
+function showGrades(on) {
+  $("grades").hidden = !on;
+  $("actions").hidden = on;
+}
+
 function render() {
-  const r = rows[at];
+  const r = rows[order[pos]];
   if (!r) return;
+  showGrades(false);
   const labelled = rows.filter(done).length;
-  $("progress").textContent = `${labelled} / ${rows.length} labelled · row ${at + 1}`;
-  const inCase = rows.filter((x) => x.draft_id === r.draft_id);
-  $("case-progress").textContent =
-    `brief ${r.draft_id}: ${inCase.filter(done).length} / ${inCase.length}`;
-  $("new-brief").hidden = !(at === 0 || rows[at - 1].draft_id !== r.draft_id);
+  $("progress").textContent = `${labelled} / ${rows.length} labelled · card ${pos + 1}`;
+  $("bar").style.width = `${(100 * labelled) / rows.length}%`;
+  const prev = rows[order[pos - 1]];
+  $("new-brief").hidden = !(pos === 0 || prev.draft_id !== r.draft_id);
   $("brief").textContent = r.brief;
   $("mode").textContent = `Usage mode: ${r.usage_mode.replace("_", " ")}`;
 
+  const current = done(r) ? (r.relevant === "n" ? "Labelled: no" : `Labelled: yes, grade ${r.grade}`) : "";
+  $("current").textContent = current;
+  $("current").hidden = !current;
+
   const fig = $("figure");
-  fig.replaceChildren();
   const img = document.createElement("img");
   img.alt = `Image of the candidate: ${r.title || "untitled"}`;
+  img.draggable = false;
   img.onerror = () => {
     const p = document.createElement("p");
     p.className = "no-image";
-    p.append("No cached image for this work. ");
-    const a = document.createElement("a");
-    a.href = r.record_url; a.target = "_blank"; a.rel = "noopener noreferrer";
-    a.textContent = "Open the museum record";
-    p.append(a);
+    p.textContent = "No cached image for this work. The museum record is linked below.";
     fig.replaceChildren(p);
   };
   img.src = `/image/${r.index}`;
-  fig.append(img);
-  if (rows[at + 1]) new Image().src = `/image/${rows[at + 1].index}`;
+  fig.replaceChildren(img);
+  const next = rows[order[pos + 1]];
+  if (next) new Image().src = `/image/${next.index}`;
 
-  const dl = $("fields");
-  dl.replaceChildren();
-  for (const [k, label] of [["title", "Title"], ["artist", "Artist"], ["date", "Date"],
-                            ["medium", "Medium"], ["subjects", "Subjects"]]) {
-    const dt = document.createElement("dt"); dt.textContent = label;
-    const dd = document.createElement("dd"); dd.textContent = r[k] || "—";
-    dl.append(dt, dd);
-  }
-  const dt = document.createElement("dt"); dt.textContent = "Record";
-  const dd = document.createElement("dd");
-  const a = document.createElement("a");
-  a.href = r.record_url; a.target = "_blank"; a.rel = "noopener noreferrer";
-  a.textContent = "metmuseum.org";
-  dd.append(a); dl.append(dt, dd);
-
-  for (const b of document.querySelectorAll("[data-relevant]"))
-    b.setAttribute("aria-pressed", String(b.dataset.relevant === r.relevant));
-  for (const b of document.querySelectorAll("[data-grade]"))
-    b.setAttribute("aria-pressed", String(b.dataset.grade === r.grade));
+  const facts = $("facts");
+  facts.replaceChildren();
+  const t = document.createElement("div"); t.className = "title"; t.textContent = r.title || "Untitled";
+  const a = document.createElement("div"); a.textContent = [r.artist, r.date].filter(Boolean).join(", ");
+  const m = document.createElement("div"); m.className = "sub";
+  m.textContent = [r.medium, r.subjects].filter(Boolean).join(" · ");
+  facts.append(t, a, m);
+  $("record").href = r.record_url;
   if (document.activeElement !== $("note")) $("note").value = r.note;
 }
 
-// The row is fixed when the key is pressed, and the page moves on at once; saves go to
-// the server one at a time, in order. Without this, fast keys (n, then y 2) landed on
-// the row still on screen while the first save was in flight.
-let queue = Promise.resolve();
-const failed = new Set();
-
+// The row is fixed when the action is taken, and the page moves on at once; saves go to
+// the server one at a time, in order. A failed save goes back to its card and stays on
+// screen until that row saves.
 function save(changes, advance) {
-  const i = at;
+  const i = order[pos];
   const r = rows[i];
   const body = { candidate: r.candidate, relevant: r.relevant, grade: r.grade,
                  note: $("note").value, ...changes };
   rows[i] = { ...r, ...body };
-  if (advance && at < rows.length - 1) at += 1;
+  if (advance && pos < order.length - 1) pos += 1;
   render();
   queue = queue.then(async () => {
     try {
@@ -181,59 +224,72 @@ function save(changes, advance) {
       if (!res.ok) throw new Error(data.detail);
       rows[i] = data;
       failed.delete(i);
-      setStatus(failed.size ? `Not saved yet: row ${[...failed].map((k) => k + 1).join(", ")}.`
-                            : `Saved row ${i + 1}.`, failed.size > 0);
+      setStatus(failed.size ? "Some cards are not saved yet: go back to them." : "Saved.",
+                failed.size > 0);
     } catch (e) {
-      rows[i] = r;  // show what the sheet still holds, and go back to the row
-      at = i;
-      failed.add(i);  // the error stays on screen until this row saves
-      setStatus(`Row ${i + 1} not saved: ${e.message}`, true);
+      rows[i] = r;
+      pos = order.indexOf(i);
+      failed.add(i);
+      setStatus(`Not saved: ${e.message}`, true);
     }
     render();
   });
 }
 
-function go(i) {
-  at = Math.max(0, Math.min(rows.length - 1, i));
-  if (!failed.size) setStatus("");
-  render();
-}
-
-function nextUnlabelled() {
-  for (let k = 1; k <= rows.length; k++) {
-    const i = (at + k) % rows.length;
-    if (!done(rows[i])) { go(i); return; }
-  }
-  setStatus("Every row is labelled.");
-}
-
-const relevant = (v) => save(v === "n" ? { relevant: "n", grade: "" } : { relevant: "y" },
-                             v === "n");
+const no = () => save({ relevant: "n", grade: "" }, true);
+const yes = () => { showGrades(true); $("grades").querySelector("button").focus(); };
 const grade = (g) => save({ relevant: "y", grade: g }, true);
+function back() { if (pos > 0) { pos -= 1; if (!failed.size) setStatus(""); render(); } }
 
-for (const b of document.querySelectorAll("[data-relevant]"))
-  b.onclick = () => relevant(b.dataset.relevant);
-for (const b of document.querySelectorAll("[data-grade]"))
-  b.onclick = () => grade(b.dataset.grade);
-$("prev").onclick = () => go(at - 1);
-$("next").onclick = () => go(at + 1);
-$("unlabelled").onclick = nextUnlabelled;
-$("clear").onclick = () => save({ relevant: "", grade: "", note: "" }, false);
-
+$("no").onclick = no;
+$("yes").onclick = yes;
+$("back").onclick = back;
+$("cancel").onclick = () => showGrades(false);
+for (const b of document.querySelectorAll("[data-grade]")) b.onclick = () => grade(b.dataset.grade);
 $("note").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); save({}, false); $("note").blur(); }
-  if (e.key === "Escape") { $("note").value = rows[at].note; $("note").blur(); }
+  if (e.key === "Enter") { e.preventDefault(); $("note").blur(); }
+  if (e.key === "Escape") { $("note").value = rows[order[pos]].note; $("note").blur(); }
 });
 $("note").addEventListener("change", () => save({}, false));
 
+// Swipe: drag the card past the threshold to decide; a short drag springs back.
+const card = $("card");
+let startX = null, dx = 0;
+const THRESHOLD = 90;
+card.addEventListener("pointerdown", (e) => {
+  if (!$("grades").hidden) return;
+  startX = e.clientX; dx = 0;
+  card.classList.add("dragging");
+  card.setPointerCapture(e.pointerId);
+});
+card.addEventListener("pointermove", (e) => {
+  if (startX === null) return;
+  dx = e.clientX - startX;
+  card.style.transform = `translateX(${dx}px) rotate(${dx / 20}deg)`;
+  $("stamp-yes").style.opacity = Math.max(0, Math.min(1, dx / THRESHOLD));
+  $("stamp-no").style.opacity = Math.max(0, Math.min(1, -dx / THRESHOLD));
+});
+function release() {
+  if (startX === null) return;
+  startX = null;
+  card.classList.remove("dragging");
+  card.style.transform = "";
+  $("stamp-yes").style.opacity = 0;
+  $("stamp-no").style.opacity = 0;
+  if (dx > THRESHOLD) yes();
+  else if (dx < -THRESHOLD) no();
+}
+card.addEventListener("pointerup", release);
+card.addEventListener("pointercancel", release);
+
 document.addEventListener("keydown", (e) => {
   if (e.target === $("note") || e.ctrlKey || e.metaKey || e.altKey) return;
-  const actions = {
-    y: () => relevant("y"), n: () => relevant("n"), 1: () => grade("1"), 2: () => grade("2"),
-    ArrowLeft: () => go(at - 1), ArrowRight: () => go(at + 1), u: nextUnlabelled,
-    c: () => save({ relevant: "", grade: "", note: "" }, false),
-    e: () => $("note").focus(),
-  };
+  const grading = !$("grades").hidden;
+  const actions = grading
+    ? { 1: () => grade("1"), 2: () => grade("2"), Escape: () => showGrades(false),
+        Backspace: () => showGrades(false) }
+    : { y: yes, ArrowRight: yes, n: no, ArrowLeft: no, Backspace: back, e: () => $("note").focus(),
+        1: () => grade("1"), 2: () => grade("2") };
   const act = actions[e.key];
   if (act) { e.preventDefault(); act(); }
 });
@@ -243,8 +299,9 @@ document.addEventListener("keydown", (e) => {
     const data = await (await fetch("/api/rows")).json();
     $("sheet").textContent = data.sheet;
     rows = data.rows;
-    const first = rows.findIndex((r) => !done(r));
-    at = first === -1 ? 0 : first;
+    order = makeOrder(data.sheet);
+    const first = order.findIndex((i) => !done(rows[i]));
+    pos = first === -1 ? 0 : first;
     render();
   } catch (e) {
     setStatus(`Could not load the sheet (${e}).`, true);
