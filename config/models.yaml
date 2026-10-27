@@ -26,6 +26,11 @@ models:
   gemma4:26b-a4b-it-q4_K_M:
     backend: ollama
     vram_mib: 13800  # measured: 13,784 MiB, 70% on GPU; answer 22.9 s (too slow per item)
+  phi4:
+    backend: ollama
+    vram_mib: 12100  # measured 11.8 GB on 2026-10-12 and 9.3 GB on 2026-10-27 (judge probes); the higher one
+    notes: >-
+      The judge (ADR-022): one claim at a time, temperature 0. Family microsoft.
   kev-4b:
     backend: kev
     vram_mib: null  # measure on the first Kev run (M4); estimate 8.4 GB for merged weights

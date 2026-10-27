@@ -181,3 +181,31 @@ class TestRationaleAnswers:
         with TestClient(create_app()) as http:
             body = http.post("/v1/chat/completions", json={"messages": MESSAGES}).json()
         assert body["choices"][0]["message"]["content"].startswith("MOCK:")
+
+
+@pytest.mark.parametrize(
+    ("script", "answer"),
+    [(["ok"], "SUPPORTED"), (["unsupported"], "UNSUPPORTED"), (["malformed"], "Maybe.")],
+)
+def test_judge_prompts_get_a_verdict(script, answer):
+    from fastapi.testclient import TestClient
+
+    from refdesk.judge import judge_messages, load_judge_prompt
+
+    rec = TestRationaleAnswers.record()
+    messages = judge_messages(rec, "It is oil on canvas.", load_judge_prompt())
+    with TestClient(create_app(script=script)) as http:
+        body = http.post("/v1/chat/completions", json={"messages": messages}).json()
+    assert body["choices"][0]["message"]["content"] == answer
+
+
+def test_fit_prompts_get_a_verdict_too():
+    from fastapi.testclient import TestClient
+
+    from refdesk.judge import judge_messages, load_fit_prompt
+
+    rec = TestRationaleAnswers.record()
+    messages = judge_messages(rec, "Its quiet mood suits the brief.", load_fit_prompt())
+    with TestClient(create_app()) as http:
+        body = http.post("/v1/chat/completions", json={"messages": messages}).json()
+    assert body["choices"][0]["message"]["content"] == "SUPPORTED"

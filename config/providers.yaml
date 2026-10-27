@@ -31,6 +31,13 @@ providers:
     cloud: false
     paid: false
     base_url: http://127.0.0.1:11434/v1  # Ollama's OpenAI-compatible endpoint
+  ollama-microsoft:
+    # The same local Ollama, listed again because family belongs to a provider here:
+    # phi4 is a Microsoft model, so it may judge Qwen and DeepSeek output (ADR-021).
+    family: microsoft
+    cloud: false
+    paid: false
+    base_url: http://127.0.0.1:11434/v1
   mock:
     family: mock
     cloud: false
@@ -59,6 +66,13 @@ tiers:
   mock:
     provider: mock
     model: mock-1
+  judge-phi4:
+    provider: ollama-microsoft
+    model: phi4    # ADR-022 (Joe, 2026-10-27): the only judge, one claim at a time
 
 # The routing decision chooses among these tiers, cheapest first (ADR-020).
 routing: [local-small, cloud-flash]
+
+# Judge tiers (ADR-021, ADR-022). The verifier uses the first one outside the generator's
+# family, so a model never judges its own family's output.
+judges: [judge-phi4]
