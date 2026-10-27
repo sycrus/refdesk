@@ -1,0 +1,34 @@
+{
+  "what": "Claude Code's golden-v1 proposals and phi4's verdicts (ADR-018 steps 3-4, issue #15). The files stay in runs/ (gitignored) until Joe's second blind pass is done, so he never sees proposals for blind cases; these hashes show they were not changed afterwards.",
+  "made": "2026-10-27, after Joe's blind pass 1 and before pass 2; Claude did not read Joe's labels",
+  "proposer": {
+    "tool": "claude-code",
+    "model": "claude-opus-5-5",
+    "family": "anthropic",
+    "basis": "brief, record fields and the cached image of every pool candidate"
+  },
+  "judge": {
+    "tier": "judge-phi4",
+    "model": "phi4",
+    "family": "microsoft",
+    "prompt": "proposal-v1",
+    "prompt_sha256": "cfe3a7be286397331bb30a6c71617405b5ae7547c8157e8ff31b9b1a7d606eeb"
+  },
+  "files": {
+    "runs/labelling-v1/proposals.jsonl": "2fd95cf7b1bb6bab17aa65282a41c387e9d21d10abb51cbdf4ee814c128d799d",
+    "runs/labelling-v1/proposals-judged.jsonl": "0cac4b33cdf8cdca1af64f4de6717667b708e9a42dc8c6a7c86d3e4ccec62ed4"
+  },
+  "counts": {
+    "cases": 41,
+    "blind_cases": 20,
+    "proposals": 309,
+    "by_grade": {
+      "1": 166,
+      "2": 143
+    },
+    "judge_verdicts": {
+      "supported": 227,
+      "unsupported": 82
+    }
+  }
+}

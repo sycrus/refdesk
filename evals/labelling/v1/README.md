@@ -9,6 +9,8 @@ Work in progress for `golden-v1`. Nothing here is a golden set yet; the frozen f
 | `briefs-draft.jsonl` | 45 draft briefs by Claude Code: 15 sparse, 16 moderate, 14 rich; 4 declines; hard cases (ambiguous, culturally sensitive, over-popular). Each has a `note` saying why it is there | Joe edits, adds or removes |
 | `blind-cases.json` | The 20 blind drafts (seed 0, spread across detail levels) and the inputs that built their pools | Generated |
 | `blind-sheet.csv` | One row per candidate for the 20 blind cases, in random order, with no rank and no retriever name | **Joe labels** |
+| `review-pools.json` | Unranked pools for the 21 non-blind retrieve cases, built the same way as the blind pools (`scripts/build_review_pools.py`) | Generated |
+| `proposals-manifest.json` | Hashes and counts of Claude's proposals and phi4's verdicts for all 41 cases. The proposals themselves stay in `runs/labelling-v1/` (gitignored) until pass 2 is done | Generated |
 
 `runs/labelling-v1/pool-sources.jsonl` (gitignored) records which retriever found each candidate. Do not open it before labelling.
 
