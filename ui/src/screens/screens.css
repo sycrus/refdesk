@@ -159,3 +159,28 @@
 .rd-note {
   color: var(--color-ink-muted);
 }
+
+/* S5 Needs human check (issue 100) */
+.rd-review-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.rd-review-item fieldset {
+  border: 1px solid var(--color-line);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.rd-review-title {
+  font-family: var(--type-title-family);
+  font-weight: var(--type-title-weight);
+}
+
+.rd-review-choices {
+  display: flex;
+  gap: var(--space-4);
+}

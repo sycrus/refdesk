@@ -1,11 +1,12 @@
 // The app (PRD 8A): S1 New board, then S2/S3 for a run, and S4 for one item. The run ID
 // and item ID live in the URL (?run=<id>&item=<record id>), so a reload or a shared link
-// reopens the same screen; no router library.
+// reopens the same screen; no router library. S5 review is ?run=<id>&review=1.
 import { useEffect, useState } from "react";
 import { ApiError, createBoard } from "./api/client";
 import type { BoardItem, RunView } from "./api/types";
 import { NewBoard } from "./screens/NewBoard";
 import { ItemDetail } from "./screens/ItemDetail";
+import { ReviewScreen } from "./screens/ReviewScreen";
 import { RunScreen } from "./screens/RunScreen";
 
 function currentRun(): string | null {
@@ -16,28 +17,34 @@ function currentItem(): string | null {
   return new URLSearchParams(window.location.search).get("item");
 }
 
+function currentReview(): boolean {
+  return new URLSearchParams(window.location.search).get("review") === "1";
+}
+
 export function App() {
   const [runId, setRunId] = useState<string | null>(currentRun);
   const [itemId, setItemId] = useState<string | null>(currentItem);
+  const [reviewing, setReviewing] = useState<boolean>(currentReview);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const onPop = () => {
       setRunId(currentRun());
       setItemId(currentItem());
+      setReviewing(currentReview());
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  function open(id: string | null, item: string | null = null) {
-    const query = id
-      ? `?run=${encodeURIComponent(id)}${item ? `&item=${encodeURIComponent(item)}` : ""}`
-      : window.location.pathname;
+  function open(id: string | null, item: string | null = null, review = false) {
+    const extra = item ? `&item=${encodeURIComponent(item)}` : review ? "&review=1" : "";
+    const query = id ? `?run=${encodeURIComponent(id)}${extra}` : window.location.pathname;
     window.history.pushState(null, "", query);
     setError(null);
     setRunId(id);
     setItemId(item);
+    setReviewing(review);
   }
 
   async function moreLikeThis(run: RunView, item: BoardItem) {
@@ -57,7 +64,10 @@ export function App() {
           {error}
         </p>
       )}
-      {runId && itemId ? (
+      {runId && reviewing ? (
+        // Continue returns to the board, where G4 shows approval is open (S6 comes with issue 101).
+        <ReviewScreen runId={runId} onBack={() => open(runId)} onContinue={() => open(runId)} />
+      ) : runId && itemId ? (
         <ItemDetail runId={runId} itemId={itemId} onBack={() => open(runId)} />
       ) : runId ? (
         <RunScreen
@@ -65,6 +75,7 @@ export function App() {
           onNewBoard={() => open(null)}
           onMoreLikeThis={moreLikeThis}
           onOpenItem={(item) => open(runId, item)}
+          onReview={() => open(runId, null, true)}
         />
       ) : (
         <NewBoard onCreated={open} />

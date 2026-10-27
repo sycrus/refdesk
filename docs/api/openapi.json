@@ -117,7 +117,7 @@
           "runs"
         ],
         "summary": "Review",
-        "description": "G3: keep (with a note) or drop each flagged item.",
+        "description": "G3: keep (with a note) or drop each flagged item, recorded with who and when.\nOnly flagged items can be reviewed; approval (G4) opens when all are decided.",
         "operationId": "review_runs__run_id__review_post",
         "parameters": [
           {
@@ -171,8 +171,8 @@
               }
             }
           },
-          "501": {
-            "description": "Not implemented yet",
+          "400": {
+            "description": "The board has no such item",
             "content": {
               "application/json": {
                 "schema": {
@@ -825,6 +825,17 @@
             "title": "Score Components",
             "description": "Named parts of the score that sum to it, e.g. similarity, attributes",
             "default": {}
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemReview"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "G3 decision, for flagged items"
           }
         },
         "additionalProperties": false,
@@ -1281,6 +1292,47 @@
         "type": "object",
         "title": "Health"
       },
+      "ItemReview": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "drop"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "decided_by": {
+            "type": "string",
+            "title": "Decided By"
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Decided At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decision",
+          "decided_by",
+          "decided_at"
+        ],
+        "title": "ItemReview",
+        "description": "A recorded G3 decision on one flagged item."
+      },
       "LoopState": {
         "type": "string",
         "enum": [
@@ -1398,6 +1450,12 @@
       },
       "ReviewRequest": {
         "properties": {
+          "reviewer": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reviewer",
+            "description": "Who decided; recorded with each decision"
+          },
           "decisions": {
             "items": {
               "$ref": "#/components/schemas/ReviewDecision"
@@ -1409,6 +1467,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "reviewer",
           "decisions"
         ],
         "title": "ReviewRequest",

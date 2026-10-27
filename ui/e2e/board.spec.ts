@@ -93,3 +93,44 @@ for (const colorScheme of ["light", "dark"] as const) {
     await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
   });
 }
+
+// S5 Needs human check (issue #100). The mock judge is scripted to answer UNSUPPORTED for
+// this board only, so every item is flagged; board.spec tests run one after another, and the
+// script is reset afterwards.
+test.describe("S5 review", () => {
+  test.afterEach(async ({ request }) => {
+    await request.post("http://127.0.0.1:8100/_mock/script", { data: { script: ["ok"] } });
+  });
+
+  test("decide every flagged item, then Continue opens approval", async ({ page, request }) => {
+    await request.post("http://127.0.0.1:8100/_mock/script", { data: { script: ["unsupported"] } });
+    await newBoard(page, "oil");
+    await page.getByRole("button", { name: "Review flagged items (3)" }).click();
+    await expect(page).toHaveURL(/&review=1/);
+    await expect(page.getByRole("heading", { name: "Needs human check" })).toBeVisible();
+    await expect(page.getByText("3 flagged items still need a saved decision.")).toBeVisible();
+
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      expect(
+        axe.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
+      ).toEqual([]);
+    }
+
+    await page.getByLabel("Your name (recorded with each decision)").fill("Joe");
+    const items = page.getByRole("list", { name: "Flagged items" }).getByRole("group");
+    await items.nth(0).getByLabel("Keep", { exact: true }).check();
+    await items.nth(0).getByLabel("Note (required to keep)").fill("Checked against the Met page.");
+    await items.nth(1).getByLabel("Drop", { exact: true }).check();
+    await items.nth(2).getByLabel("Drop", { exact: true }).check();
+    await page.getByRole("button", { name: "Save decisions" }).click();
+    await expect(page.getByText("All 3 flagged items decided: 1 kept, 2 dropped.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Continue to approval" }).click();
+    await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
+    await expect(page.getByText("Ready for approval.")).toBeVisible();
+  });
+});
