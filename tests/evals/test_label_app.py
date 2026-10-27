@@ -192,3 +192,38 @@ class TestToken:
         c = TestClient(app)
         assert c.get("/?t=s3cret").status_code == 200
         assert c.get("/api/rows").status_code == 200  # the page's own calls carry no token
+
+
+class TestReview:
+    """Review sheets (ADR-018 step 5) carry Claude's proposal; blind sheets never do."""
+
+    def test_a_blind_sheet_shows_nothing_about_proposals(self, client):
+        data = client.get("/api/rows").json()
+        assert data["review"] is False
+        assert not {"claude_grade", "claude_reason", "judge_verdict"} & set(data["rows"][0])
+
+    def test_a_review_sheet_shows_the_proposal_and_verdict(self, tmp_path):
+        fields = FIELDS + ["claude_grade", "claude_reason", "judge_verdict"]
+        sheet = tmp_path / "review-sheet.csv"
+        proposed = {
+            "claude_grade": "2",
+            "claude_reason": "boats at sea",
+            "judge_verdict": "supported",
+        }
+        write_sheet(
+            sheet, fields, [row("met:1") | proposed, row("met:2") | dict.fromkeys(proposed, "")]
+        )
+        data = TestClient(create_app(sheet, tmp_path / "db", tmp_path)).get("/api/rows").json()
+        assert data["review"] is True
+        assert data["rows"][0]["claude_reason"] == "boats at sea"
+        assert data["rows"][1]["claude_grade"] == ""
+
+    def test_labelling_a_review_row_keeps_the_proposal(self, tmp_path):
+        fields = FIELDS + ["claude_grade", "claude_reason", "judge_verdict"]
+        sheet = tmp_path / "review-sheet.csv"
+        proposed = {"claude_grade": "1", "claude_reason": "a river", "judge_verdict": "unsupported"}
+        write_sheet(sheet, fields, [row("met:1") | proposed])
+        c = TestClient(create_app(sheet, tmp_path / "db", tmp_path))
+        c.put("/api/rows/0", json={"candidate": "met:1", "relevant": "y", "grade": "2"})
+        saved = read_sheet(sheet)[1][0]
+        assert (saved["relevant"], saved["grade"], saved["claude_grade"]) == ("y", "2", "1")
