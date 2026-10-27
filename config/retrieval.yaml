@@ -24,6 +24,12 @@ api:
   # `uv run python -m refdesk.llm.mock_server --port 8100`. For real models, set
   # generator_tier to local-small and judge_tier to auto (picks judge-phi4).
   # REFDESK_GENERATOR_TIER overrides generator_tier; "none" gives retrieval-only boards.
+  # `prompts` pins each prompt version (src/refdesk/prompts/CHANGELOG.md); moving one is
+  # Joe's call after an eval (issue #135). `refdesk eval-rationales` flags override it.
   reasoning:
     generator_tier: mock
     judge_tier: mock-judge
+    prompts:
+      rationale: rationale-v1
+      judge: judge-v1
+      fit: fit-v1

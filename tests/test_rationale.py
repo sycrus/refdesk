@@ -13,6 +13,7 @@ from refdesk.rationale import (
     RationaleError,
     load_prompt,
     parse_rationale,
+    prompt_named,
     rationale_messages,
     record_block,
 )
@@ -106,10 +107,10 @@ class TestParse:
 
 class TestPrompt:
     def test_prompt_is_a_versioned_file_with_a_stable_hash(self):
-        p = load_prompt("rationale")
+        p = load_prompt("rationale", "v1")
         assert p.version == "v1"
         assert len(p.sha256) == 64
-        assert load_prompt("rationale").sha256 == p.sha256
+        assert load_prompt("rationale", "v1").sha256 == p.sha256
 
     def test_every_prompt_version_has_a_changelog_line(self):
         p = load_prompt("rationale")
@@ -130,7 +131,7 @@ class TestPrompt:
         assert "date:" not in block
 
     def test_the_prompt_hash_goes_into_the_eval_manifest(self):
-        p = load_prompt("rationale")
+        p = load_prompt("rationale", "v1")
         config = EvalConfig(
             retriever="jaccard", retriever_params={}, k=12, seed=0, n_boot=10,
             golden_path="g", golden_sha256="s", golden_version="v1", corpus_version="c",
@@ -143,3 +144,17 @@ class TestPrompt:
                 **(asdict(config) | {"prompt_hashes": {"rationale-v1": "0" * 64}})
             ).config_hash()
         )
+
+
+class TestPromptNamed:
+    def test_a_prompt_by_its_manifest_name(self):
+        assert prompt_named("rationale-v1").name == "rationale-v1"
+        assert prompt_named("fit-v2").text.startswith("You check one sentence of opinion")
+
+    def test_an_unknown_version_is_a_clear_error(self):
+        with pytest.raises(FileNotFoundError, match="rationale-v99"):
+            prompt_named("rationale-v99")
+
+    def test_v2_claims_carry_no_commentary(self):
+        # In the first local eval, claims mixing in commentary were flagged (issue #135).
+        assert "Do not add comments" in prompt_named("rationale-v2").text

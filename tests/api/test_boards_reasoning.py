@@ -228,3 +228,18 @@ def test_a_model_that_cannot_load_stops_the_run_loudly(tmp_path):
     assert view["stop_reason"] == StopReason.SOURCE_UNAVAILABLE
     assert "only 2000 MiB free" in view["stop_detail"]
     assert mocks.calls == []
+
+
+class TestPinnedPrompts:
+    """Prompt versions are pinned in config, so adding v2 never changes boards silently."""
+
+    def test_the_reasoner_uses_the_pinned_versions(self):
+        r = Reasoner(CONFIG, generator_tier="mock", prompts={"fit": "fit-v1"})
+        assert r.prompts["fit"].name == "fit-v1"
+        assert set(r.prompts) == {"rationale", "judge", "fit"}
+
+    def test_the_repository_config_pins_every_prompt(self):
+        import yaml
+
+        config = yaml.safe_load(open("config/retrieval.yaml", encoding="utf-8"))
+        assert set(config["api"]["reasoning"]["prompts"]) == {"rationale", "judge", "fit"}
