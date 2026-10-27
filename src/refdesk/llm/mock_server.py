@@ -9,6 +9,11 @@ Failure modes for tests and drills (PRD 13A: "provider 429s from the mock server
   "timeout" (wait `timeout_s`, longer than the client's timeout, then answer).
 - `POST /_mock/script` changes the script while the server runs.
 
+Rationale prompts (system message containing "Task: refdesk-rationale", issue #94) get
+structured claims built from the record block, so the pipeline runs end to end without a
+model. Scripted bad answers for those prompts: "malformed" (not JSON), "nofit" (no fit
+sentence), "badfield" (a claim on a field records do not have).
+
 Run: uv run python -m refdesk.llm.mock_server --port 8100 [--latency 0.2] [--script ok,429]
 """
 
@@ -17,18 +22,59 @@ from __future__ import annotations
 import argparse
 import asyncio
 import itertools
+import json
 from typing import Annotated, Any
 
 from fastapi import Body, FastAPI
 from fastapi.responses import JSONResponse
 
-BEHAVIOURS = {"ok", "429", "500", "timeout"}
+BEHAVIOURS = {"ok", "429", "500", "timeout", "malformed", "nofit", "badfield"}
+RATIONALE_TASK = "Task: refdesk-rationale"
 
 
-def _answer(payload: dict[str, Any]) -> dict[str, Any]:
+def _record_fields(user: str) -> dict[str, str]:
+    """`field: value` lines after the "Record" line of a rationale prompt."""
+    _, _, block = user.partition("Record")
+    fields = {}
+    for line in block.splitlines()[1:]:
+        key, sep, value = line.partition(": ")
+        if sep:
+            fields[key.strip()] = value.strip()
+    return fields
+
+
+def _rationale(user: str, behaviour: str) -> str:
+    if behaviour == "malformed":
+        return "This painting would look lovely on the tin."
+    fields = _record_fields(user)
+    claims = [
+        {"field": f, "value": fields[f], "text": f"The record gives the {f} as {fields[f]}."}
+        for f in ("artist", "date", "medium")
+        if f in fields
+    ]
+    if "subject_tags" in fields:
+        tag = fields["subject_tags"].split("; ")[0]
+        claims.append(
+            {"field": "subject_tags", "value": tag, "text": f"Its subjects include {tag}."}
+        )
+    if behaviour == "badfield":
+        claims.append(
+            {"field": "provenance", "value": "Empress Josephine", "text": "It belonged to her."}
+        )
+    body: dict[str, Any] = {"claims": claims}
+    if behaviour != "nofit":
+        body["fit"] = "Its quiet mood suits the brief (mock)."
+    return json.dumps(body)
+
+
+def _answer(payload: dict[str, Any], behaviour: str = "ok") -> dict[str, Any]:
     messages = payload.get("messages", [])
     last = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
-    text = f"MOCK: {last[:60]}"
+    system = next((m.get("content", "") for m in messages if m.get("role") == "system"), "")
+    if RATIONALE_TASK in system:
+        text = _rationale(last, behaviour)
+    else:
+        text = f"MOCK: {last[:60]}"
     prompt_tokens = sum(len(m.get("content", "")) for m in messages) // 4
     return {
         "model": "mock-1",
@@ -62,7 +108,7 @@ def create_app(
             return JSONResponse({"error": "server error (mock)"}, status_code=500)
         if behaviour == "timeout":
             await asyncio.sleep(timeout_s)
-        return _answer(payload)
+        return _answer(payload, behaviour)
 
     @app.post("/_mock/script")
     async def change_script(body: Annotated[dict[str, list[str]], Body()]):
