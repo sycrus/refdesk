@@ -337,16 +337,6 @@
               }
             }
           },
-          "501": {
-            "description": "Not implemented yet",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -366,7 +356,7 @@
           "gates"
         ],
         "summary": "Export",
-        "description": "G5: export the provenance pack. Blocked (409) without an approval record.",
+        "description": "G5: export the provenance pack (CSV), then the board is read-only. Irreversible.\nBlocked (409) without an approval record.",
         "operationId": "export_runs__run_id__export_post",
         "parameters": [
           {
@@ -420,8 +410,18 @@
               }
             }
           },
-          "501": {
-            "description": "Not implemented yet",
+          "400": {
+            "description": "Format not supported yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Export failed; the board stays unlocked",
             "content": {
               "application/json": {
                 "schema": {
@@ -552,6 +552,33 @@
   },
   "components": {
     "schemas": {
+      "Approval": {
+        "properties": {
+          "approver": {
+            "type": "string",
+            "title": "Approver"
+          },
+          "acknowledged": {
+            "type": "boolean",
+            "const": true,
+            "title": "Acknowledged",
+            "default": true
+          },
+          "approved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Approved At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "approver",
+          "approved_at"
+        ],
+        "title": "Approval",
+        "description": "A recorded G4 approval."
+      },
       "ApprovalRequest": {
         "properties": {
           "approver": {
@@ -1663,6 +1690,28 @@
             "title": "Models Used",
             "description": "Model each role reported, e.g. generator and judge",
             "default": {}
+          },
+          "approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Approval"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "G4 record, once approved"
+          },
+          "export": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "G5 receipt, once exported"
           },
           "read_only": {
             "type": "boolean",

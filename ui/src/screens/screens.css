@@ -184,3 +184,8 @@
   display: flex;
   gap: var(--space-4);
 }
+
+/* S6 receipt: a dt/dd pair wrapped for React keys keeps the two-column grid */
+.rd-facts-row {
+  display: contents;
+}

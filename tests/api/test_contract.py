@@ -84,8 +84,6 @@ class TestNoBusinessLogicYet:
         ("method", "path", "body"),
         [
             ("post", "/runs/r1/cap", {"new_cap_usd": 0.1, "raised_by": "Joe"}),
-            ("post", "/runs/r1/approve", {"approver": "Joe", "acknowledged": True}),
-            ("post", "/runs/r1/export", {"format": "csv"}),
             (
                 "post",
                 "/reports",
@@ -100,6 +98,9 @@ class TestNoBusinessLogicYet:
 
 class TestRequestValidation:
     def test_approve_requires_the_acknowledgement(self, client):
+        app.dependency_overrides[get_service] = lambda: (
+            None
+        )  # implemented (#101); body refused first
         response = client.post("/runs/r1/approve", json={"approver": "Joe", "acknowledged": False})
         assert response.status_code == 422
 

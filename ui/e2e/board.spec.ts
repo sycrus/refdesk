@@ -130,7 +130,39 @@ test.describe("S5 review", () => {
     await expect(page.getByText("All 3 flagged items decided: 1 kept, 2 dropped.")).toBeVisible();
 
     await page.getByRole("button", { name: "Continue to approval" }).click();
-    await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Approve and export", level: 1 })).toBeVisible();
     await expect(page.getByText("Ready for approval.")).toBeVisible();
+    // One item was kept with a note, two dropped: the pack holds one.
+    await expect(page.getByRole("button", { name: "Approve and export 1 item" })).toBeVisible();
   });
+});
+
+// S6 Approve and export (issue 101): the ConfirmDialog, the irreversible export, the receipt.
+test("approve and export a verified board, then it is read-only", async ({ page }) => {
+  await newBoard(page, "cypresses in a landscape");
+  await page.getByRole("button", { name: "Approve and export" }).click();
+  await expect(page).toHaveURL(/&approve=1/);
+  await expect(page.getByRole("heading", { name: "What the provenance pack will hold" })).toBeVisible();
+  await page.getByRole("button", { name: "Approve and export 1 item" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(
+      axe.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
+    ).toEqual([]);
+  }
+  await dialog.getByLabel("Approving as").fill("Joe");
+  await dialog.getByRole("checkbox").check();
+  await dialog.getByRole("button", { name: "Approve and export" }).click();
+
+  await expect(page.getByText("Exported. This board is now read-only")).toBeVisible();
+  await expect(page.getByText(/runs\/exports\/run-.*\.csv/)).toBeVisible();
+  await page.getByRole("link", { name: "Back to the board" }).click();
+  await expect(page.getByRole("link", { name: "See the receipt" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve and export" })).toHaveCount(0);
 });

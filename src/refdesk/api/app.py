@@ -36,6 +36,8 @@ from refdesk.api.models import (
 )
 from refdesk.boards import (
     BoardService,
+    ExportFailed,
+    FormatNotSupported,
     GateRefused,
     UnknownAnchor,
     UnknownItem,
@@ -66,6 +68,16 @@ Service = Annotated[BoardService, Depends(get_service)]
 NOT_FOUND = {404: {"model": Problem, "description": "Unknown run"}}
 NOT_IMPLEMENTED = {501: {"model": Problem, "description": "Not implemented yet"}}
 GATE_BLOCKED = {409: {"model": GateBlocked, "description": "A gate has not passed"}}
+
+
+def _unknown_run(run_id: str) -> JSONResponse:
+    problem = Problem(code="unknown_run", message=f"No run {run_id!r}.")
+    return JSONResponse(status_code=404, content=problem.model_dump())
+
+
+def _gate_blocked(error: GateRefused) -> JSONResponse:
+    blocked = GateBlocked(gate=error.gate, reason=error.reason)
+    return JSONResponse(status_code=409, content=blocked.model_dump())
 
 
 def _not_implemented() -> JSONResponse:
@@ -157,22 +169,50 @@ def raise_cap(run_id: str, request: CapRaise):
     "/runs/{run_id}/approve",
     response_model=RunView,
     tags=["gates"],
-    responses={**NOT_FOUND, **GATE_BLOCKED, **NOT_IMPLEMENTED},
+    responses={**NOT_FOUND, **GATE_BLOCKED},
 )
-def approve(run_id: str, request: ApprovalRequest):
+def approve(run_id: str, request: ApprovalRequest, service: Service):
     """G4: record approval. Blocked (409) until G3 has no undecided items."""
-    return _not_implemented()
+    try:
+        return service.approve(run_id, request)
+    except UnknownRun:
+        return _unknown_run(run_id)
+    except GateRefused as error:
+        return _gate_blocked(error)
 
 
 @app.post(
     "/runs/{run_id}/export",
     response_model=ExportReceipt,
     tags=["gates"],
-    responses={**NOT_FOUND, **GATE_BLOCKED, **NOT_IMPLEMENTED},
+    responses={
+        **NOT_FOUND,
+        **GATE_BLOCKED,
+        400: {"model": Problem, "description": "Format not supported yet"},
+        500: {"model": Problem, "description": "Export failed; the board stays unlocked"},
+    },
 )
-def export(run_id: str, request: ExportRequest):
-    """G5: export the provenance pack. Blocked (409) without an approval record."""
-    return _not_implemented()
+def export(run_id: str, request: ExportRequest, service: Service):
+    """G5: export the provenance pack (CSV), then the board is read-only. Irreversible.
+    Blocked (409) without an approval record."""
+    try:
+        return service.export(run_id, request)
+    except UnknownRun:
+        return _unknown_run(run_id)
+    except GateRefused as error:
+        return _gate_blocked(error)
+    except FormatNotSupported as error:
+        problem = Problem(
+            code="format_not_supported",
+            message=f"{error.args[0]!r} export is not built yet; use csv.",
+        )
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    except ExportFailed as error:
+        problem = Problem(
+            code="export_failed",
+            message=f"{error} The board is still unlocked; nothing was exported.",
+        )
+        return JSONResponse(status_code=500, content=problem.model_dump())
 
 
 @app.post(

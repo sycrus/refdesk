@@ -1,6 +1,6 @@
-// The API calls the screens use (issues #46 and 100). The API enforces every gate; this
+// The API calls the screens use (issue 46 onwards). The API enforces every gate; this
 // client only reports what it says. Errors carry the API's own message, never a guess.
-import type { BoardRequest, ReviewRequest, RunCreated, RunView } from "./types";
+import type { BoardRequest, ExportReceipt, ReviewRequest, RunCreated, RunView } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -52,4 +52,22 @@ export async function reviewRun(runId: string, request: ReviewRequest): Promise<
   });
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
   return response.json();
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  return response.json();
+}
+
+export function approveRun(runId: string, approval: { approver: string; acknowledged: true }): Promise<RunView> {
+  return post(`/runs/${encodeURIComponent(runId)}/approve`, approval);
+}
+
+export function exportRun(runId: string): Promise<ExportReceipt> {
+  return post(`/runs/${encodeURIComponent(runId)}/export`, { format: "csv" });
 }

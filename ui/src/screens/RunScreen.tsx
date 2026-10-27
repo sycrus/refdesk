@@ -32,9 +32,17 @@ export interface RunScreenProps {
   onMoreLikeThis: (run: RunView, item: BoardItem) => void;
   onOpenItem?: (itemId: string) => void;
   onReview?: () => void;
+  onApprove?: () => void;
 }
 
-export function RunScreen({ runId, onNewBoard, onMoreLikeThis, onOpenItem, onReview }: RunScreenProps) {
+export function RunScreen({
+  runId,
+  onNewBoard,
+  onMoreLikeThis,
+  onOpenItem,
+  onReview,
+  onApprove,
+}: RunScreenProps) {
   const [run, setRun] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,6 +136,17 @@ export function RunScreen({ runId, onNewBoard, onMoreLikeThis, onOpenItem, onRev
         <Button variant="primary" onClick={onReview}>
           {`Review flagged items (${run.items.filter((i) => i.attribution_status !== AttributionStatus.VERIFIED).length})`}
         </Button>
+      )}
+
+      {onApprove && run.gates.some((g) => (g.id === "G4" || g.id === "G5") && g.state === "active") && (
+        <Button variant="primary" onClick={onApprove}>
+          Approve and export
+        </Button>
+      )}
+      {run.read_only && run.export && (
+        <p role="status">
+          {run.export.notice}. <a href={`?run=${encodeURIComponent(run.run_id)}&approve=1`}>See the receipt</a>
+        </p>
       )}
 
       {run.stop_reason && (

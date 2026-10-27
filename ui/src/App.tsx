@@ -1,10 +1,12 @@
 // The app (PRD 8A): S1 New board, then S2/S3 for a run, and S4 for one item. The run ID
 // and item ID live in the URL (?run=<id>&item=<record id>), so a reload or a shared link
-// reopens the same screen; no router library. S5 review is ?run=<id>&review=1.
+// reopens the same screen; no router library. S5 review is ?run=<id>&review=1 and
+// S6 approve and export is ?run=<id>&approve=1.
 import { useEffect, useState } from "react";
 import { ApiError, createBoard } from "./api/client";
 import type { BoardItem, RunView } from "./api/types";
 import { NewBoard } from "./screens/NewBoard";
+import { ApproveScreen } from "./screens/ApproveScreen";
 import { ItemDetail } from "./screens/ItemDetail";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { RunScreen } from "./screens/RunScreen";
@@ -21,10 +23,15 @@ function currentReview(): boolean {
   return new URLSearchParams(window.location.search).get("review") === "1";
 }
 
+function currentApprove(): boolean {
+  return new URLSearchParams(window.location.search).get("approve") === "1";
+}
+
 export function App() {
   const [runId, setRunId] = useState<string | null>(currentRun);
   const [itemId, setItemId] = useState<string | null>(currentItem);
   const [reviewing, setReviewing] = useState<boolean>(currentReview);
+  const [approving, setApproving] = useState<boolean>(currentApprove);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,19 +39,21 @@ export function App() {
       setRunId(currentRun());
       setItemId(currentItem());
       setReviewing(currentReview());
+      setApproving(currentApprove());
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  function open(id: string | null, item: string | null = null, review = false) {
-    const extra = item ? `&item=${encodeURIComponent(item)}` : review ? "&review=1" : "";
+  function open(id: string | null, item: string | null = null, screen: "" | "review" | "approve" = "") {
+    const extra = item ? `&item=${encodeURIComponent(item)}` : screen ? `&${screen}=1` : "";
     const query = id ? `?run=${encodeURIComponent(id)}${extra}` : window.location.pathname;
     window.history.pushState(null, "", query);
     setError(null);
     setRunId(id);
     setItemId(item);
-    setReviewing(review);
+    setReviewing(screen === "review");
+    setApproving(screen === "approve");
   }
 
   async function moreLikeThis(run: RunView, item: BoardItem) {
@@ -64,9 +73,10 @@ export function App() {
           {error}
         </p>
       )}
-      {runId && reviewing ? (
-        // Continue returns to the board, where G4 shows approval is open (S6 comes with issue 101).
-        <ReviewScreen runId={runId} onBack={() => open(runId)} onContinue={() => open(runId)} />
+      {runId && approving ? (
+        <ApproveScreen runId={runId} onBack={() => open(runId)} />
+      ) : runId && reviewing ? (
+        <ReviewScreen runId={runId} onBack={() => open(runId)} onContinue={() => open(runId, null, "approve")} />
       ) : runId && itemId ? (
         <ItemDetail runId={runId} itemId={itemId} onBack={() => open(runId)} />
       ) : runId ? (
@@ -75,7 +85,8 @@ export function App() {
           onNewBoard={() => open(null)}
           onMoreLikeThis={moreLikeThis}
           onOpenItem={(item) => open(runId, item)}
-          onReview={() => open(runId, null, true)}
+          onReview={() => open(runId, null, "review")}
+          onApprove={() => open(runId, null, "approve")}
         />
       ) : (
         <NewBoard onCreated={open} />

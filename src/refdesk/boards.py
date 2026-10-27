@@ -24,6 +24,8 @@ retriever silently.
 
 from __future__ import annotations
 
+import csv
+import os
 import sqlite3
 import threading
 import uuid
@@ -32,10 +34,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from refdesk.api.models import (
+    Approval,
+    ApprovalRequest,
     BoardItem,
     BoardRequest,
     Cost,
     Evidence,
+    ExportReceipt,
+    ExportRequest,
     Gate,
     GateId,
     GateState,
@@ -49,9 +55,9 @@ from refdesk.reasoning import ItemReasoning, Reasoner, ReasoningOutcome
 from refdesk.retrieval import Hit, Query, Retriever
 from refdesk.retrieval.combined import ConditionNotUnderstood
 from refdesk.retrieval.metadata import _phrase
-from refdesk.schema import ArtworkRecord
+from refdesk.schema import ArtworkRecord, RightsStatus
 from refdesk.verifier import _norm, item_status
-from refdesk.wording import AttributionStatus, StopReason
+from refdesk.wording import EXPORTED, NOT_LEGAL_ADVICE, AttributionStatus, StopReason
 
 NO_VERIFIER = "No verifier yet (M3): the attribution has not been checked against the record."
 # Which score a single-signal retriever's number is, so every item explains its score.
@@ -357,6 +363,45 @@ def _view(
     )
 
 
+PACK_COLUMNS = (
+    "run_id", "item_id", "title", "artist", "date", "source", "object_id", "record_url",
+    "usage_mode", "rights_status", "flag_field", "flag_value", "licence_string", "credit_line",
+    "checked_at", "attribution_status", "review_decision", "review_note", "reviewed_by",
+    "rationale", "tier_used", "generator_model", "judge_model", "retriever", "approver",
+    "approved_at", "exported_at", "not_legal_advice",
+)  # fmt: skip
+
+
+def pack_items(items: list[BoardItem]) -> tuple[list[BoardItem], int, int]:
+    """What the provenance pack holds (rights-check skill): verified items and items kept at
+    review. Left out: dropped items, and items whose rights are unverified unless someone
+    reviewed and kept them. Returns (included, excluded unverified, dropped)."""
+    included, unverified, dropped = [], 0, 0
+    for item in items:
+        if item.review is not None and item.review.decision == "drop":
+            dropped += 1
+        elif item.record.rights.status is RightsStatus.UNVERIFIED and not (
+            item.review and item.review.decision == "keep"
+        ):
+            unverified += 1
+        elif item.attribution_status is AttributionStatus.VERIFIED or (
+            item.review and item.review.decision == "keep"
+        ):
+            included.append(item)
+    return included, unverified, dropped
+
+
+def _git_sha() -> str:
+    import subprocess
+
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "--short=12", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+
+
 class UnknownAnchor(KeyError):
     pass
 
@@ -367,6 +412,19 @@ class UnknownRun(KeyError):
 
 class UnknownItem(KeyError):
     pass
+
+
+def _with_gate(gates: list[Gate], gate: Gate) -> list[Gate]:
+    """The gates with one replaced by its new state."""
+    return [gate if g.id == gate.id else g for g in gates]
+
+
+class FormatNotSupported(ValueError):
+    pass
+
+
+class ExportFailed(RuntimeError):
+    """Writing the pack failed; the board stays unlocked."""
 
 
 class GateRefused(Exception):
@@ -395,6 +453,7 @@ class BoardService:
         # Refuses conditions the retriever cannot apply (issue #63), before anything loads.
         self._check_conditions = check_conditions
         self.reasoner = reasoner  # None: retrieval-only boards
+        self.exports_dir = Path("runs/exports")  # provenance packs (gitignored)
         self._records: dict[str, ArtworkRecord] | None = None
         self._retriever: Retriever | None = None
         self._lock = threading.Lock()  # load the records and retriever once
@@ -589,6 +648,133 @@ class BoardService:
         )
         self.runs.save(updated)
         return updated
+
+    def approve(self, run_id: str, request: ApprovalRequest) -> RunView:
+        """G4: record approval. Refused until every flagged item is decided (G3)."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        g4 = GateId.G4_APPROVE
+        if view.read_only:
+            raise GateRefused(g4, "the board is exported and read-only")
+        if view.approval is not None:
+            raise GateRefused(g4, f"already approved by {view.approval.approver}")
+        if view.state not in (LoopState.DONE, LoopState.STOPPED):
+            raise GateRefused(g4, "the run is still working")
+        undecided = [
+            i for i in view.items
+            if i.attribution_status is not AttributionStatus.VERIFIED and i.review is None
+        ]  # fmt: skip
+        if undecided:
+            raise GateRefused(g4, f"{len(undecided)} flagged items still need a decision (G3)")
+        included, _, _ = pack_items(view.items)
+        if not included:
+            raise GateRefused(g4, "nothing to approve: every item was dropped or excluded")
+        approval = Approval(approver=request.approver, approved_at=datetime.now(UTC))
+        approved = Gate(
+            id=GateId.G4_APPROVE,
+            state=GateState.PASSED,
+            status_text=f"Approved by {approval.approver}.",
+            actor="approver",
+        )
+        ready = Gate(
+            id=GateId.G5_EXPORT,
+            state=GateState.ACTIVE,
+            status_text=f"Ready to export {len(included)} items.",
+            actor="approver",
+        )
+        gates = _with_gate(_with_gate(view.gates, approved), ready)
+        updated = view.model_copy(update={"approval": approval, "gates": gates})
+        self.runs.save(updated)
+        return updated
+
+    def export(self, run_id: str, request: ExportRequest) -> ExportReceipt:
+        """G5: write the provenance pack, then make the board read-only. Irreversible.
+
+        The CSV is written to a temporary file and moved into place, so a failed export
+        leaves no partial pack and the board stays unlocked (ExportFailed)."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        if view.read_only:
+            raise GateRefused(GateId.G5_EXPORT, "already exported; the board is read-only")
+        if view.approval is None:
+            raise GateRefused(GateId.G5_EXPORT, "no approval record (G4)")
+        if request.format != "csv":
+            raise FormatNotSupported(request.format)
+        included, _, _ = pack_items(view.items)
+        exported_at = datetime.now(UTC)
+        versions = {
+            "generator": view.models_used.get("generator", "none"),
+            "judge": view.models_used.get("judge", "none"),
+            "retriever": self.retriever_name,
+            "git": _git_sha(),
+        }
+        target = Path(self.exports_dir) / f"{run_id}.csv"
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            partial = target.with_suffix(".csv.partial")
+            with partial.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=PACK_COLUMNS)
+                writer.writeheader()
+                for item in included:
+                    writer.writerow(self._pack_row(view, item, versions, exported_at))
+            os.replace(partial, target)
+        except OSError as error:
+            raise ExportFailed(f"{type(error).__name__}: {error}") from error
+        receipt = ExportReceipt(
+            run_id=run_id,
+            file=target.as_posix(),
+            exported_at=exported_at,
+            approver=view.approval.approver,
+            versions=versions,
+            notice=EXPORTED,
+            not_legal_advice=NOT_LEGAL_ADVICE,
+        )
+        exported = Gate(
+            id=GateId.G5_EXPORT,
+            state=GateState.PASSED,
+            status_text=f"Exported {len(included)} items to {target.name}.",
+            actor="approver",
+        )
+        gates = _with_gate(view.gates, exported)
+        self.runs.save(
+            view.model_copy(update={"read_only": True, "export": receipt, "gates": gates})
+        )
+        return receipt
+
+    def _pack_row(self, view: RunView, item: BoardItem, versions: dict, exported_at) -> dict:
+        record, rights, review = item.record, item.record.rights, item.review
+        return {
+            "run_id": view.run_id,
+            "item_id": record.id,
+            "title": record.title or "",
+            "artist": record.artist or "",
+            "date": record.date or "",
+            "source": record.source,
+            "object_id": record.object_id,
+            "record_url": record.record_url or "",
+            "usage_mode": view.request.usage_mode.value if view.request else "",
+            "rights_status": rights.status.value,
+            "flag_field": rights.flag_field or "",
+            "flag_value": "" if rights.flag_value is None else str(rights.flag_value),
+            "licence_string": rights.licence_string or "",
+            "credit_line": record.credit_line or "",
+            "checked_at": rights.checked_at.isoformat(),
+            "attribution_status": item.attribution_status.value,
+            "review_decision": review.decision if review else "",
+            "review_note": (review.note or "") if review else "",
+            "reviewed_by": review.decided_by if review else "",
+            "rationale": item.rationale or "",
+            "tier_used": item.tier_used or "",
+            "generator_model": versions["generator"],
+            "judge_model": versions["judge"],
+            "retriever": versions["retriever"],
+            "approver": view.approval.approver,
+            "approved_at": view.approval.approved_at.isoformat(),
+            "exported_at": exported_at.isoformat(),
+            "not_legal_advice": NOT_LEGAL_ADVICE,
+        }
 
 
 def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService:
