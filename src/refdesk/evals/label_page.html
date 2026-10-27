@@ -41,6 +41,10 @@
   .facts { padding: 10px 12px; font-size: 0.9rem; }
   .facts .title { font-weight: 600; }
   .facts .sub { color: var(--muted); }
+  .proposal { margin: 0 12px 12px; padding: 8px 10px; border-left: 4px solid var(--accent);
+    font-size: 0.9rem; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .proposal[hidden] { display: none; }
+  .proposal .who { font-weight: 600; }
   .stamp { position: absolute; top: 16px; padding: 4px 10px; border: 3px solid currentColor;
     border-radius: 6px; font-weight: 800; font-size: 1.4rem; opacity: 0; background: var(--bg); }
   .stamp.yes { left: 16px; transform: rotate(-12deg); }
@@ -78,7 +82,7 @@
 <body>
 <div class="wrap">
   <header>
-    <span>Blind labelling: <span id="sheet">…</span></span>
+    <span><span id="kind">Blind labelling</span>: <span id="sheet">…</span></span>
     <span id="progress" aria-live="polite"></span>
   </header>
   <div class="bar"><span id="bar"></span></div>
@@ -93,6 +97,7 @@
     <span class="current" id="current" hidden></span>
     <figure id="figure"></figure>
     <div class="facts" id="facts"></div>
+    <div class="proposal" id="proposal" hidden></div>
   </div>
 
   <div class="actions" id="actions">
@@ -116,12 +121,15 @@
       relevant. Keys: <kbd>→</kbd>/<kbd>y</kbd>, then <kbd>2</kbd>/<kbd>1</kbd>;
       <kbd>←</kbd>/<kbd>n</kbd>; <kbd>Backspace</kbd> goes back; <kbd>e</kbd> edits the note.
       Every label is written to the sheet as soon as it is given. On the second pass the
-      works come in a different order from the first.</p>
+      works come in a different order from the first. In review, label every work yourself
+      with the same rules; Claude's proposal is shown only for reference, and works it did
+      not propose can still be marked relevant.</p>
   </section>
 </div>
 <script>
 "use strict";
 let rows = [];
+let reviewMode = false;  // review sheets show Claude's proposal and phi4's verdict
 let order = [];  // indices into rows, in the order shown
 let pos = 0;     // position in order
 let queue = Promise.resolve();
@@ -200,6 +208,22 @@ function render() {
   m.textContent = [r.medium, r.subjects].filter(Boolean).join(" · ");
   facts.append(t, a, m);
   $("record").href = r.record_url;
+  const prop = $("proposal");
+  prop.hidden = !reviewMode;
+  if (reviewMode) {
+    prop.replaceChildren();
+    const who = document.createElement("div");
+    who.className = "who";
+    who.textContent = r.claude_grade
+      ? `Claude proposed: grade ${r.claude_grade}` : "Claude did not propose this work";
+    prop.append(who);
+    if (r.claude_grade) {
+      const why = document.createElement("div"); why.textContent = r.claude_reason;
+      const judge = document.createElement("div");
+      judge.textContent = `phi4 check: ${r.judge_verdict}`;
+      prop.append(why, judge);
+    }
+  }
   if (document.activeElement !== $("note")) $("note").value = r.note;
 }
 
@@ -298,6 +322,8 @@ document.addEventListener("keydown", (e) => {
   try {
     const data = await (await fetch("/api/rows")).json();
     $("sheet").textContent = data.sheet;
+    reviewMode = data.review;
+    if (reviewMode) { $("kind").textContent = "Review"; document.title = "Review"; }
     rows = data.rows;
     order = makeOrder(data.sheet);
     const first = order.findIndex((i) => !done(rows[i]));

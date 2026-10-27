@@ -21,6 +21,11 @@ Run (PowerShell or WSL2), then open http://127.0.0.1:8200:
 --pass2 creates blind-sheet-pass2.csv with the label columns cleared (so pass-1 labels are
 never shown), or resumes it if it exists.
 
+Review mode (ADR-018 step 5): `--review` labels review-sheet.csv, the non-blind cases with
+Claude's proposal and phi4's verdict on each candidate (`scripts/build_review_sheet.py`).
+Those columns reach the page only when the sheet has them, so blind sheets never show
+anything about proposals.
+
 From another device (e.g. over Tailscale): `--host <this PC's address>`, or keep the server
 on localhost behind `tailscale serve` (no firewall rule needed) with `--token`. Off
 localhost, or with `--token`, the server needs a token, printed at startup as part of the
@@ -47,6 +52,7 @@ from refdesk.store import Store
 ROOT = Path(__file__).resolve().parents[3]
 SHEET = ROOT / "evals" / "labelling" / "v1" / "blind-sheet.csv"
 PASS2 = SHEET.with_name("blind-sheet-pass2.csv")
+REVIEW = SHEET.with_name("review-sheet.csv")
 PAGE = Path(__file__).with_name("label_page.html")
 LABELS = ("relevant", "grade", "note")
 # What the page may see. Not image_url (images come from /image/<index>) and nothing
@@ -55,6 +61,8 @@ SHOWN = (
     "draft_id", "brief", "usage_mode", "candidate", "title", "artist", "date", "medium",
     "subjects", "record_url", *LABELS,
 )  # fmt: skip
+# Review sheets only: what Claude proposed and what phi4 said, shown beside each work.
+PROPOSAL = ("claude_grade", "claude_reason", "judge_verdict")
 MAX_NOTE = 500
 COOKIE = "refdesk_label_token"
 
@@ -111,7 +119,8 @@ class Label(BaseModel):
 
 
 def _view(index: int, row: dict[str, str]) -> dict[str, str | int]:
-    return {"index": index} | {k: row.get(k, "") for k in SHOWN}
+    shown = SHOWN + tuple(k for k in PROPOSAL if k in row)
+    return {"index": index} | {k: row.get(k, "") for k in shown}
 
 
 def create_app(sheet: Path, db: Path, images: Path, token: str | None = None) -> FastAPI:
@@ -144,8 +153,12 @@ def create_app(sheet: Path, db: Path, images: Path, token: str | None = None) ->
 
     @app.get("/api/rows")
     def rows() -> dict:
-        _, data = read_sheet(sheet)
-        return {"sheet": sheet.name, "rows": [_view(i, r) for i, r in enumerate(data)]}
+        fields, data = read_sheet(sheet)
+        return {
+            "sheet": sheet.name,
+            "review": all(k in fields for k in PROPOSAL),
+            "rows": [_view(i, r) for i, r in enumerate(data)],
+        }
 
     @app.put("/api/rows/{index}")
     def label(index: int, body: Label) -> dict:
@@ -186,6 +199,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="refdesk golden-v1 blind labelling page")
     parser.add_argument("--pass2", action="store_true", help="label blind-sheet-pass2.csv")
+    parser.add_argument("--review", action="store_true", help="review-sheet.csv (non-blind cases)")
     parser.add_argument("--sheet", help="another sheet (e.g. a scratch copy for trying the page)")
     parser.add_argument("--host", default="127.0.0.1", help="e.g. this PC's Tailscale address")
     parser.add_argument("--port", type=int, default=8200)
@@ -194,7 +208,7 @@ def main() -> None:
     parser.add_argument("--db", default=str(ROOT / "data" / "refdesk.sqlite"))
     parser.add_argument("--images", default=str(ROOT / "data" / "images"))
     args = parser.parse_args()
-    sheet = Path(args.sheet) if args.sheet else SHEET
+    sheet = Path(args.sheet) if args.sheet else REVIEW if args.review else SHEET
     if args.pass2 and not args.sheet:
         if not PASS2.exists():
             start_pass2(SHEET, PASS2)
