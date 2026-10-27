@@ -87,6 +87,7 @@ export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
       <section aria-labelledby="why-title">
         <h2 id="why-title">Why it fits</h2>
         <p>{item.rationale ?? "No rationale: see the reasons below."}</p>
+        {item.opinion_flag && <p className="rd-card-opinion-flag">{item.opinion_flag}</p>}
         {item.flag_reasons.length > 0 && (
           <ul className="rd-card-flags" aria-label="Why this needs a human check">
             {item.flag_reasons.map((reason) => (

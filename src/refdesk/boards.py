@@ -57,7 +57,13 @@ from refdesk.retrieval.combined import ConditionNotUnderstood
 from refdesk.retrieval.metadata import _phrase
 from refdesk.schema import ArtworkRecord, RightsStatus
 from refdesk.verifier import _norm, item_status
-from refdesk.wording import EXPORTED, NOT_LEGAL_ADVICE, AttributionStatus, StopReason
+from refdesk.wording import (
+    EXPORTED,
+    NOT_LEGAL_ADVICE,
+    OPINION_FLAGGED,
+    AttributionStatus,
+    StopReason,
+)
 
 NO_VERIFIER = "No verifier yet (M3): the attribution has not been checked against the record."
 # Which score a single-signal retriever's number is, so every item explains its score.
@@ -367,7 +373,8 @@ PACK_COLUMNS = (
     "run_id", "item_id", "title", "artist", "date", "source", "object_id", "record_url",
     "usage_mode", "rights_status", "flag_field", "flag_value", "licence_string", "credit_line",
     "checked_at", "attribution_status", "review_decision", "review_note", "reviewed_by",
-    "rationale", "tier_used", "generator_model", "judge_model", "retriever", "approver",
+    "rationale", "opinion_flag", "tier_used", "generator_model", "judge_model", "retriever",
+    "approver",
     "approved_at", "exported_at", "not_legal_advice",
 )  # fmt: skip
 
@@ -585,8 +592,11 @@ class BoardService:
             reasons += list(r.code.failures)
         elif generated is not None:
             reasons.append(generated.failure)
+        fit_failure = r.judged.verdict.fit_failure if r.judged is not None else None
         if r.judged is not None:
             reasons += list(r.judged.verdict.failures)
+        if fit_failure:
+            reasons.append(fit_failure)
         reasons += r.notes
         status = item_status(r.code, r.judged.verdict if r.judged else None)
         return item.model_copy(
@@ -595,6 +605,7 @@ class BoardService:
                 "evidence": evidence,
                 "attribution_status": status,
                 "flag_reasons": [] if status is AttributionStatus.VERIFIED else reasons,
+                "opinion_flag": OPINION_FLAGGED if fit_failure else None,
                 "tier_used": generated.tier if generated else None,
                 "cost_usd": r.cost_usd,
             }

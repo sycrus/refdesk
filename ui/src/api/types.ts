@@ -54,6 +54,7 @@ export interface BoardItem {
   score_components?: Record<string, number>; // parts that sum to the score
   confidence?: { bucket: "high" | "medium" | "low"; value: number } | null;
   review?: ItemReview | null; // G3 decision, for flagged items
+  opinion_flag?: string | null; // fit sentence flagged (issue 135); never changes attribution_status
   tier_used?: string | null;
   cost_usd?: number;
 }

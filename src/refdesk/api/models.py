@@ -202,6 +202,11 @@ class BoardItem(_Model):
         {}, description="Named parts of the score that sum to it, e.g. similarity, attributes"
     )
     review: ItemReview | None = Field(None, description="G3 decision, for flagged items")
+    opinion_flag: str | None = Field(
+        None,
+        description="Set when the judge found the fit sentence may state a fact the record "
+        "does not give. It does not change attribution_status (ADR-022, issue #135).",
+    )
 
 
 class RunCreated(_Model):
