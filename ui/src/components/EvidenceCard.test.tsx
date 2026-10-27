@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { BoardItem } from "../api/types";
-import { AttributionStatus, RightsStatus } from "../generated/wording";
+import { AttributionStatus, OPINION_FLAGGED, RightsStatus } from "../generated/wording";
 import { EvidenceCard } from "./EvidenceCard";
 
 function item(overrides: Partial<BoardItem> = {}, rights = {}): BoardItem {
@@ -62,6 +62,12 @@ describe("EvidenceCard", () => {
   it("never invents missing fields", () => {
     render(<EvidenceCard item={item({ rationale: null }, {})} />);
     expect(screen.getByText("No rationale yet.")).toBeTruthy();
+  });
+
+  it("shows an opinion flag next to the rationale without changing the badge", () => {
+    render(<EvidenceCard item={item({ opinion_flag: OPINION_FLAGGED }, {})} />);
+    expect(screen.getByText(OPINION_FLAGGED)).toBeTruthy();
+    expect(screen.getByText(AttributionStatus.VERIFIED)).toBeTruthy();
   });
 
   it("lists why an item needs a human check", () => {

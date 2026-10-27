@@ -100,9 +100,16 @@ class TestJudge:
         assert not result.verdict.passed
         assert result.verdict.failures == ("claim 2 (date): the judge found it unsupported",)
 
-    def test_an_unsupported_fit_sentence_fails(self):
+    def test_an_unsupported_fit_sentence_is_flagged_on_its_own(self):
+        # Option 3 in #135 (Joe, 2026-10-27): claims set the status; the fit is flagged.
         result, _ = judge(lambda s, n: "UNSUPPORTED" if "tin" in s else "SUPPORTED")
-        assert result.verdict.failures == ("fit sentence: the judge found it unsupported",)
+        assert result.verdict.passed and result.verdict.failures == ()
+        assert result.verdict.fit_failure == "fit sentence: the judge found it unsupported"
+
+    def test_an_unusable_fit_answer_is_a_fit_flag_too(self):
+        result, _ = judge(lambda s, n: "Hmm" if "tin" in s else "SUPPORTED")
+        assert result.verdict.passed
+        assert result.verdict.fit_failure.startswith("fit sentence: judge answer unusable")
 
     def test_a_malformed_answer_gets_one_retry(self):
         answers = iter(["Maybe?", "SUPPORTED", "SUPPORTED", "SUPPORTED"])

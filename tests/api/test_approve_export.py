@@ -14,7 +14,8 @@ PACK_COLUMNS = [
     "run_id", "item_id", "title", "artist", "date", "source", "object_id", "record_url",
     "usage_mode", "rights_status", "flag_field", "flag_value", "licence_string", "credit_line",
     "checked_at", "attribution_status", "review_decision", "review_note", "reviewed_by",
-    "rationale", "tier_used", "generator_model", "judge_model", "retriever", "approver",
+    "rationale", "opinion_flag", "tier_used", "generator_model", "judge_model", "retriever",
+    "approver",
     "approved_at", "exported_at", "not_legal_advice",
 ]  # fmt: skip
 

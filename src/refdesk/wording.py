@@ -51,4 +51,7 @@ _STOP_BANNERS = {
 }
 
 EXPORTED = "Exported. This board is now read-only"
+# Shown on the fit sentence when the judge flags it. It never changes the attribution
+# status: that rests on the claims (ADR-022, amended 2026-10-27, issue #135).
+OPINION_FLAGGED = "Opinion flagged: may state a fact the record does not give"
 NOT_LEGAL_ADVICE = "Rights are recorded as stated by each source. This is not legal advice."

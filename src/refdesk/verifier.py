@@ -64,10 +64,16 @@ class CodeVerification:
 
 @dataclass(frozen=True)
 class JudgeVerdict:
-    """Stage 2's result for one item (issue #97)."""
+    """Stage 2's result for one item (issue #97).
+
+    `passed` covers the claims only. `fit_failure` says why the fit sentence was flagged;
+    it does not affect `passed` or the attribution status (Joe, 2026-10-27, issue #135):
+    the fit is opinion, so a flag on it is shown on the sentence instead of withholding
+    "Attribution verified from record" from claims that passed."""
 
     passed: bool
     failures: tuple[str, ...]
+    fit_failure: str | None = None
 
 
 def _check_value(claim: Claim, record: ArtworkRecord) -> str | None:
@@ -130,7 +136,8 @@ def check_claims(rationale: Rationale, record: ArtworkRecord) -> CodeVerificatio
 
 
 def item_status(code: CodeVerification | None, judged: JudgeVerdict | None) -> AttributionStatus:
-    """Verified only when there is a rationale, code checks pass and the judge passed."""
+    """Verified only when there is a rationale, code checks pass and the judge supported
+    every claim. The fit-sentence verdict is not part of it (see `JudgeVerdict`)."""
     if code is None or judged is None or not code.passed or not judged.passed:
         return AttributionStatus.NEEDS_HUMAN_CHECK
     return AttributionStatus.VERIFIED

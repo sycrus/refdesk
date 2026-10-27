@@ -38,4 +38,6 @@ export const STOP_REASON_BANNER: Record<StopReason, string> = {
 
 export const EXPORTED = "Exported. This board is now read-only";
 
+export const OPINION_FLAGGED = "Opinion flagged: may state a fact the record does not give";
+
 export const NOT_LEGAL_ADVICE = "Rights are recorded as stated by each source. This is not legal advice.";

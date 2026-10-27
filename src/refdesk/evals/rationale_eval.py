@@ -5,8 +5,11 @@ For each retrieve case in a golden set, the top-k records go through the board p
 
 - **usable**: the generator returned a valid structured rationale (after one retry);
 - **code_pass**: every claim's value matches the record (`verifier.check_claims`);
-- **judge_pass**: the judge supported every claim's text and the fit sentence;
-- **verified**: both passed, so the item would show "Attribution verified from record".
+- **judge_pass**: the judge supported every claim's text;
+- **fit_pass**: the judge found no unsupported fact in the fit sentence (a flag on the
+  sentence, not on the attribution: issue #135);
+- **verified**: code checks and judge_pass, so the item shows "Attribution verified from
+  record".
 
 Each case's score is the share of its items; intervals are bootstrapped over cases.
 
@@ -43,7 +46,7 @@ from refdesk.schema import ArtworkRecord
 from refdesk.verifier import item_status
 from refdesk.wording import AttributionStatus
 
-RATIONALE_METRICS = ("usable", "code_pass", "judge_pass", "verified")
+RATIONALE_METRICS = ("usable", "code_pass", "judge_pass", "fit_pass", "verified")
 _CLAIM = re.compile(r"^claim \d+ \((\w+)\): ")
 
 
@@ -98,19 +101,26 @@ def run_rationale_eval(
             usable = r.generated is not None and r.generated.ok
             code_pass = bool(r.code and r.code.passed)
             judge_pass = bool(r.judged and r.judged.verdict.passed)
+            fit_pass = bool(r.judged and r.judged.verdict.fit_failure is None)
             judged = r.judged.verdict if r.judged else None
             verified = item_status(r.code, judged) is AttributionStatus.VERIFIED
             item_reasons = (
                 ([r.generated.failure] if r.generated and not r.generated.ok else [])
                 + (list(r.code.failures) if r.code else [])
                 + (list(r.judged.verdict.failures) if r.judged else [])
+                + (
+                    [r.judged.verdict.fit_failure]
+                    if r.judged and r.judged.verdict.fit_failure
+                    else []
+                )
                 + r.notes
             )
             reasons.update(_reason_kind(x) for x in item_reasons)
             cost += r.cost_usd
             items.append({
                 "record_id": record.id, "usable": usable, "code_pass": code_pass,
-                "judge_pass": judge_pass, "verified": verified, "reasons": item_reasons,
+                "judge_pass": judge_pass, "fit_pass": fit_pass, "verified": verified,
+                "reasons": item_reasons,
                 "rationale": (
                     " ".join([*(c.text for c in r.generated.rationale.claims),
                               r.generated.rationale.fit])
@@ -178,8 +188,9 @@ def _report(result: EvalResult, date: str) -> str:
     meanings = {
         "usable": "valid structured rationale",
         "code_pass": "every claim value matches the record",
-        "judge_pass": "judge supported every claim and the fit sentence",
-        "verified": "both: would show as verified",
+        "judge_pass": "judge supported every claim",
+        "fit_pass": "judge found no unsupported fact in the fit sentence",
+        "verified": "code and claims passed: shows as verified",
     }
     for m in RATIONALE_METRICS:
         if m in result.summary:

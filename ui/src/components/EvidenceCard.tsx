@@ -61,6 +61,7 @@ export function EvidenceCard({
       <section className="rd-card-why">
         <h4>Why it fits</h4>
         <p>{item.rationale ?? "No rationale yet."}</p>
+        {item.opinion_flag && <p className="rd-card-opinion-flag">{item.opinion_flag}</p>}
         {item.evidence.length > 0 && (
           <ul className="rd-card-chips" aria-label="Evidence from the record">
             {item.evidence.map((ev) => {

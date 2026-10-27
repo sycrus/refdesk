@@ -19,7 +19,7 @@ from refdesk.llm.mock_server import create_app
 from refdesk.reasoning import Reasoner
 from refdesk.retrieval.metadata import JaccardRetriever
 from refdesk.schema import RightsStatus
-from refdesk.wording import AttributionStatus, StopReason
+from refdesk.wording import OPINION_FLAGGED, AttributionStatus, StopReason
 
 # Records with an artist, so attribution can be verified.
 ARTISTS = {"1": "Workshop of Jan Porcellis", "2": "Willem van de Velde", "3": "Rachel Ruysch"}
@@ -136,6 +136,29 @@ class TestFlaggedItems:
             assert any("claim 1" in r for r in item["flag_reasons"])
         assert gate(view, "G2")["state"] == "blocked"
         assert gate(view, "G3")["state"] == "active"
+
+    def test_a_flagged_fit_sentence_keeps_the_attribution_verified(self, tmp_path):
+        # Option 3 in #135 (Joe, 2026-10-27): the opinion is flagged on its own.
+        class FitFlagged(Mocks):
+            def post_json(self, url, headers, payload):
+                if "sentence of opinion" in payload["messages"][0]["content"]:
+                    body = {"model": "mock-1", "usage": {},
+                            "choices": [{"message": {"content": "UNSUPPORTED"}}]}  # fmt: skip
+                    return 200, body
+                return super().post_json(url, headers, payload)
+
+        view = run(tmp_path, FitFlagged())
+        for item in view["items"]:
+            assert item["attribution_status"] == AttributionStatus.VERIFIED
+            assert item["opinion_flag"] == OPINION_FLAGGED
+            assert item["flag_reasons"] == []
+        assert gate(view, "G2")["state"] == "passed"
+
+    def test_a_flagged_claim_names_the_fit_flag_too(self, tmp_path):
+        view = run(tmp_path, Mocks(judge_script=["unsupported"]))
+        for item in view["items"]:
+            assert item["opinion_flag"] == OPINION_FLAGGED
+            assert any(r.startswith("fit sentence") for r in item["flag_reasons"])
 
     def test_an_unusable_rationale_says_why_there_is_none(self, tmp_path):
         view = run(tmp_path, Mocks(generator_script=["malformed"]))
