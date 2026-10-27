@@ -35,5 +35,7 @@ Fit-sentence probe, 2026-10-27 (issue #97, `evals/reports/fit-probe-2026-10-27.m
 
 No measurement yet of the full verifier; the rationale eval (issue #102) supplies it, on golden-v1 for any claim.
 
+Prompt comparison on golden-v0 (plumbing only), 2026-10-27 (issue #135, `evals/reports/rationale-prompts-2026-10-27.md`), qwen3.5:9b + phi4: verified 0.18 (rationale-v1 + fit-v1), 0.38 (rationale-v2 + fit-v1), 0.68 (rationale-v2 + fit-v2). rationale-v2 cut judge flags on claims from 41 to 3; most remaining flags are on the fit sentence, which qwen keeps filling with record facts. Realistic fit probe (`evals/reports/fit-probe-2026-10-27-realistic.md`): fit-v2 (judge sees the brief) caught 13/20 smuggled facts against fit-v1's 20/20. Not decided yet: which prompts to pin, and whether the fit verdict should withhold "Attribution verified from record" (option 3 in the report).
+
 ## Revisit trigger
 Code checks cover too few claims to matter, phi4 misses planted false facts beyond the rule in #97 (including on records with long description text, once a source has them), or generators cannot return valid structure reliably.

@@ -47,3 +47,11 @@ date,commit,retriever,golden_version,corpus_version,metric,mean,low,high,n,cost_
 2026-10-27,7127741685b5,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_code_pass,0.8810,0.7976,0.9524,28,0.00,419.00,285bc2c7ff8a
 2026-10-27,7127741685b5,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_judge_pass,0.1786,0.1071,0.2500,28,0.00,419.00,285bc2c7ff8a
 2026-10-27,7127741685b5,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_verified,0.1786,0.1071,0.2500,28,0.00,419.00,285bc2c7ff8a
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_usable,1.0000,1.0000,1.0000,28,0.00,540.95,2ff34049ca11
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_code_pass,0.9762,0.9405,1.0000,28,0.00,540.95,2ff34049ca11
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_judge_pass,0.3810,0.2738,0.5000,28,0.00,540.95,2ff34049ca11
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_verified,0.3810,0.2738,0.5000,28,0.00,540.95,2ff34049ca11
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_usable,1.0000,1.0000,1.0000,28,0.00,441.93,d450507c42a3
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_code_pass,0.9643,0.9167,1.0000,28,0.00,441.93,d450507c42a3
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_judge_pass,0.6786,0.5595,0.7976,28,0.00,441.93,d450507c42a3
+2026-10-27,c2fe269f0e61,rationale:local-small,v0-synthetic,met:2588:d188937d8a53,rationale_verified,0.6786,0.5595,0.7976,28,0.00,441.93,d450507c42a3
