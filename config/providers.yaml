@@ -55,6 +55,7 @@ tiers:
   local-small:
     provider: ollama
     model: qwen3.5:9b    # ADR-020 (Joe, 2026-10-12); measured 7.6 GB, thinking off
+    reasoning_effort: none  # thinking off; without it every token goes to reasoning (#102)
   # DeepSeek prices: api-docs.deepseek.com/quick_start/pricing, checked 2026-10-12, in "$".
   # Configured at PEAK, cache-miss input, so the budget check is a true worst case.
   # Off-peak (outside 01:00-04:00 and 06:00-10:00 UTC on weekdays) is half price.
