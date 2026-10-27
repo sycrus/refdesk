@@ -114,6 +114,8 @@ export interface RunView {
   keep_local: boolean;
   sent_to: string[];
   models_used?: Record<string, string>;
+  approval?: { approver: string; acknowledged: true; approved_at: string } | null;
+  export?: ExportReceipt | null;
   read_only: boolean;
 }
 
@@ -132,4 +134,14 @@ export interface ItemReview {
 export interface ReviewRequest {
   reviewer: string;
   decisions: { item_id: string; decision: "keep" | "drop"; note?: string | null }[];
+}
+
+export interface ExportReceipt {
+  run_id: string;
+  file: string;
+  exported_at: string;
+  approver: string;
+  versions: Record<string, string>;
+  notice: string;
+  not_legal_advice: string;
 }

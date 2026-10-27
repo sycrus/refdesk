@@ -137,6 +137,14 @@ class ApprovalRequest(_Model):
     acknowledged: Literal[True] = Field(description="Must be true to approve")
 
 
+class Approval(_Model):
+    """A recorded G4 approval."""
+
+    approver: str
+    acknowledged: Literal[True] = True
+    approved_at: datetime
+
+
 class ExportRequest(_Model):
     """G5: irreversible. Requires an approval record."""
 
@@ -201,6 +209,16 @@ class RunCreated(_Model):
     state: LoopState
 
 
+class ExportReceipt(_Model):
+    run_id: str
+    file: str
+    exported_at: datetime
+    approver: str
+    versions: dict[str, str] = Field(description="Model, adapter and config versions")
+    notice: str
+    not_legal_advice: str
+
+
 class RunView(_Model):
     run_id: str
     request: BoardRequest | None = Field(None, description="What was asked (S3 header)")
@@ -216,17 +234,9 @@ class RunView(_Model):
     models_used: dict[str, str] = Field(
         {}, description="Model each role reported, e.g. generator and judge"
     )
+    approval: Approval | None = Field(None, description="G4 record, once approved")
+    export: ExportReceipt | None = Field(None, description="G5 receipt, once exported")
     read_only: bool = False
-
-
-class ExportReceipt(_Model):
-    run_id: str
-    file: str
-    exported_at: datetime
-    approver: str
-    versions: dict[str, str] = Field(description="Model, adapter and config versions")
-    notice: str
-    not_legal_advice: str
 
 
 class ReportAccepted(_Model):

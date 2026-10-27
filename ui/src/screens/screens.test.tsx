@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BoardItem, Gate, RunView } from "../api/types";
 import { AttributionStatus, NOT_LEGAL_ADVICE, RightsStatus, STOP_REASON_BANNER, StopReason } from "../generated/wording";
+import { ApproveScreen, packPreview } from "./ApproveScreen";
 import { ItemDetail } from "./ItemDetail";
 import { NewBoard } from "./NewBoard";
 import { ReviewScreen } from "./ReviewScreen";
@@ -268,5 +269,65 @@ describe("S5 ReviewScreen", () => {
     expect(body).toEqual({ reviewer: "Joe", decisions: [{ item_id: "met:436535", decision: "drop", note: null }] });
     await user.click(screen.getByRole("button", { name: "Continue to approval" }));
     expect(onContinue).toHaveBeenCalled();
+  });
+});
+
+describe("S6 ApproveScreen", () => {
+  const verified: BoardItem = { ...ITEM, attribution_status: AttributionStatus.VERIFIED, flag_reasons: [] };
+  const dropped: BoardItem = {
+    ...ITEM,
+    record: { ...ITEM.record, id: "met:2" },
+    review: { decision: "drop", decided_by: "Joe", decided_at: "2026-10-27T10:00:00Z" },
+  };
+  const unverifiedRights: BoardItem = {
+    ...verified,
+    record: { ...ITEM.record, id: "met:3", rights: { status: RightsStatus.UNVERIFIED, flag_field: null } },
+  };
+  const readyGates = GATES.map((g) =>
+    g.id === "G4" ? { ...g, state: "active" as const, status_text: "Ready for approval." } : g,
+  );
+
+  it("previews the pack with the API's rule: dropped and unreviewed unverified items are left out", () => {
+    const preview = packPreview([verified, dropped, unverifiedRights]);
+    expect(preview.included.map((i) => i.record.id)).toEqual(["met:436535"]);
+    expect(preview.excludedUnverified).toBe(1);
+    expect(preview.countsByStatus).toEqual({ [RightsStatus.OPEN]: 1 });
+  });
+
+  it("keeps approval closed, with the reason, until the API opens G4", async () => {
+    respond({ body: view({ items: [ITEM] }) });
+    render(<ApproveScreen runId="run-1" onBack={vi.fn()} />);
+    const button = await screen.findByRole("button", { name: "Approve and export 0 items" });
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByText("Approval is not open yet: Waiting for review.")).toBeTruthy();
+  });
+
+  it("approves through the dialog, exports and shows the receipt", async () => {
+    const receipt = {
+      run_id: "run-1",
+      file: "runs/exports/run-1.csv",
+      exported_at: "2026-10-27T10:05:00Z",
+      approver: "Joe",
+      versions: { generator: "mock-1", judge: "mock-1", retriever: "jaccard", git: "abc123" },
+      notice: "Exported. This board is now read-only",
+      not_legal_advice: NOT_LEGAL_ADVICE,
+    };
+    const fetchMock = respond(
+      { body: view({ items: [verified], gates: readyGates }) },
+      { body: view({ items: [verified], approval: { approver: "Joe", acknowledged: true, approved_at: "t" } }) },
+      { body: receipt },
+      { body: view({ items: [verified], read_only: true, export: receipt }) },
+    );
+    render(<ApproveScreen runId="run-1" onBack={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Approve and export 1 item" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Approving as"), "Joe");
+    await user.click(within(dialog).getByRole("checkbox"));
+    await user.click(within(dialog).getByRole("button", { name: "Approve and export" }));
+    expect(await screen.findByText("runs/exports/run-1.csv")).toBeTruthy();
+    expect(screen.getByText("Exported. This board is now read-only")).toBeTruthy();
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ approver: "Joe", acknowledged: true });
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ format: "csv" });
   });
 });
