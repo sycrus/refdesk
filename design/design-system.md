@@ -15,6 +15,7 @@ Used by the refdesk web app (React and TypeScript). This is a generic system: it
 |---|---|
 | Attribution matches the museum record | Attribution verified from record |
 | Attribution could not be confirmed | Needs human check |
+| The fit sentence may state a fact the record does not give (shown under the rationale; the attribution label is unaffected) | Opinion flagged: may state a fact the record does not give |
 | Source states the work is open | Open (as stated by source) |
 | Source flag missing or unclear | Unverified |
 | Source requires permission | Permission required |

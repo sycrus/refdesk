@@ -30,6 +30,6 @@ api:
     generator_tier: mock
     judge_tier: mock-judge
     prompts:
-      rationale: rationale-v1
+      rationale: rationale-v2  # Joe, 2026-10-27 (#135)
       judge: judge-v1
       fit: fit-v1

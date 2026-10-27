@@ -111,6 +111,15 @@ a.rd-chip:hover {
   line-height: var(--type-body-s-line);
 }
 
+/* The fit sentence was flagged by the judge; the attribution badge is unaffected (issue 135).
+   Muted ink, not warn: state colours appear only with a label and an icon. */
+.rd-card-opinion-flag {
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
 .rd-card-actions {
   display: flex;
   flex-wrap: wrap;

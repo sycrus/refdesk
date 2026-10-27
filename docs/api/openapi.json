@@ -863,6 +863,18 @@
               }
             ],
             "description": "G3 decision, for flagged items"
+          },
+          "opinion_flag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opinion Flag",
+            "description": "Set when the judge found the fit sentence may state a fact the record does not give. It does not change attribution_status (ADR-022, issue #135)."
           }
         },
         "additionalProperties": false,

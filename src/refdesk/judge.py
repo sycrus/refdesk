@@ -12,7 +12,9 @@ event") read as facts the record does not give.
 
 The judge must come from a different provider family than the generator, checked before
 any request. Pass rule (Joe, 2026-10-27): SUPPORTED passes, UNSUPPORTED fails, a
-malformed answer gets one retry and then counts as a fail.
+malformed answer gets one retry and then counts as a fail. A failed claim fails the
+item; a failed fit sentence is reported separately (`JudgeVerdict.fit_failure`) and
+flags the sentence, not the attribution (Joe, 2026-10-27, issue #135).
 
 Stage 1 (code checks, `verifier.check_claims`) runs first; `verifier.item_status` combines
 both. What breaks without this stage: a claim whose value is right but whose sentence adds
@@ -90,7 +92,7 @@ def judge_rationale(
         (f"claim {n} ({c.field})", c.text, prompt, None)
         for n, c in enumerate(rationale.claims, start=1)
     ] + [("fit sentence", rationale.fit, fit_prompt, fit_brief)]
-    failures, calls, cost, model = [], 0, 0.0, None
+    failures, fit_failure, calls, cost, model = [], None, 0, 0.0, None
     for label, statement, statement_prompt, statement_brief in statements:
         verdict = None
         for _ in range(MAX_ATTEMPTS):
@@ -108,12 +110,19 @@ def judge_rationale(
             verdict = parse_verdict(completion.text)
             if verdict is not None:
                 break
+        reason = None
         if verdict is None:
-            failures.append(f"{label}: judge answer unusable after {MAX_ATTEMPTS} attempts")
+            reason = f"{label}: judge answer unusable after {MAX_ATTEMPTS} attempts"
         elif verdict == "unsupported":
-            failures.append(f"{label}: the judge found it unsupported")
+            reason = f"{label}: the judge found it unsupported"
+        if reason and statement_prompt is fit_prompt:
+            fit_failure = reason
+        elif reason:
+            failures.append(reason)
     return JudgeResult(
-        verdict=JudgeVerdict(passed=not failures, failures=tuple(failures)),
+        verdict=JudgeVerdict(
+            passed=not failures, failures=tuple(failures), fit_failure=fit_failure
+        ),
         tier=judge_tier,
         family=judge_family,
         model_reported=model,
