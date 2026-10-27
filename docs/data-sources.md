@@ -29,7 +29,7 @@ One row per source. Read each source's own terms before relying on a row (PRD 9,
 | `false` | Permission required | no |
 | missing, or not a boolean | Unverified | no |
 
-`licence_string` stores `rightsAndReproduction` verbatim (for example "© Estate of Philip Guston"), or nothing when it is empty. The API has **no licence field**: the CC0 basis comes from the policy above, not from each record. The provenance pack should cite the policy URL next to the flag.
+`credit_line` stores `creditLine` verbatim (for example "Purchase, The Annenberg Foundation Gift, 1993"), or nothing when it is empty; it is shown in S4 and the provenance pack as the source gives it (issue #99). `licence_string` stores `rightsAndReproduction` verbatim (for example "© Estate of Philip Guston"), or nothing when it is empty. The API has **no licence field**: the CC0 basis comes from the policy above, not from each record. The provenance pack should cite the policy URL next to the flag.
 
 **Slice:** 2,588 records after the full ingest on 2026-10-11 (2,308 open, 280 permission required, 0 unverified; 60 skipped as drawings, frames or manuscripts). Department 11 "European Paintings", painting-like classifications ("Paintings", "Miniatures", "Pastels & Oil Sketches on Paper"; widened by Joe on 2026-10-11): 2,648 object IDs listed on 2026-10-11 (before the classification filter). That is smaller than the PRD's "10-20k" estimate. At 1 request per second a full slice ingest takes about 45 minutes.
 

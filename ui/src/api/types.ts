@@ -17,6 +17,11 @@ export interface Gate {
 export interface RightsRecord {
   status: RightsStatus;
   flag_field: string | null; // the source field the status was read from; null = no flag
+  source?: string;
+  object_id?: string;
+  flag_value?: string | boolean | null; // the raw value, as the source returned it
+  licence_string?: string | null;
+  checked_at?: string;
 }
 
 export interface ArtworkRecord {
@@ -28,6 +33,7 @@ export interface ArtworkRecord {
   medium?: string | null;
   image_url?: string | null;
   record_url?: string | null;
+  credit_line?: string | null; // verbatim from the source
   rights: RightsRecord;
 }
 
@@ -46,6 +52,9 @@ export interface BoardItem {
   selected: boolean;
   score?: number | null; // retrieval score; higher ranks first
   score_components?: Record<string, number>; // parts that sum to the score
+  confidence?: { bucket: "high" | "medium" | "low"; value: number } | null;
+  tier_used?: string | null;
+  cost_usd?: number;
 }
 
 export type UsageMode = "reference_only" | "reproduction";

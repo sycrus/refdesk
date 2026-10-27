@@ -2,7 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BoardItem, Gate, RunView } from "../api/types";
-import { AttributionStatus, RightsStatus, STOP_REASON_BANNER, StopReason } from "../generated/wording";
+import { AttributionStatus, NOT_LEGAL_ADVICE, RightsStatus, STOP_REASON_BANNER, StopReason } from "../generated/wording";
+import { ItemDetail } from "./ItemDetail";
 import { NewBoard } from "./NewBoard";
 import { RunScreen } from "./RunScreen";
 
@@ -178,5 +179,53 @@ describe("S2/S3 RunScreen", () => {
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={onMoreLikeThis} />);
     await userEvent.click(await screen.findByRole("button", { name: "More like this" }));
     expect(onMoreLikeThis.mock.calls[0][1].record.id).toBe("met:436535");
+  });
+});
+
+describe("S4 ItemDetail", () => {
+  const detailed: BoardItem = {
+    ...ITEM,
+    record: {
+      ...ITEM.record,
+      credit_line: "Purchase, The Annenberg Foundation Gift, 1993",
+      rights: {
+        status: RightsStatus.OPEN,
+        flag_field: "isPublicDomain",
+        flag_value: true,
+        source: "met",
+        object_id: "436535",
+        licence_string: null,
+        checked_at: "2026-10-11T14:06:35Z",
+      },
+    },
+    rationale: "The record gives the artist as Vincent van Gogh. Its quiet mood suits the brief.",
+    attribution_status: AttributionStatus.VERIFIED,
+    flag_reasons: [],
+    tier_used: "mock",
+    cost_usd: 0,
+  };
+
+  it("shows each section from the API, with missing values said to be missing", async () => {
+    respond({ body: view({ items: [detailed] }) });
+    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Wheat Field with Cypresses" })).toBeTruthy();
+    for (const name of ["Why it fits", "Evidence from the record", "Rights record", "How this result was made"]) {
+      expect(screen.getByRole("heading", { level: 2, name })).toBeTruthy();
+    }
+    expect(screen.getByText(detailed.rationale as string)).toBeTruthy();
+    expect(screen.getByText(AttributionStatus.VERIFIED)).toBeTruthy();
+    expect(screen.getByText("isPublicDomain")).toBeTruthy();
+    expect(screen.getByText("Purchase, The Annenberg Foundation Gift, 1993")).toBeTruthy();
+    expect(screen.getByText("None given by the source.")).toBeTruthy(); // licence string
+    expect(screen.getByText("Not computed yet.")).toBeTruthy(); // confidence
+    expect(screen.getByText("mock")).toBeTruthy(); // tier used
+    expect(screen.getByText(NOT_LEGAL_ADVICE)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Full museum record" })).toBeTruthy();
+  });
+
+  it("an item the board does not have says so", async () => {
+    respond({ body: view() });
+    render(<ItemDetail runId="run-1" itemId="met:999" onBack={vi.fn()} />);
+    expect((await screen.findByRole("alert")).textContent).toBe("This board has no item met:999.");
   });
 });

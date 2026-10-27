@@ -30,9 +30,10 @@ export interface RunScreenProps {
   runId: string;
   onNewBoard: () => void;
   onMoreLikeThis: (run: RunView, item: BoardItem) => void;
+  onOpenItem?: (itemId: string) => void;
 }
 
-export function RunScreen({ runId, onNewBoard, onMoreLikeThis }: RunScreenProps) {
+export function RunScreen({ runId, onNewBoard, onMoreLikeThis, onOpenItem }: RunScreenProps) {
   const [run, setRun] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,7 +137,12 @@ export function RunScreen({ runId, onNewBoard, onMoreLikeThis }: RunScreenProps)
         <ul className="rd-board-grid" aria-label="References">
           {run.items.map((item) => (
             <li key={item.record.id}>
-              <EvidenceCard item={item} onMoreLikeThis={() => onMoreLikeThis(run, item)} />
+              <EvidenceCard
+                item={item}
+                onMoreLikeThis={() => onMoreLikeThis(run, item)}
+                detailsHref={`?run=${encodeURIComponent(run.run_id)}&item=${encodeURIComponent(item.record.id)}`}
+                onOpenDetails={onOpenItem ? () => onOpenItem(item.record.id) : undefined}
+              />
             </li>
           ))}
         </ul>

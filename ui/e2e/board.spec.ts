@@ -67,3 +67,29 @@ for (const colorScheme of ["light", "dark"] as const) {
     ).toEqual([]);
   });
 }
+
+// S4 Item detail (issue #99): a card's Details link opens every section for that item.
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`S4 item detail shows each section and passes axe (${colorScheme})`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
+    await newBoard(page, "cypresses in a landscape");
+    await page.getByRole("link", { name: "Details for Wheat Field with Cypresses" }).click();
+    await expect(page).toHaveURL(/&item=met%3A436535/);
+    await expect(page.getByRole("heading", { level: 1, name: "Wheat Field with Cypresses" })).toBeVisible();
+    for (const name of ["Why it fits", "Evidence from the record", "Rights record", "How this result was made"]) {
+      await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
+    }
+    await expect(page.getByText(/The record gives the artist as Vincent van Gogh/)).toBeVisible();
+    await expect(page.getByText("Purchase, The Annenberg Foundation Gift, 1993")).toBeVisible();
+    await expect(page.getByText("isPublicDomain")).toBeVisible();
+    await expect(page.getByText("Not computed yet.")).toBeVisible();
+    const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(
+      axe.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
+    ).toEqual([]);
+    await page.getByRole("link", { name: "Back to the board" }).click();
+    await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
+  });
+}

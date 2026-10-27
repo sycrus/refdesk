@@ -116,6 +116,7 @@ def to_record(raw: dict[str, Any], *, checked_at: datetime) -> ArtworkRecord:
         # works show metadata and a link, never the image).
         image_url=image if rights.status is RightsStatus.OPEN else None,
         record_url=_text(raw, "objectURL"),
+        credit_line=_text(raw, "creditLine"),
         raw_record_ref=f"{SOURCE}/objects/{object_id}.json",
         rights=rights,
     )

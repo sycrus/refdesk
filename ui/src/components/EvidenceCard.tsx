@@ -18,6 +18,8 @@ export interface EvidenceCardProps {
   onMoreLikeThis?: () => void;
   onReport?: () => void;
   onKeepChange?: (keep: boolean) => void;
+  detailsHref?: string; // S4 Item detail for this item
+  onOpenDetails?: () => void; // in-app navigation; the link still works without it
 }
 
 export function showsImage(item: BoardItem): boolean {
@@ -25,7 +27,14 @@ export function showsImage(item: BoardItem): boolean {
   return Boolean(safeUrl(image_url)) && rights.status === RightsStatus.OPEN && Boolean(rights.flag_field);
 }
 
-export function EvidenceCard({ item, onMoreLikeThis, onReport, onKeepChange }: EvidenceCardProps) {
+export function EvidenceCard({
+  item,
+  onMoreLikeThis,
+  onReport,
+  onKeepChange,
+  detailsHref,
+  onOpenDetails,
+}: EvidenceCardProps) {
   const { record } = item;
   const keepId = useId();
   const titleId = useId();
@@ -94,6 +103,21 @@ export function EvidenceCard({ item, onMoreLikeThis, onReport, onKeepChange }: E
         </ul>
       )}
       <div className="rd-card-actions">
+        {detailsHref && (
+          <a
+            className="rd-button rd-button--ghost rd-card-details"
+            href={detailsHref}
+            aria-label={`Details for ${record.title ?? record.id}`}
+            onClick={(event) => {
+              if (onOpenDetails) {
+                event.preventDefault();
+                onOpenDetails();
+              }
+            }}
+          >
+            Details
+          </a>
+        )}
         {onMoreLikeThis && (
           <Button variant="ghost" onClick={onMoreLikeThis}>
             More like this
