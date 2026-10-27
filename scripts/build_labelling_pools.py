@@ -10,7 +10,8 @@ levels), and builds an unranked candidate pool for each: the top hits of three r
                                         for analysis after labelling, not for Joe to see first)
 
 Claude's proposals are NOT made here. They come after Joe's blind pass (ADR-018 step 3).
-Re-run after Joe edits the briefs: pools follow the brief text.
+Re-run after Joe edits the briefs: pools follow the brief text. Once the sheet holds any
+label it is never rebuilt (the run stops): a rebuild would erase Joe's blind pass.
 
 Usage (PowerShell or WSL2; needs `uv sync --extra embed` and the CLIP index):
     uv run python scripts/build_labelling_pools.py
@@ -39,7 +40,27 @@ N_RANDOM = 2
 SEED = 0
 
 
+def has_labels(sheet: Path) -> bool:
+    """True when any row of an existing sheet has a label (relevant, grade or note)."""
+    if not sheet.exists():
+        return False
+    with sheet.open(encoding="utf-8", newline="") as f:
+        return any(row["relevant"] or row["grade"] or row["note"] for row in csv.DictReader(f))
+
+
+def pool_for(draft, records, retrievers):
+    """One case's unranked pool: each retriever's top hits plus random allowed records."""
+    query = Query(brief=draft["brief"], k=TOP_K, usage_mode=draft["usage_mode"])
+    hits = {name: [h.record_id for h in r.search(query)] for name, r in retrievers.items()}
+    rng = random.Random(f"{SEED}:{draft['draft_id']}")
+    found = {i for ids in hits.values() for i in ids}
+    eligible = sorted(r.id for r in records if allowed(r, query) and r.id not in found)
+    return build_pool(hits, random_ids=rng.sample(eligible, N_RANDOM), seed=SEED)
+
+
 def main() -> None:
+    if has_labels(OUT / "blind-sheet.csv"):
+        raise SystemExit("blind-sheet.csv holds labels; rebuilding would erase them")
     drafts = [json.loads(line) for line in DRAFTS.read_text(encoding="utf-8").splitlines() if line]
     with Store(ROOT / "data" / "refdesk.sqlite") as store:
         records = list(store.iter_records())
@@ -51,12 +72,7 @@ def main() -> None:
     for draft in drafts:
         if draft["draft_id"] not in blind_ids:
             continue
-        query = Query(brief=draft["brief"], k=TOP_K, usage_mode=draft["usage_mode"])
-        hits = {name: [h.record_id for h in r.search(query)] for name, r in retrievers.items()}
-        rng = random.Random(f"{SEED}:{draft['draft_id']}")
-        found = {i for ids in hits.values() for i in ids}
-        eligible = sorted(r.id for r in records if allowed(r, query) and r.id not in found)
-        pool, sources = build_pool(hits, random_ids=rng.sample(eligible, N_RANDOM), seed=SEED)
+        pool, sources = pool_for(draft, records, retrievers)
         sources_out.append({"draft_id": draft["draft_id"], "sources": sources})
         for record_id in pool:
             r = by_id[record_id]
