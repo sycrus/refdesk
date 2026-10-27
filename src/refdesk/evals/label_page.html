@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blind labelling</title>
+<style>
+  /* Local tool for issue 138. System colours only, so light and dark both work. */
+  :root {
+    color-scheme: light dark;
+    --bg: Canvas;
+    --ink: CanvasText;
+    --muted: GrayText;
+    --line: GrayText;
+    --accent: Highlight;
+    --accent-ink: HighlightText;
+    --space: 12px;
+    font-family: system-ui, sans-serif;
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink); }
+  header { display: flex; flex-wrap: wrap; gap: var(--space); align-items: baseline;
+    padding: var(--space) 16px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 1rem; margin: 0; }
+  main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+    gap: 24px; padding: 16px; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+  figure { margin: 0; display: flex; align-items: flex-start; justify-content: center; }
+  figure img { max-width: 100%; max-height: 82vh; object-fit: contain; }
+  .no-image { color: var(--muted); padding: 48px 0; }
+  .brief { font-size: 1.4rem; font-weight: 600; margin: 0 0 4px; }
+  .new-brief { display: inline-block; font-size: 0.8rem; padding: 2px 6px;
+    border: 1px solid var(--ink); margin-bottom: 8px; }
+  .new-brief[hidden] { display: none; }
+  .mode { color: var(--muted); margin: 0 0 16px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 20px; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  fieldset { border: 1px solid var(--line); margin: 0 0 12px; padding: 8px 12px; }
+  legend { padding: 0 4px; }
+  button { font: inherit; padding: 6px 12px; margin: 2px 4px 2px 0; cursor: pointer;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--ink); }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink);
+    border-color: var(--accent); font-weight: 600; }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--accent);
+    outline-offset: 2px; }
+  input[type=text] { font: inherit; width: 100%; box-sizing: border-box; padding: 6px; }
+  kbd { font-family: ui-monospace, monospace; font-size: 0.85em; border: 1px solid var(--line);
+    padding: 0 4px; }
+  .status { min-height: 1.5em; margin: 8px 0; }
+  .status.error { font-weight: 600; }
+  .keys { color: var(--muted); font-size: 0.9rem; line-height: 1.8; }
+  nav { margin: 12px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Blind labelling: <span id="sheet">…</span></h1>
+  <span id="progress" aria-live="polite"></span>
+  <span id="case-progress"></span>
+</header>
+<main>
+  <figure id="figure"></figure>
+  <section aria-label="Candidate">
+    <span id="new-brief" class="new-brief" hidden>New brief</span>
+    <p class="brief" id="brief"></p>
+    <p class="mode" id="mode"></p>
+    <dl id="fields"></dl>
+    <fieldset>
+      <legend>Relevant?</legend>
+      <button type="button" data-relevant="y">Yes <kbd>y</kbd></button>
+      <button type="button" data-relevant="n">No <kbd>n</kbd></button>
+    </fieldset>
+    <fieldset>
+      <legend>Grade (only if relevant)</legend>
+      <button type="button" data-grade="2">2: fits the whole brief <kbd>2</kbd></button>
+      <button type="button" data-grade="1">1: fits part of it <kbd>1</kbd></button>
+    </fieldset>
+    <label for="note">Note (optional) <kbd>e</kbd></label>
+    <input type="text" id="note" maxlength="500" autocomplete="off">
+    <p class="status" id="status" role="status"></p>
+    <nav>
+      <button type="button" id="prev">Previous <kbd>←</kbd></button>
+      <button type="button" id="next">Next <kbd>→</kbd></button>
+      <button type="button" id="unlabelled">Next unlabelled <kbd>u</kbd></button>
+      <button type="button" id="clear">Clear this row <kbd>c</kbd></button>
+    </nav>
+    <p class="keys">
+      <kbd>n</kbd> saves "not relevant" and moves on. <kbd>y</kbd> saves "relevant"; then
+      <kbd>1</kbd> or <kbd>2</kbd> saves the grade and moves on (a grade on its own also
+      sets "relevant"). In the note, <kbd>Enter</kbd> saves and <kbd>Esc</kbd> leaves it.
+      Every label is written to the sheet as soon as it is given.
+    </p>
+  </section>
+</main>
+<script>
+"use strict";
+let rows = [];
+let at = 0;
+
+const $ = (id) => document.getElementById(id);
+const done = (r) => r.relevant === "n" || (r.relevant === "y" && r.grade !== "");
+
+function setStatus(text, isError = false) {
+  $("status").textContent = text;
+  $("status").classList.toggle("error", isError);
+}
+
+function render() {
+  const r = rows[at];
+  if (!r) return;
+  const labelled = rows.filter(done).length;
+  $("progress").textContent = `${labelled} / ${rows.length} labelled · row ${at + 1}`;
+  const inCase = rows.filter((x) => x.draft_id === r.draft_id);
+  $("case-progress").textContent =
+    `brief ${r.draft_id}: ${inCase.filter(done).length} / ${inCase.length}`;
+  $("new-brief").hidden = !(at === 0 || rows[at - 1].draft_id !== r.draft_id);
+  $("brief").textContent = r.brief;
+  $("mode").textContent = `Usage mode: ${r.usage_mode.replace("_", " ")}`;
+
+  const fig = $("figure");
+  fig.replaceChildren();
+  const img = document.createElement("img");
+  img.alt = `Image of the candidate: ${r.title || "untitled"}`;
+  img.onerror = () => {
+    const p = document.createElement("p");
+    p.className = "no-image";
+    p.append("No cached image for this work. ");
+    const a = document.createElement("a");
+    a.href = r.record_url; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.textContent = "Open the museum record";
+    p.append(a);
+    fig.replaceChildren(p);
+  };
+  img.src = `/image/${r.index}`;
+  fig.append(img);
+  if (rows[at + 1]) new Image().src = `/image/${rows[at + 1].index}`;
+
+  const dl = $("fields");
+  dl.replaceChildren();
+  for (const [k, label] of [["title", "Title"], ["artist", "Artist"], ["date", "Date"],
+                            ["medium", "Medium"], ["subjects", "Subjects"]]) {
+    const dt = document.createElement("dt"); dt.textContent = label;
+    const dd = document.createElement("dd"); dd.textContent = r[k] || "—";
+    dl.append(dt, dd);
+  }
+  const dt = document.createElement("dt"); dt.textContent = "Record";
+  const dd = document.createElement("dd");
+  const a = document.createElement("a");
+  a.href = r.record_url; a.target = "_blank"; a.rel = "noopener noreferrer";
+  a.textContent = "metmuseum.org";
+  dd.append(a); dl.append(dt, dd);
+
+  for (const b of document.querySelectorAll("[data-relevant]"))
+    b.setAttribute("aria-pressed", String(b.dataset.relevant === r.relevant));
+  for (const b of document.querySelectorAll("[data-grade]"))
+    b.setAttribute("aria-pressed", String(b.dataset.grade === r.grade));
+  if (document.activeElement !== $("note")) $("note").value = r.note;
+}
+
+// The row is fixed when the key is pressed, and the page moves on at once; saves go to
+// the server one at a time, in order. Without this, fast keys (n, then y 2) landed on
+// the row still on screen while the first save was in flight.
+let queue = Promise.resolve();
+const failed = new Set();
+
+function save(changes, advance) {
+  const i = at;
+  const r = rows[i];
+  const body = { candidate: r.candidate, relevant: r.relevant, grade: r.grade,
+                 note: $("note").value, ...changes };
+  rows[i] = { ...r, ...body };
+  if (advance && at < rows.length - 1) at += 1;
+  render();
+  queue = queue.then(async () => {
+    try {
+      const res = await fetch(`/api/rows/${i}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail);
+      rows[i] = data;
+      failed.delete(i);
+      setStatus(failed.size ? `Not saved yet: row ${[...failed].map((k) => k + 1).join(", ")}.`
+                            : `Saved row ${i + 1}.`, failed.size > 0);
+    } catch (e) {
+      rows[i] = r;  // show what the sheet still holds, and go back to the row
+      at = i;
+      failed.add(i);  // the error stays on screen until this row saves
+      setStatus(`Row ${i + 1} not saved: ${e.message}`, true);
+    }
+    render();
+  });
+}
+
+function go(i) {
+  at = Math.max(0, Math.min(rows.length - 1, i));
+  if (!failed.size) setStatus("");
+  render();
+}
+
+function nextUnlabelled() {
+  for (let k = 1; k <= rows.length; k++) {
+    const i = (at + k) % rows.length;
+    if (!done(rows[i])) { go(i); return; }
+  }
+  setStatus("Every row is labelled.");
+}
+
+const relevant = (v) => save(v === "n" ? { relevant: "n", grade: "" } : { relevant: "y" },
+                             v === "n");
+const grade = (g) => save({ relevant: "y", grade: g }, true);
+
+for (const b of document.querySelectorAll("[data-relevant]"))
+  b.onclick = () => relevant(b.dataset.relevant);
+for (const b of document.querySelectorAll("[data-grade]"))
+  b.onclick = () => grade(b.dataset.grade);
+$("prev").onclick = () => go(at - 1);
+$("next").onclick = () => go(at + 1);
+$("unlabelled").onclick = nextUnlabelled;
+$("clear").onclick = () => save({ relevant: "", grade: "", note: "" }, false);
+
+$("note").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); save({}, false); $("note").blur(); }
+  if (e.key === "Escape") { $("note").value = rows[at].note; $("note").blur(); }
+});
+$("note").addEventListener("change", () => save({}, false));
+
+document.addEventListener("keydown", (e) => {
+  if (e.target === $("note") || e.ctrlKey || e.metaKey || e.altKey) return;
+  const actions = {
+    y: () => relevant("y"), n: () => relevant("n"), 1: () => grade("1"), 2: () => grade("2"),
+    ArrowLeft: () => go(at - 1), ArrowRight: () => go(at + 1), u: nextUnlabelled,
+    c: () => save({ relevant: "", grade: "", note: "" }, false),
+    e: () => $("note").focus(),
+  };
+  const act = actions[e.key];
+  if (act) { e.preventDefault(); act(); }
+});
+
+(async () => {
+  try {
+    const data = await (await fetch("/api/rows")).json();
+    $("sheet").textContent = data.sheet;
+    rows = data.rows;
+    const first = rows.findIndex((r) => !done(r));
+    at = first === -1 ? 0 : first;
+    render();
+  } catch (e) {
+    setStatus(`Could not load the sheet (${e}).`, true);
+  }
+})();
+</script>
+</body>
+</html>
