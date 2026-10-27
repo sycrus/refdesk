@@ -17,6 +17,7 @@ import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -31,6 +32,58 @@ class ExpectedRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
     record_id: str
     grade: int = Field(ge=1, le=2)  # 2 = matches the whole rule, 1 = partial
+
+
+class Proposal(BaseModel):
+    """One reference Claude Code proposed for a v1 case, the judge's verdict on it, and
+    Joe's decision (ADR-018). Blind cases keep proposals undecided: Joe never saw them."""
+
+    model_config = ConfigDict(extra="forbid")
+    record_id: str
+    grade: int = Field(ge=1, le=2)
+    fields: list[str] = Field(min_length=1)  # record fields the proposal rests on
+    judge_model: str | None = None
+    judge_family: str | None = None
+    judge_verdict: Literal["supported", "unsupported", "invalid"] | None = None
+    decision: Literal["accepted", "rejected", "regraded"] | None = None
+
+    @model_validator(mode="after")
+    def _cross_family(self) -> Proposal:
+        if self.judge_family == "anthropic":
+            raise ValueError("the judge must not be from Claude's family (ADR-021)")
+        return self
+
+
+class Review(BaseModel):
+    """How a v1 case was labelled (ADR-018). What breaks without it: the trust rules
+    (gap, anchoring) cannot be computed, so v1 could be frozen with no check on whether
+    Joe's review simply accepted Claude's answers."""
+
+    model_config = ConfigDict(extra="forbid")
+    blind: bool
+    pool: list[str] = []  # blind cases: the unranked candidates Joe labelled
+    proposed_by: str = "claude-code"
+    proposals: list[Proposal] = []
+    relabel: list[str] | None = None  # blind cases: Joe's second pass, a day later
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Review:
+        if self.blind:
+            if not self.pool:
+                raise ValueError("a blind case needs the pool of candidates Joe labelled")
+            if any(p.decision for p in self.proposals):
+                raise ValueError("blind proposals are never decided: Joe did not see them")
+            outside = {p.record_id for p in self.proposals} | set(self.relabel or [])
+            if outside - set(self.pool):
+                raise ValueError("blind proposals and relabels must come from the pool")
+        else:
+            if self.relabel is not None:
+                raise ValueError("only blind cases have a second pass")
+            if self.reviewed_by and any(p.decision is None for p in self.proposals):
+                raise ValueError("a reviewed case needs a decision on every proposal")
+        return self
 
 
 class GoldenCase(BaseModel):
@@ -51,6 +104,8 @@ class GoldenCase(BaseModel):
     provenance: Literal["synthetic", "human"]
     corpus_version: str
     rule: dict[str, Any] | None = None  # how `expected` was derived (synthetic cases)
+    detail: Literal["sparse", "moderate", "rich"] | None = None  # how much the brief says
+    review: Review | None = None  # how a human-labelled case was labelled (ADR-018)
 
     @model_validator(mode="after")
     def _consistent(self) -> GoldenCase:
@@ -60,6 +115,12 @@ class GoldenCase(BaseModel):
             raise ValueError("a retrieve case needs expected references")
         if "synthetic" in self.version and self.provenance != "synthetic":
             raise ValueError("a synthetic version must mark every case provenance: synthetic")
+        if self.provenance == "human" and self.review is None:
+            raise ValueError("a human-labelled case needs a review record (ADR-018)")
+        if self.review and self.review.blind:
+            outside = {e.record_id for e in self.expected} - set(self.review.pool)
+            if outside:
+                raise ValueError(f"blind labels must come from the pool: {sorted(outside)}")
         return self
 
 
