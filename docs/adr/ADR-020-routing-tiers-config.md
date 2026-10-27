@@ -35,6 +35,7 @@ Routing starts as `[local-small, cloud-flash]`. If the local tier fails the M3 q
 - **[Joe]**
 
 ## Evidence
+- First rationale eval on golden-v0 (plumbing, not a claim), 2026-10-27 (`evals/reports/rationale-eval-2026-10-27-local-small-285bc2c7ff8a.md`, issue #102): `qwen3.5:9b` with `reasoning_effort: none` produced a usable structured rationale for 99% of items (1.7 s each) and 88% passed the code checks; only 18% passed the phi4 judge, mostly on fit sentences that restate record facts and claim sentences that mix in opinion. Read as a verifier and prompt finding, not yet a tier verdict: the M3 quality bar is Joe's (#102). Without `reasoning_effort: none` every call returned an empty answer.
 - Local model probe, 2026-10-12 (`config/models.yaml`, PR #57): one grounded rationale prompt, thinking off. `qwen3.5:9b`: 7.6 GB, 100% on GPU, 4.4 s, cited only record fields. `qwen3:4b`: reasoning leaked into the answer (unusable). `qwen2.5:14b`, `gemma4`, `glm-4.7-flash`: too large to fit fully on the GPU.
 - `qwen3:4b` smoke run (#40, PR #56): 7.5 GB with Ollama defaults, not the ~3 GB estimated, so nothing local coexists with Kev-4B.
 - Public reference (not our task): Vectara hallucination leaderboard, 2026-09-22: Qwen3 small models about 5.5% vs DeepSeek-V4-Pro 8.6%.

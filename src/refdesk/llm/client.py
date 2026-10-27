@@ -220,6 +220,8 @@ class LLMClient:
         payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
         if temperature is not None:
             payload["temperature"] = temperature
+        if self.config.tiers[tier].reasoning_effort is not None:
+            payload["reasoning_effort"] = self.config.tiers[tier].reasoning_effort
         url = f"{self._base_url(tier)}/chat/completions"
         start = time.perf_counter()
         for attempt in range(1, self.max_retries + 2):

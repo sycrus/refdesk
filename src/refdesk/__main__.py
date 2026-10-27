@@ -12,6 +12,9 @@ embed met [--model ViT-B-32] [--pretrained laion2b_s34b_b79k] [--device cuda]
     Embed cached images of open works into a FAISS index (needs: uv sync --extra embed).
 eval [--retriever jaccard|clip|combined] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
+eval-rationales [--generator mock|local-small] [--judge auto|TIER] [--retriever jaccard] [--k 3]
+    Generate and verify rationales for each golden case's top-k items; write manifest,
+    report and history rows (issue #102). Local and mock tiers only (the brief stays local).
 compare HASH_A HASH_B [HASH ...] [--write]
     Paired comparison of eval runs (B - A per case, with a 95% CI), for every pair.
     --write saves one report to evals/reports/ (named by the run hashes).
@@ -84,6 +87,66 @@ def _eval(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def _eval_rationales(store: Store, args: argparse.Namespace) -> int:
+    from refdesk.boards import default_reasoner
+    from refdesk.evals.rationale_eval import (
+        EvalStopped,
+        run_rationale_eval,
+        write_rationale_outputs,
+    )
+    from refdesk.judge import load_fit_prompt, load_judge_prompt
+    from refdesk.llm.config import Budgets
+    from refdesk.rationale import load_prompt
+
+    golden = Path(args.golden)
+    lines = [line for line in golden.read_text(encoding="utf-8").splitlines() if line]
+    cases = [GoldenCase(**json.loads(line)) for line in lines]
+    records = list(store.iter_records())
+    corpus = corpus_version(records)
+    if {c.corpus_version for c in cases} != {corpus}:
+        print(f"Not comparable: golden set is for another corpus; the store is {corpus}.")
+        return 2
+    reasoner = default_reasoner({"generator_tier": args.generator, "judge_tier": args.judge})
+    judge_tier = reasoner.judge_tier()
+    tiers = reasoner.config.tiers
+    prompts = [load_prompt("rationale"), load_judge_prompt(), load_fit_prompt()]
+    sha, dirty = git_state(Path.cwd())
+    config = EvalConfig(
+        retriever=args.retriever,
+        retriever_params={
+            **retriever_params(args.retriever),
+            "generator_tier": args.generator,
+            "judge_tier": judge_tier,
+            "judge_model": tiers[judge_tier].model if judge_tier else None,
+        },
+        k=args.k,
+        seed=args.seed,
+        n_boot=args.n_boot,
+        golden_path=golden.as_posix(),
+        golden_sha256=file_sha256(golden),
+        golden_version=cases[0].version,
+        corpus_version=corpus,
+        git_sha=sha,
+        git_dirty=dirty,
+        model=tiers[args.generator].model,
+        prompt_hashes={p.name: p.sha256 for p in prompts},
+    )
+    budget = Budgets.load("config/budgets.yaml").for_job("rationale_eval") or 0.0
+    try:
+        result = run_rationale_eval(
+            build_retriever(args.retriever, records), reasoner, cases, records, config,
+            cap_usd=budget,
+        )  # fmt: skip
+    except EvalStopped as stop:
+        print(f"Stopped, no report written: {stop}")
+        return 1
+    paths = write_rationale_outputs(result, root=Path.cwd(), date=date.today().isoformat())
+    for metric, s in result.summary.items():
+        print(f"{metric}: {s['mean']:.3f} [{s['low']:.3f}, {s['high']:.3f}] n={s['n']}")
+    print(f"config hash {config.config_hash()}; report {paths['report'].as_posix()}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="refdesk")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -126,6 +189,15 @@ def main(argv: list[str] | None = None) -> int:
     p_eval.add_argument("--seed", type=int, default=0)
     p_eval.add_argument("--n-boot", type=int, default=2000)
     p_eval.add_argument("--db", default=DEFAULT_DB)
+    p_reval = commands.add_parser("eval-rationales", help="verifier pass rates of rationales")
+    p_reval.add_argument("--generator", default="mock", help="generator tier (providers.yaml)")
+    p_reval.add_argument("--judge", default="auto", help="judge tier, or auto")
+    p_reval.add_argument("--retriever", choices=sorted(RETRIEVERS), default="jaccard")
+    p_reval.add_argument("--golden", default=DEFAULT_GOLDEN)
+    p_reval.add_argument("--k", type=int, default=3)
+    p_reval.add_argument("--seed", type=int, default=0)
+    p_reval.add_argument("--n-boot", type=int, default=2000)
+    p_reval.add_argument("--db", default=DEFAULT_DB)
     args = parser.parse_args(argv)
 
     with Store(args.db) as store:
@@ -177,6 +249,8 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "eval":
             return _eval(store, args)
+        if args.command == "eval-rationales":
+            return _eval_rationales(store, args)
         if args.command == "rebuild":
             result = rebuild(store, args.source)
             print(f"rebuilt {result.rebuilt}, missing raw {len(result.missing_raw)}")

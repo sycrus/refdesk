@@ -39,6 +39,9 @@ class Tier(_Model):
     provider: str
     model: str | None = None
     price_usd_per_mtok: Price = Price()
+    # Sent as `reasoning_effort` when set. "none" turns thinking off on Ollama's
+    # OpenAI-style endpoint, where qwen3 models otherwise spend every token on reasoning.
+    reasoning_effort: str | None = None
 
 
 class ProvidersConfig(_Model):

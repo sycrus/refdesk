@@ -194,6 +194,25 @@ class TestCompletion:
         assert headers["Authorization"] == "Bearer test-key"
         assert payload == {"model": "deepseek-flash", "messages": MESSAGES, "max_tokens": 500}
 
+    def test_a_tier_can_turn_reasoning_off(self):
+        # Ollama's OpenAI-style endpoint thinks by default for qwen3 models, spending every
+        # output token on reasoning; "none" asks for no thinking (issue #102).
+        config = CONFIG | {
+            "tiers": CONFIG["tiers"]
+            | {"local-small": {"provider": "ollama", "model": "qwen", "reasoning_effort": "none"}}
+        }
+        t = FakeTransport(model="qwen")
+        c = llm.LLMClient(
+            ProvidersConfig.model_validate(config), Budgets(BUDGETS), env=ENV, transport=t
+        )
+        call(c, "local-small", keep_local=True)
+        assert t.calls[0][2]["reasoning_effort"] == "none"
+
+    def test_no_reasoning_field_unless_the_tier_sets_one(self):
+        t = FakeTransport()
+        call(client(transport=t))
+        assert "reasoning_effort" not in t.calls[0][2]
+
     def test_base_url_from_environment(self):
         t = FakeTransport(model="glm-x")
         call(client(transport=t), "glm-flash")
