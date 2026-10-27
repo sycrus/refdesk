@@ -4,9 +4,11 @@
 at a time, against the record. One at a time because the hard judge probe (#122) showed
 it matters: per statement phi4 caught 40 of 40 subtle errors; on a whole rationale, 82%.
 Claims use the probe's exact wording (`prompts/judge-v1.md`), so the measurement applies
-to what runs here. The fit sentence uses its own prompt (`prompts/fit-v1.md`): judge-v1
+to what runs here. The fit sentence uses its own prompt (`prompts/fit-vN.md`): judge-v1
 flagged 17 of 20 pure-opinion sentences as unsupported, fit-v1 2 of 20, while catching 19
-of 20 smuggled facts (`evals/reports/fit-probe-2026-10-27.md`).
+of 20 smuggled facts (`evals/reports/fit-probe-2026-10-27.md`). From fit-v2 the fit judge
+also sees the brief (#135): without it, the brief's own words ("a poster for an equestrian
+event") read as facts the record does not give.
 
 The judge must come from a different provider family than the generator, checked before
 any request. Pass rule (Joe, 2026-10-27): SUPPORTED passes, UNSUPPORTED fails, a
@@ -28,6 +30,9 @@ from refdesk.schema import ArtworkRecord
 from refdesk.verifier import JudgeVerdict
 
 MAX_ATTEMPTS = 2  # one retry for a malformed answer (Joe, 2026-10-27)
+# Prompts measured without the brief; they are still sent without it, so a measurement
+# keeps applying to what runs. Claims never get the brief: they are about the record only.
+WITHOUT_BRIEF = {"fit-v1"}
 
 
 def load_judge_prompt(version: str | None = None) -> Prompt:
@@ -38,8 +43,11 @@ def load_fit_prompt(version: str | None = None) -> Prompt:
     return load_prompt("fit", version)
 
 
-def judge_messages(record: ArtworkRecord, statement: str, prompt: Prompt) -> list[dict]:
-    user = f"Record:\n{record_block(record)}\n\nRationale:\n{statement}"
+def judge_messages(
+    record: ArtworkRecord, statement: str, prompt: Prompt, brief: str | None = None
+) -> list[dict]:
+    context = f"Brief: {brief}\n\n" if brief is not None else ""
+    user = f"{context}Record:\n{record_block(record)}\n\nRationale:\n{statement}"
     return [{"role": "system", "content": prompt.text}, {"role": "user", "content": user}]
 
 
@@ -68,6 +76,7 @@ def judge_rationale(
     job: str,
     prompt: Prompt | None = None,
     fit_prompt: Prompt | None = None,
+    brief: str | None = None,
 ) -> JudgeResult:
     config = client.config
     judge_family = config.provider_of(judge_tier).family
@@ -76,16 +85,18 @@ def judge_rationale(
         raise NoValidJudge(f"judge {judge_tier} is from the generator's family {judge_family!r}")
     prompt = prompt or load_judge_prompt()
     fit_prompt = fit_prompt or load_fit_prompt()
+    fit_brief = None if fit_prompt.name in WITHOUT_BRIEF else brief
     statements = [
-        (f"claim {n} ({c.field})", c.text, prompt) for n, c in enumerate(rationale.claims, start=1)
-    ] + [("fit sentence", rationale.fit, fit_prompt)]
+        (f"claim {n} ({c.field})", c.text, prompt, None)
+        for n, c in enumerate(rationale.claims, start=1)
+    ] + [("fit sentence", rationale.fit, fit_prompt, fit_brief)]
     failures, calls, cost, model = [], 0, 0.0, None
-    for label, statement, statement_prompt in statements:
+    for label, statement, statement_prompt, statement_brief in statements:
         verdict = None
         for _ in range(MAX_ATTEMPTS):
             completion = client.complete(
                 judge_tier,
-                judge_messages(record, statement, statement_prompt),
+                judge_messages(record, statement, statement_prompt, statement_brief),
                 job=job,
                 keep_local=keep_local,
                 max_tokens=16,

@@ -130,7 +130,10 @@ def load_prompt(kind: str = "rationale", version: str | None = None) -> Prompt:
     if version is None:
         number, path = versions[-1]
     else:
-        number, path = next((n, p) for n, p in versions if f"v{n}" == version)
+        found = [(n, p) for n, p in versions if f"v{n}" == version]
+        if not found:
+            raise FileNotFoundError(f"no prompt {kind}-{version} in {PROMPTS}")
+        number, path = found[0]
     raw = path.read_bytes()
     return Prompt(
         name=f"{kind}-v{number}",
@@ -139,6 +142,12 @@ def load_prompt(kind: str = "rationale", version: str | None = None) -> Prompt:
         sha256=hashlib.sha256(raw).hexdigest(),
         changelog=(PROMPTS / "CHANGELOG.md").read_text(encoding="utf-8"),
     )
+
+
+def prompt_named(name: str) -> Prompt:
+    """A prompt by its manifest name, for example "rationale-v2"."""
+    kind, _, version = name.rpartition("-")
+    return load_prompt(kind, version)
 
 
 def rationale_messages(brief: str, record: ArtworkRecord, prompt: Prompt) -> list[dict]:

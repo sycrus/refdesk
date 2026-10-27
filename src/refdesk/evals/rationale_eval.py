@@ -116,6 +116,10 @@ def run_rationale_eval(
                               r.generated.rationale.fit])
                     if usable else None
                 ),
+                "claims": (
+                    [c.model_dump() for c in r.generated.rationale.claims] if usable else None
+                ),
+                "fit": r.generated.rationale.fit if usable else None,
             })  # fmt: skip
         n = len(items)
         rows.append(

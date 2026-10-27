@@ -13,6 +13,7 @@ embed met [--model ViT-B-32] [--pretrained laion2b_s34b_b79k] [--device cuda]
 eval [--retriever jaccard|clip|combined] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
     Run a retriever over a golden set; write manifest, report and history row.
 eval-rationales [--generator mock|local-small] [--judge auto|TIER] [--retriever jaccard] [--k 3]
+    [--rationale-prompt rationale-vN] [--fit-prompt fit-vN]
     Generate and verify rationales for each golden case's top-k items; write manifest,
     report and history rows (issue #102). Local and mock tiers only (the brief stays local).
 compare HASH_A HASH_B [HASH ...] [--write]
@@ -88,15 +89,15 @@ def _eval(store: Store, args: argparse.Namespace) -> int:
 
 
 def _eval_rationales(store: Store, args: argparse.Namespace) -> int:
+    import yaml
+
     from refdesk.boards import default_reasoner
     from refdesk.evals.rationale_eval import (
         EvalStopped,
         run_rationale_eval,
         write_rationale_outputs,
     )
-    from refdesk.judge import load_fit_prompt, load_judge_prompt
     from refdesk.llm.config import Budgets
-    from refdesk.rationale import load_prompt
 
     golden = Path(args.golden)
     lines = [line for line in golden.read_text(encoding="utf-8").splitlines() if line]
@@ -106,10 +107,18 @@ def _eval_rationales(store: Store, args: argparse.Namespace) -> int:
     if {c.corpus_version for c in cases} != {corpus}:
         print(f"Not comparable: golden set is for another corpus; the store is {corpus}.")
         return 2
-    reasoner = default_reasoner({"generator_tier": args.generator, "judge_tier": args.judge})
+    settings = yaml.safe_load(Path("config/retrieval.yaml").read_text(encoding="utf-8"))
+    prompt_names = dict(settings["api"]["reasoning"].get("prompts") or {})
+    if args.rationale_prompt:
+        prompt_names["rationale"] = args.rationale_prompt
+    if args.fit_prompt:
+        prompt_names["fit"] = args.fit_prompt
+    reasoner = default_reasoner(
+        {"generator_tier": args.generator, "judge_tier": args.judge, "prompts": prompt_names}
+    )
     judge_tier = reasoner.judge_tier()
     tiers = reasoner.config.tiers
-    prompts = [load_prompt("rationale"), load_judge_prompt(), load_fit_prompt()]
+    prompts = list(reasoner.prompts.values())
     sha, dirty = git_state(Path.cwd())
     config = EvalConfig(
         retriever=args.retriever,
@@ -195,6 +204,8 @@ def main(argv: list[str] | None = None) -> int:
     p_reval.add_argument("--retriever", choices=sorted(RETRIEVERS), default="jaccard")
     p_reval.add_argument("--golden", default=DEFAULT_GOLDEN)
     p_reval.add_argument("--k", type=int, default=3)
+    p_reval.add_argument("--rationale-prompt", help="e.g. rationale-v2 (default: config)")
+    p_reval.add_argument("--fit-prompt", help="e.g. fit-v2 (default: config)")
     p_reval.add_argument("--seed", type=int, default=0)
     p_reval.add_argument("--n-boot", type=int, default=2000)
     p_reval.add_argument("--db", default=DEFAULT_DB)

@@ -9,7 +9,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from refdesk.judge import judge_messages, judge_rationale, load_judge_prompt
+from refdesk.judge import (
+    judge_messages,
+    judge_rationale,
+    load_fit_prompt,
+    load_judge_prompt,
+)
 from refdesk.llm import client as llm
 from refdesk.llm.config import Budgets, ProvidersConfig
 from refdesk.rationale import Claim, Rationale
@@ -117,7 +122,7 @@ class TestJudge:
         result, _ = judge(lambda s, n: "SUPPORTED")
         assert result.model_reported == "phi4" and result.family == "microsoft"
         assert result.prompt == load_judge_prompt().name
-        assert result.fit_prompt == "fit-v1"
+        assert result.fit_prompt == load_fit_prompt().name
 
     def test_the_fit_sentence_uses_its_own_prompt(self):
         seen = []
@@ -150,3 +155,37 @@ class TestPrompt:
         assert msgs[0]["role"] == "system"
         assert msgs[1]["content"].endswith("Rationale:\nIt is oil on canvas.")
         assert "medium: Oil on canvas" in msgs[1]["content"]
+
+
+class TestBrief:
+    """From fit-v2 the fit judge sees the brief; claims never do (issue #135)."""
+
+    def messages(self, fit_prompt):
+        seen = []
+
+        class Spy(FakeTransport):
+            def post_json(self, url, headers, payload):
+                seen.append(payload["messages"][-1]["content"])
+                return super().post_json(url, headers, payload)
+
+        client = llm.LLMClient(
+            CONFIG, Budgets({}), env={}, transport=Spy(lambda s, n: "SUPPORTED"), backoff=0
+        )
+        judge_rationale(
+            client, judge_tier="judge-phi4", generator_tier="local-small", record=record(),
+            rationale=RATIONALE, keep_local=False, job="rationale",
+            fit_prompt=load_fit_prompt(fit_prompt), brief="Flowers for a luxury tea tin",
+        )  # fmt: skip
+        return seen
+
+    def test_fit_v2_sees_the_brief_and_claims_do_not(self):
+        *claims, fit = self.messages("v2")
+        assert all("Brief:" not in m for m in claims)
+        assert fit.startswith("Brief: Flowers for a luxury tea tin\n\nRecord:")
+
+    def test_fit_v1_is_still_sent_as_it_was_measured(self):
+        assert all("Brief:" not in m for m in self.messages("v1"))
+
+    def test_messages_without_a_brief_are_unchanged(self):
+        msgs = judge_messages(record(), "x", load_judge_prompt())
+        assert msgs[1]["content"].startswith("Record:")

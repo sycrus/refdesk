@@ -844,4 +844,5 @@ def default_reasoner(settings: dict) -> Reasoner | None:
         generator_tier=tier,
         judge_tier=settings.get("judge_tier", "auto"),
         ensure_model=ensure,
+        prompts=settings.get("prompts"),
     )

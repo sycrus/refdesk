@@ -36,12 +36,14 @@ from refdesk.llm.client import (
     pick_judge,
 )
 from refdesk.llm.config import Budgets, ProvidersConfig
+from refdesk.rationale import Prompt, load_prompt, prompt_named
 from refdesk.schema import ArtworkRecord
 from refdesk.verifier import CodeVerification, check_claims
 from refdesk.wording import StopReason
 
 AUTO = "auto"
 JOB = "board"
+PROMPT_KINDS = ("rationale", "judge", "fit")
 
 
 @dataclass
@@ -96,6 +98,7 @@ class Reasoner:
         env: Mapping[str, str] | None = None,
         approved: bool = False,
         ensure_model: Callable[[str], None] | None = None,
+        prompts: Mapping[str, str] | None = None,
     ):
         self.config = config
         self.generator_tier = generator_tier
@@ -106,6 +109,13 @@ class Reasoner:
         self.approved = approved
         # Called with a tier's model before each phase; the API passes the ModelManager.
         self._ensure_model = ensure_model or (lambda model: None)
+        # Prompt per kind by name ({"fit": "fit-v1"}), pinned in config/retrieval.yaml; a
+        # kind left out uses its highest version. Their hashes go into run manifests.
+        prompts = prompts or {}
+        self.prompts: dict[str, Prompt] = {
+            kind: prompt_named(prompts[kind]) if kind in prompts else load_prompt(kind)
+            for kind in PROMPT_KINDS
+        }
 
     def ensure_model(self, model: str) -> None:
         try:
@@ -158,7 +168,7 @@ class Reasoner:
                 item = outcome.items[record.id]
                 item.generated = generate_rationale(
                     client, tier=self.generator_tier, brief=brief, record=record,
-                    keep_local=keep_local, job=JOB,
+                    keep_local=keep_local, job=JOB, prompt=self.prompts["rationale"],
                 )  # fmt: skip
                 sent(self.generator_tier)
                 outcome.models_used["generator"] = item.generated.model_reported or model
@@ -186,7 +196,8 @@ class Reasoner:
                     item.judged = judge_rationale(
                         client, judge_tier=judge_tier, generator_tier=self.generator_tier,
                         record=record, rationale=item.generated.rationale,
-                        keep_local=keep_local, job=JOB,
+                        keep_local=keep_local, job=JOB, prompt=self.prompts["judge"],
+                        fit_prompt=self.prompts["fit"], brief=brief,
                     )  # fmt: skip
                     sent(judge_tier)
                     outcome.models_used["judge"] = (
