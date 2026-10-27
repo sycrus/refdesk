@@ -21,10 +21,11 @@ Run (PowerShell or WSL2), then open http://127.0.0.1:8200:
 --pass2 creates blind-sheet-pass2.csv with the label columns cleared (so pass-1 labels are
 never shown), or resumes it if it exists.
 
-From another device (e.g. over Tailscale): `--host <this PC's address>`. Off localhost the
-server needs a token, printed at startup as part of the URL; the first visit stores it in
-a cookie. Without it, anyone who can reach the address could read the sheet and change
-labels.
+From another device (e.g. over Tailscale): `--host <this PC's address>`, or keep the server
+on localhost behind `tailscale serve` (no firewall rule needed) with `--token`. Off
+localhost, or with `--token`, the server needs a token, printed at startup as part of the
+URL; the first visit stores it in a cookie. Without it, anyone who can reach the address
+could read the sheet and change labels.
 """
 
 from __future__ import annotations
@@ -188,6 +189,8 @@ def main() -> None:
     parser.add_argument("--sheet", help="another sheet (e.g. a scratch copy for trying the page)")
     parser.add_argument("--host", default="127.0.0.1", help="e.g. this PC's Tailscale address")
     parser.add_argument("--port", type=int, default=8200)
+    parser.add_argument("--token", action="store_true", help="need a token on localhost too "
+                        "(behind a proxy such as tailscale serve)")  # fmt: skip
     parser.add_argument("--db", default=str(ROOT / "data" / "refdesk.sqlite"))
     parser.add_argument("--images", default=str(ROOT / "data" / "images"))
     args = parser.parse_args()
@@ -197,7 +200,8 @@ def main() -> None:
             start_pass2(SHEET, PASS2)
             print(f"created {PASS2.name} with the label columns cleared")
         sheet = PASS2
-    token = None if args.host == "127.0.0.1" else secrets.token_urlsafe(16)
+    remote = args.token or args.host != "127.0.0.1"
+    token = secrets.token_urlsafe(16) if remote else None
     query = f"/?t={token}" if token else ""
     print(f"labelling {sheet.name} at http://{args.host}:{args.port}{query}")
     app = create_app(sheet, Path(args.db), Path(args.images), token)
