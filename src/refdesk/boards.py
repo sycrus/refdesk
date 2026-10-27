@@ -1,4 +1,9 @@
-"""Retrieval-only boards behind POST /boards and GET /runs/{id} (issue #45).
+"""Boards behind POST /boards and GET /runs/{id} (issues #45, #98).
+
+With a `Reasoner` (issue #98), each item also gets a rationale, code checks and a judge
+verdict (`reasoning.py`): the run moves retrieve, generate, verify; G1 shows the spend
+against the cap and G2 the verification result; an item is "Attribution verified from
+record" only when both checks pass. Without one, runs are retrieval-only, as below.
 
 A board request becomes a retrieval `Query`; the configured retriever ranks records; each
 hit becomes a board item with its evidence (record fields, with the record's own values),
@@ -37,10 +42,13 @@ from refdesk.api.models import (
     LoopState,
     RunView,
 )
+from refdesk.rationale import field_value
+from refdesk.reasoning import ItemReasoning, Reasoner, ReasoningOutcome
 from refdesk.retrieval import Hit, Query, Retriever
 from refdesk.retrieval.combined import ConditionNotUnderstood
 from refdesk.retrieval.metadata import _phrase
 from refdesk.schema import ArtworkRecord
+from refdesk.verifier import _norm, item_status
 from refdesk.wording import AttributionStatus, StopReason
 
 NO_VERIFIER = "No verifier yet (M3): the attribution has not been checked against the record."
@@ -136,6 +144,85 @@ def evidence_for(hit: Hit, record: ArtworkRecord) -> list[Evidence]:
     return list(found.values())
 
 
+def _reasoned_gates(
+    state: LoopState, items: list[BoardItem], cap: float, outcome: ReasoningOutcome | None
+) -> list[Gate]:
+    """Gates once a Reasoner runs: G1 is the real spend, G2 the verification result."""
+    done = state in (LoopState.DONE, LoopState.STOPPED)
+    spent = outcome.spent_usd if outcome else 0.0
+    if outcome and outcome.stop is StopReason.BUDGET_CAP:
+        spend = Gate(
+            id=GateId.G1_SPEND,
+            state=GateState.BLOCKED,
+            status_text=f"Budget cap reached: USD {spent:.3f} of {cap:.3f}.",
+            actor="operator",
+        )
+    else:
+        spend = Gate(
+            id=GateId.G1_SPEND,
+            state=GateState.PASSED if done else GateState.ACTIVE,
+            status_text=f"USD {spent:.3f} of {cap:.3f}.",
+        )
+    flagged = sum(1 for i in items if i.attribution_status is not AttributionStatus.VERIFIED)
+    if not done:
+        verify = Gate(
+            id=GateId.G2_VERIFY,
+            state=GateState.ACTIVE if state is LoopState.VERIFY else GateState.PENDING,
+            status_text="Checking every claim against its record.",
+        )
+        review = Gate(
+            id=GateId.G3_REVIEW,
+            state=GateState.PENDING,
+            status_text="Nothing to review yet.",
+            actor="operator",
+        )
+    else:
+        if items and not flagged:
+            verify = Gate(
+                id=GateId.G2_VERIFY,
+                state=GateState.PASSED,
+                status_text=f"All {len(items)} items verified against their records.",
+            )
+        else:
+            verify = Gate(
+                id=GateId.G2_VERIFY,
+                state=GateState.BLOCKED,
+                status_text=f"{flagged} of {len(items)} items need a human check: see each card.",
+            )
+        if flagged:
+            review = Gate(
+                id=GateId.G3_REVIEW,
+                state=GateState.ACTIVE,
+                status_text=f"{flagged} items need a human check.",
+                actor="operator",
+            )
+        else:
+            review = Gate(
+                id=GateId.G3_REVIEW,
+                state=GateState.SKIPPED,
+                status_text="No flagged items.",
+                actor="operator",
+            )
+    return [
+        Gate(id=GateId.G0_INTAKE, state=GateState.SKIPPED, status_text="No intake checks yet."),
+        spend,
+        verify,
+        review,
+        Gate(
+            id=GateId.G4_APPROVE,
+            state=GateState.PENDING,
+            status_text="Waiting for review.",
+            actor="approver",
+        ),
+        Gate(
+            id=GateId.G5_EXPORT,
+            state=GateState.PENDING,
+            status_text="Not exported.",
+            actor="approver",
+        ),
+    ]
+
+
 def _gates(state: LoopState, items: int, cap: float) -> list[Gate]:
     done = state in (LoopState.DONE, LoopState.STOPPED)
     spend = (
@@ -194,7 +281,13 @@ def _view(
     items: list[BoardItem] = (),  # type: ignore[assignment]
     stop: StopReason | None = None,
     detail: str | None = None,
+    outcome: ReasoningOutcome | None = None,
+    reasoned: bool = False,
 ) -> RunView:
+    if reasoned:
+        gates = _reasoned_gates(state, list(items), request.budget_cap_usd, outcome)
+    else:
+        gates = _gates(state, len(items), request.budget_cap_usd)
     return RunView(
         run_id=run_id,
         request=request,
@@ -202,11 +295,12 @@ def _view(
         stop_reason=stop,
         stop_banner=stop.banner if stop else None,
         stop_detail=detail,
-        gates=_gates(state, len(items), request.budget_cap_usd),
+        gates=gates,
         items=list(items),
-        cost=Cost(spent_usd=0.0, cap_usd=request.budget_cap_usd),
+        cost=Cost(spent_usd=outcome.spent_usd if outcome else 0.0, cap_usd=request.budget_cap_usd),
         keep_local=request.keep_local,
-        sent_to=[],  # retrieval only: no brief is sent to any model
+        sent_to=list(outcome.sent_to) if outcome else [],  # empty: retrieval only
+        models_used=dict(outcome.models_used) if outcome else {},
     )
 
 
@@ -222,6 +316,7 @@ class BoardService:
         build_retriever: Callable[[list[ArtworkRecord]], Retriever],
         retriever_name: str,
         check_conditions: Callable[[dict[str, str]], None] | None = None,
+        reasoner: Reasoner | None = None,
     ):
         self.runs = runs
         self._load_records = load_records
@@ -229,6 +324,7 @@ class BoardService:
         self.retriever_name = retriever_name
         # Refuses conditions the retriever cannot apply (issue #63), before anything loads.
         self._check_conditions = check_conditions
+        self.reasoner = reasoner  # None: retrieval-only boards
         self._records: dict[str, ArtworkRecord] | None = None
         self._retriever: Retriever | None = None
         self._lock = threading.Lock()  # load the records and retriever once
@@ -282,9 +378,10 @@ class BoardService:
             )
             self.runs.save(view)
             return view
-        items = [
-            self._item(hit, records[hit.record_id]) for hit in hits if hit.record_id in records
-        ]
+        hits = [hit for hit in hits if hit.record_id in records]
+        if hits and self.reasoner is not None:
+            return self._execute_reasoned(run_id, request, hits, records)
+        items = [self._item(hit, records[hit.record_id]) for hit in hits]
         if items:
             view = _view(run_id, request, LoopState.DONE, items)
         else:
@@ -297,6 +394,82 @@ class BoardService:
             )
         self.runs.save(view)
         return view
+
+    def _execute_reasoned(
+        self, run_id: str, request: BoardRequest, hits: list[Hit], records: dict
+    ) -> RunView:
+        def phase(name: str) -> None:
+            state = LoopState.GENERATE if name == "generate" else LoopState.VERIFY
+            self.runs.save(_view(run_id, request, state, reasoned=True))
+
+        chosen = [records[hit.record_id] for hit in hits]
+        outcome = self.reasoner.run(
+            brief=request.brief,
+            records=chosen,
+            keep_local=request.keep_local,
+            cap_usd=request.budget_cap_usd,
+            on_phase=phase,
+        )
+        items = [
+            self._reasoned_item(hit, records[hit.record_id], outcome.items[hit.record_id])
+            for hit in hits
+        ]
+        if outcome.stop is StopReason.DECLINED:
+            items = []  # nothing was sent anywhere, so a declined request shows no board
+        state = LoopState.STOPPED if outcome.stop else LoopState.DONE
+        view = _view(
+            run_id,
+            request,
+            state,
+            items,
+            stop=outcome.stop,
+            detail=outcome.stop_detail,
+            outcome=outcome,
+            reasoned=True,
+        )
+        self.runs.save(view)
+        return view
+
+    def _reasoned_item(self, hit: Hit, record: ArtworkRecord, r: ItemReasoning) -> BoardItem:
+        item = self._item(hit, record)
+        evidence = list(item.evidence)
+        seen = {(e.field, e.value) for e in evidence}
+        reasons: list[str] = []
+        rationale = None
+        generated = r.generated
+        if generated is not None and generated.ok:
+            claims = generated.rationale.claims
+            rationale = " ".join([*(c.text for c in claims), generated.rationale.fit])
+            for check, claim in zip(r.code.checks, claims, strict=True):
+                if check.status != "pass":
+                    continue
+                if claim.field == "subject_tags":
+                    values = [t for t in record.subject_tags if _norm(t) == _norm(claim.value)]
+                else:
+                    values = [field_value(record, claim.field)]
+                for value in values:
+                    if value and (claim.field, value) not in seen:
+                        seen.add((claim.field, value))
+                        evidence.append(
+                            Evidence(field=claim.field, value=value, record_url=record.record_url)
+                        )
+            reasons += list(r.code.failures)
+        elif generated is not None:
+            reasons.append(generated.failure)
+        if r.judged is not None:
+            reasons += list(r.judged.verdict.failures)
+        reasons += r.notes
+        status = item_status(r.code, r.judged.verdict if r.judged else None)
+        return item.model_copy(
+            update={
+                "rationale": rationale,
+                "evidence": evidence,
+                "attribution_status": status,
+                "flag_reasons": [] if status is AttributionStatus.VERIFIED else reasons,
+                "tier_used": generated.tier if generated else None,
+                "cost_usd": r.cost_usd,
+            }
+        )
 
     def _item(self, hit: Hit, record: ArtworkRecord) -> BoardItem:
         components = dict(hit.components) or {SIGNAL.get(self.retriever_name, "score"): hit.score}
@@ -319,7 +492,11 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
     config/retrieval.yaml (`api.retriever`), runs in the same SQLite file.
 
     REFDESK_RETRIEVER overrides the configured name. The browser tests use it to run
-    `jaccard` where CLIP cannot load (CI has no torch). It still never falls back."""
+    `jaccard` where CLIP cannot load (CI has no torch). It still never falls back.
+
+    Rationales come from `api.reasoning` (generator and judge tiers, issue #98).
+    REFDESK_GENERATOR_TIER overrides the generator; "none" gives retrieval-only boards.
+    Local models are loaded through the ModelManager, one per phase."""
     import os
 
     import yaml
@@ -347,5 +524,34 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
             check_conditions(conditions, combined_config)
 
     return BoardService(
-        RunStore(db_path), load_records, lambda records: build_retriever(name, records), name, check
+        RunStore(db_path),
+        load_records,
+        lambda records: build_retriever(name, records),
+        name,
+        check,
+        reasoner=default_reasoner(config.get("api", {}).get("reasoning") or {}),
+    )
+
+
+def default_reasoner(settings: dict) -> Reasoner | None:
+    import os
+
+    from refdesk.llm.config import ProvidersConfig
+    from refdesk.llm.model_manager import ModelManager, OllamaBackend, load_specs
+
+    tier = os.environ.get("REFDESK_GENERATOR_TIER") or settings.get("generator_tier")
+    if not tier or tier == "none":
+        return None
+    specs = load_specs("config/models.yaml")
+    manager = ModelManager(specs, {"ollama": OllamaBackend()})
+
+    def ensure(model: str) -> None:
+        if model in specs:  # GPU models only; the mock needs nothing
+            manager.ensure(model)
+
+    return Reasoner(
+        ProvidersConfig.load("config/providers.yaml"),
+        generator_tier=tier,
+        judge_tier=settings.get("judge_tier", "auto"),
+        ensure_model=ensure,
     )

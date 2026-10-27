@@ -1,7 +1,9 @@
 // Browser tests (issues #44, #46) against the real API: Playwright starts the FastAPI app,
 // which serves the built UI (ui/dist) and /design/. The store is rebuilt from the recorded
 // Met fixtures (scripts/make_e2e_store.py), offline, and the retriever is Jaccard, because
-// CI cannot load CLIP. Run `npm run build` first.
+// CI cannot load CLIP. Boards also write and verify rationales (issue #98), so the mock
+// LLM server runs too, on the port config/providers.yaml names for `mock` and
+// `mock-judge`. Run `npm run build` first.
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 4173;
@@ -15,13 +17,22 @@ export default defineConfig({
   // (light card blending into dark card) and reports contrast that no one ever sees settled.
   use: { baseURL: `http://127.0.0.1:${PORT}`, reducedMotion: "reduce" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command:
-      `uv run --directory .. python scripts/make_e2e_store.py ${STORE} && ` +
-      `uv run --directory .. uvicorn refdesk.api.app:app --host 127.0.0.1 --port ${PORT}`,
-    url: `http://127.0.0.1:${PORT}/healthz`,
-    env: { REFDESK_DB: STORE, REFDESK_RETRIEVER: "jaccard" },
-    reuseExistingServer: false,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      // Deterministic, so reusing one that is already running changes nothing.
+      command: "uv run --directory .. python -m refdesk.llm.mock_server --port 8100",
+      url: "http://127.0.0.1:8100/healthz",
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
+    {
+      command:
+        `uv run --directory .. python scripts/make_e2e_store.py ${STORE} && ` +
+        `uv run --directory .. uvicorn refdesk.api.app:app --host 127.0.0.1 --port ${PORT}`,
+      url: `http://127.0.0.1:${PORT}/healthz`,
+      env: { REFDESK_DB: STORE, REFDESK_RETRIEVER: "jaccard" },
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+  ],
 });

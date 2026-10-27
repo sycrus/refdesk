@@ -16,15 +16,17 @@ async function newBoard(page: Page, brief: string, options: { reproduction?: boo
   await expect(page).toHaveURL(/\?run=run-/);
 }
 
-test("creates a board and shows S3 with badges and evidence", async ({ page }) => {
+test("creates a board and shows S3 with a rationale, both badges and evidence", async ({ page }) => {
   await newBoard(page, "cypresses in a landscape");
   const card = page.getByRole("article").filter({ hasText: "Wheat Field with Cypresses" });
   await expect(card).toBeVisible();
-  await expect(card.getByText("Needs human check")).toBeVisible();
+  // The mock generator writes claims from the record; the mock judge supports them (#98).
+  await expect(card.getByText(/The record gives the artist as Vincent van Gogh/)).toBeVisible();
+  await expect(card.getByText("Attribution verified from record")).toBeVisible();
   await expect(card.getByText("Open (as stated by source)")).toBeVisible();
   await expect(card.getByRole("link", { name: /subject_tags Cypresses/ })).toBeVisible();
   await expect(card.getByText(/^Score /)).toBeVisible();
-  await expect(page.getByText("nowhere: no model was called (retrieval only)")).toBeVisible();
+  await expect(page.getByText("mock, mock-judge")).toBeVisible();
   await expect(page.getByRole("list", { name: "Approval gates" })).toBeVisible();
 });
 

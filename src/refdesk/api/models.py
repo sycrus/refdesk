@@ -202,6 +202,9 @@ class RunView(_Model):
     cost: Cost
     keep_local: bool
     sent_to: list[str] = Field([], description="Providers this brief was sent to")
+    models_used: dict[str, str] = Field(
+        {}, description="Model each role reported, e.g. generator and judge"
+    )
     read_only: bool = False
 
 

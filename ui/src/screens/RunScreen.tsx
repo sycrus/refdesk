@@ -10,6 +10,7 @@ import { CostMeter } from "../components/CostMeter";
 import { EvidenceCard } from "../components/EvidenceCard";
 import { GateStepper } from "../components/GateStepper";
 import { StopBanner } from "../components/StopBanner";
+import { AttributionStatus } from "../generated/wording";
 import "./screens.css";
 
 export const POLL_MS = 500;
@@ -18,6 +19,8 @@ const ENDED = new Set(["done", "stopped", "cancelled"]);
 const STATE_TEXT: Record<string, string> = {
   init: "Starting…",
   retrieve: "Searching the collection…",
+  generate: "Writing a rationale for each item from its record…",
+  verify: "Checking every claim against its record…",
   done: "Done.",
   stopped: "Stopped.",
   cancelled: "Cancelled.",
@@ -70,6 +73,12 @@ export function RunScreen({ runId, onNewBoard, onMoreLikeThis }: RunScreenProps)
   const request = run.request;
   const working = !ENDED.has(run.state);
   const sentTo = run.sent_to.length ? run.sent_to.join(", ") : "nowhere: no model was called (retrieval only)";
+  const models = Object.entries(run.models_used ?? {});
+  const verified = run.items.filter((item) => item.attribution_status === AttributionStatus.VERIFIED).length;
+  const doneText =
+    run.sent_to.length === 0
+      ? "Every attribution needs a human check (no verifier ran)."
+      : `${verified} verified from the record, ${run.items.length - verified} need a human check.`;
 
   return (
     <section className="rd-screen" aria-labelledby="board-title">
@@ -90,6 +99,12 @@ export function RunScreen({ runId, onNewBoard, onMoreLikeThis }: RunScreenProps)
           <dd>{run.keep_local ? "Yes" : "No"}</dd>
           <dt>Brief sent to</dt>
           <dd>{sentTo}</dd>
+          {models.length > 0 && (
+            <>
+              <dt>Models</dt>
+              <dd>{models.map(([role, model]) => `${role}: ${model}`).join(", ")}</dd>
+            </>
+          )}
           <dt>Run</dt>
           <dd className="rd-mono">{run.run_id}</dd>
         </dl>
@@ -103,7 +118,7 @@ export function RunScreen({ runId, onNewBoard, onMoreLikeThis }: RunScreenProps)
         {working
           ? STATE_TEXT[run.state] ?? `Working: ${run.state}`
           : run.state === "done"
-            ? `Done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"}. Every attribution needs a human check (no verifier yet).`
+            ? `Done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"}. ${doneText}`
             : STATE_TEXT[run.state] ?? run.state}
       </p>
 

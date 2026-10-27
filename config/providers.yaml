@@ -43,6 +43,13 @@ providers:
     cloud: false
     paid: false
     base_url: http://127.0.0.1:8100/v1   # the mock server (#39)
+  mock-judge:
+    # The same mock server as a judge. Its own family, so the mock generator is never
+    # judged by its own family (ADR-021) even in tests and drills.
+    family: mock-judge
+    cloud: false
+    paid: false
+    base_url: http://127.0.0.1:8100/v1
 
 tiers:
   local-small:
@@ -65,6 +72,9 @@ tiers:
     price_usd_per_mtok: {input: null, output: null}
   mock:
     provider: mock
+    model: mock-1
+  mock-judge:
+    provider: mock-judge
     model: mock-1
   judge-phi4:
     provider: ollama-microsoft

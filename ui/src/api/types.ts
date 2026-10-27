@@ -103,6 +103,7 @@ export interface RunView {
   cost: Cost;
   keep_local: boolean;
   sent_to: string[];
+  models_used?: Record<string, string>;
   read_only: boolean;
 }
 

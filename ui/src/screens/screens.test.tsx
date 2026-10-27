@@ -117,6 +117,39 @@ describe("S2/S3 RunScreen", () => {
     expect(screen.getByText("cypresses")).toBeTruthy(); // the brief
   });
 
+  it("with rationales, shows them, the models used and how many items were verified", async () => {
+    const verified: BoardItem = {
+      ...ITEM,
+      rationale: "The record gives the artist as Vincent van Gogh. Its quiet mood suits the brief.",
+      attribution_status: AttributionStatus.VERIFIED,
+      flag_reasons: [],
+    };
+    const flagged: BoardItem = {
+      ...ITEM,
+      record: { ...ITEM.record, id: "met:2", title: "Cypresses" },
+      flag_reasons: ["claim 1 (date): the judge found it unsupported"],
+    };
+    respond({
+      body: view({
+        items: [verified, flagged],
+        sent_to: ["mock", "mock-judge"],
+        models_used: { generator: "mock-1", judge: "mock-1" },
+      }),
+    });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    expect(await screen.findByText(verified.rationale as string)).toBeTruthy();
+    expect(screen.getByText("mock, mock-judge")).toBeTruthy();
+    expect(screen.getByText("generator: mock-1, judge: mock-1")).toBeTruthy();
+    expect(screen.getByText("Done: 2 items. 1 verified from the record, 1 need a human check.")).toBeTruthy();
+    expect(screen.getByText("claim 1 (date): the judge found it unsupported")).toBeTruthy();
+  });
+
+  it("shows generate and verify progress", async () => {
+    respond({ body: view({ state: "verify", items: [] }) });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    expect(await screen.findByText("Checking every claim against its record…")).toBeTruthy();
+  });
+
   it("never hides a stop reason or its detail", async () => {
     respond({
       body: view({
