@@ -169,3 +169,26 @@ class TestApp:
 def test_written_sheet_is_plain_csv(sheet):
     with sheet.open(encoding="utf-8", newline="") as f:
         assert next(csv.reader(f)) == FIELDS
+
+
+class TestToken:
+    """Off localhost (e.g. over Tailscale) every request needs the startup token."""
+
+    @pytest.fixture
+    def app(self, tmp_path, sheet):
+        return create_app(sheet, tmp_path / "db.sqlite", tmp_path / "images", token="s3cret")
+
+    def test_no_token_no_page_and_no_labels(self, app, sheet):
+        c = TestClient(app)
+        assert c.get("/").status_code == 401
+        assert c.get("/api/rows").status_code == 401
+        assert c.put("/api/rows/0", json={"candidate": "met:1", "relevant": "n"}).status_code == 401
+        assert read_sheet(sheet)[1][0]["relevant"] == ""
+
+    def test_a_wrong_token_is_refused(self, app):
+        assert TestClient(app).get("/?t=guess").status_code == 401
+
+    def test_the_token_in_the_url_is_kept_in_a_cookie(self, app):
+        c = TestClient(app)
+        assert c.get("/?t=s3cret").status_code == 200
+        assert c.get("/api/rows").status_code == 200  # the page's own calls carry no token

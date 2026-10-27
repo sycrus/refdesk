@@ -20,6 +20,11 @@ Run (PowerShell or WSL2), then open http://127.0.0.1:8200:
     uv run python -m refdesk.evals.label_app --pass2    # pass 2, a day later
 --pass2 creates blind-sheet-pass2.csv with the label columns cleared (so pass-1 labels are
 never shown), or resumes it if it exists.
+
+From another device (e.g. over Tailscale): `--host <this PC's address>`. Off localhost the
+server needs a token, printed at startup as part of the URL; the first visit stores it in
+a cookie. Without it, anyone who can reach the address could read the sheet and change
+labels.
 """
 
 from __future__ import annotations
@@ -27,11 +32,12 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import secrets
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from refdesk.schema import RightsStatus
@@ -49,6 +55,7 @@ SHOWN = (
     "subjects", "record_url", *LABELS,
 )  # fmt: skip
 MAX_NOTE = 500
+COOKIE = "refdesk_label_token"
 
 
 class LabelError(ValueError):
@@ -106,10 +113,23 @@ def _view(index: int, row: dict[str, str]) -> dict[str, str | int]:
     return {"index": index} | {k: row.get(k, "") for k in SHOWN}
 
 
-def create_app(sheet: Path, db: Path, images: Path) -> FastAPI:
+def create_app(sheet: Path, db: Path, images: Path, token: str | None = None) -> FastAPI:
     app = FastAPI(title="refdesk blind labelling")
     lock = threading.Lock()
     images = images.resolve()
+
+    if token is not None:
+
+        @app.middleware("http")
+        async def require_token(request: Request, call_next):
+            given = request.query_params.get("t") or request.cookies.get(COOKIE) or ""
+            if not secrets.compare_digest(given, token):
+                return PlainTextResponse("token missing or wrong: use the URL printed at startup",
+                                         status_code=401)  # fmt: skip
+            response = await call_next(request)
+            if request.query_params.get("t"):
+                response.set_cookie(COOKIE, token, httponly=True, samesite="strict")
+            return response
 
     def candidate(index: int) -> str:
         rows = read_sheet(sheet)[1]
@@ -166,6 +186,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="refdesk golden-v1 blind labelling page")
     parser.add_argument("--pass2", action="store_true", help="label blind-sheet-pass2.csv")
     parser.add_argument("--sheet", help="another sheet (e.g. a scratch copy for trying the page)")
+    parser.add_argument("--host", default="127.0.0.1", help="e.g. this PC's Tailscale address")
     parser.add_argument("--port", type=int, default=8200)
     parser.add_argument("--db", default=str(ROOT / "data" / "refdesk.sqlite"))
     parser.add_argument("--images", default=str(ROOT / "data" / "images"))
@@ -176,9 +197,11 @@ def main() -> None:
             start_pass2(SHEET, PASS2)
             print(f"created {PASS2.name} with the label columns cleared")
         sheet = PASS2
-    print(f"labelling {sheet.name} at http://127.0.0.1:{args.port}")
-    uvicorn.run(create_app(sheet, Path(args.db), Path(args.images)), host="127.0.0.1",
-                port=args.port)  # fmt: skip
+    token = None if args.host == "127.0.0.1" else secrets.token_urlsafe(16)
+    query = f"/?t={token}" if token else ""
+    print(f"labelling {sheet.name} at http://{args.host}:{args.port}{query}")
+    app = create_app(sheet, Path(args.db), Path(args.images), token)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
