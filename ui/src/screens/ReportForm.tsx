@@ -1,4 +1,4 @@
-// S8 "This is wrong" (PRD 8A, issue #146): on S4, file a report on one item for Joe's
+// S8 "This is wrong" (PRD 8A, issue 146): on S4, file a report on one item for Joe's
 // review. The API records who and when and changes nothing on the board; this form only
 // shows what the API says back, its status or its refusal.
 import { useId, useState } from "react";
