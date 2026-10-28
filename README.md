@@ -59,7 +59,7 @@ Run the steps in order. Each one builds on the one before. Run `uv run python -m
    ```
    uv run python -m refdesk compare <hashA> <hashB>
    ```
-8. **Mock LLM.** Starts the local mock LLM server, the default generator and judge for boards (`config/retrieval.yaml`, `api.reasoning`). Keep it running for step 9. Its answers are deterministic, and it can script failures (`--script ok,429`). For real models, set `generator_tier: local-small` and `judge_tier: auto` (Ollama, `qwen3.5:9b` and `phi4`); `REFDESK_GENERATOR_TIER=none` gives retrieval-only boards.
+8. **Mock LLM.** Starts the local mock LLM server, the default generator and judge for boards (`config/retrieval.yaml`, `api.reasoning`). Keep it running for step 9. Its answers are deterministic, and it can script failures (`--script ok,429`). For real models (Ollama, `qwen3.5:9b` and `phi4`), set `REFDESK_GENERATOR_TIER=local-small` and `REFDESK_JUDGE_TIER=auto` rather than editing the config; set both, or the judge stays the mock. `REFDESK_GENERATOR_TIER=none` gives retrieval-only boards.
    ```
    uv run python -m refdesk.llm.mock_server --port 8100
    ```
