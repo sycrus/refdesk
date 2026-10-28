@@ -840,6 +840,7 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
 
     Rationales come from `api.reasoning` (generator and judge tiers, issue #98).
     REFDESK_GENERATOR_TIER overrides the generator; "none" gives retrieval-only boards.
+    REFDESK_JUDGE_TIER overrides the judge, so real models never need a config edit.
     Local models are loaded through the ModelManager, one per phase."""
     import os
 
@@ -896,7 +897,7 @@ def default_reasoner(settings: dict) -> Reasoner | None:
     return Reasoner(
         ProvidersConfig.load("config/providers.yaml"),
         generator_tier=tier,
-        judge_tier=settings.get("judge_tier", "auto"),
+        judge_tier=os.environ.get("REFDESK_JUDGE_TIER") or settings.get("judge_tier", "auto"),
         ensure_model=ensure,
         prompts=settings.get("prompts"),
     )
