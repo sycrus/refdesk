@@ -4,7 +4,7 @@ Given a creative brief, refdesk finds public-domain paintings from open museum c
 
 The project has two goals, judged separately (PRD Section 3): a **product hypothesis** (this workflow beats the alternatives for small studios) and a **demonstration** of designing, evaluating, governing and running an AI system. It is also a learning project, so judgement calls (golden labels, ADR reasoning, decision costs) stay with the owner.
 
-**Status (12 October 2026):** M1 (ingest and baselines) is done; M2 (similarity, LLM plumbing, UI) is in progress. Nothing here is a product claim yet: every eval so far uses a synthetic golden set.
+**Status (28 October 2026):** M1 and M2 are done (except named periods, #64). M3 is built end to end: rationales as checked claims, review, approval, export with a provenance pack, and "This is wrong" reports. Only the rationale eval on `golden-v1` (#102) is left, and that waits for golden-v1 itself (#15). Its two blind passes are done; the review pass is parked while the usability test (#147) runs first. Nothing here is a product claim yet: every eval so far uses a synthetic golden set.
 
 ## What works today
 
@@ -12,19 +12,21 @@ The project has two goals, judged separately (PRD Section 3): a **product hypoth
 - **Retrieval:** a metadata-only baseline (Jaccard over field-named attributes) and a CLIP similarity baseline (OpenCLIP + exact FAISS), behind one interface. In reproduction mode every retriever returns open works only.
 - **Evaluation:** a golden-set validator, capped recall@k, MRR and an open-rights share, seeded bootstrap intervals, run manifests with a config hash, paired comparison of two runs, and a gate policy (a tripwire only, so far).
 - **Models:** one LLM client for every provider (keep-local, budget, approval and price checks before any request; no silent fallback), a mock LLM server with scripted failures, and a GPU `ModelManager` that keeps one model loaded at a time.
-- **API:** a FastAPI contract skeleton (`docs/api/openapi.json`), endpoints returning 501 until built.
+- **Rationales:** for each item, the generator (local `qwen3.5:9b`) writes claims that each name a record field, plus one sentence on fit. Plain code checks every claim against the record, then `phi4` checks each one; any failure makes the item "Needs human check" and names the claim. A fit sentence that may state a fact gets an opinion flag (ADR-022).
+- **API and UI:** a board runs from a brief (S1 to S3), with item detail (S4), review of flagged items (S5), approval and export of a provenance pack CSV (S6), and "This is wrong" reports (S8). The API enforces every gate; the UI only shows them. Only raising the budget cap is still a 501. A `/design` page shows every component, checked with axe in CI.
+- **Evaluation:** besides retrieval, a rationale eval (verifier pass rates, `eval-rationales`) and probes that screened the judge. For `golden-v1`, a local labelling page, phi4's check of Claude's proposals, and a trust report that must pass before the set is frozen (ADR-018).
 
 ## Decisions so far
 
 | Area | Decision | ADR |
 |---|---|---|
-| Decision model | Fine-tune Kev-4B (local in WSL2 first, Modal fallback under budget) | 001 |
-| Golden sets | Synthetic v0 for the harness; hand-labelled v1 for claims | 018 |
+| Decision model | Kev-4B behind one decision contract: serve the base model first, fine-tune only if it wins by a significant margin | 001 |
+| Golden sets | Synthetic v0 for the harness; v1 proposed by Claude, checked by phi4, every label reviewed by the owner after a blind subset | 018 |
 | CI | GitHub Actions PR tier now; self-hosted nightly later, while private | 019 |
 | Generators | Local `qwen3.5:9b`; cloud `deepseek-flash`; reserve `deepseek-v4-pro` | 020 |
 | Judge | Local `phi4`, one claim at a time; never the generator's family (Granite Guardian dropped after a harder probe) | 021, 022 |
 
-Reasoning sections in the ADRs are still to be written by the owner.
+The owner has still to write the reasoning sections of the ADRs (#12).
 
 ## Quick start (PowerShell or WSL2)
 
@@ -80,7 +82,8 @@ Copy `.env.example` to `.env` for API keys (DeepSeek). Paid calls also need a bu
 | [`docs/adr/`](docs/adr/) | Decisions |
 | [`docs/data-sources.md`](docs/data-sources.md) | Licences, rights flags, rate limits, drift |
 | [`docs/eval-gate-policy.md`](docs/eval-gate-policy.md) | Metric definitions, noise, gates |
-| [`evals/`](evals/README.md) | Golden sets and reports |
+| [`evals/`](evals/README.md) | Golden sets, labelling files and reports |
+| [`docs/usability/`](docs/usability/README.md) | Usability test protocol, observation sheet and report template |
 | [`docs/ai-assist-log.md`](docs/ai-assist-log.md) | Defects introduced by AI assistance, and how they were caught |
 | [`design/`](design/) | Design tokens, brand book and component specs for the UI |
 | `config/` | Providers and tiers, budgets, measured model VRAM |
