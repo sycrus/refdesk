@@ -14,7 +14,7 @@ from refdesk.wording import AttributionStatus, RightsStatus, StopReason
 
 SPEC_FILE = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.json"
 
-# PRD Section 13A, endpoint table.
+# PRD Section 13A, endpoint table (GET /reports added with S8, issue #146).
 PRD_13A = {
     ("post", "/boards"),
     ("get", "/runs/{run_id}"),
@@ -23,6 +23,7 @@ PRD_13A = {
     ("post", "/runs/{run_id}/approve"),
     ("post", "/runs/{run_id}/export"),
     ("post", "/reports"),
+    ("get", "/reports"),
     ("get", "/healthz"),
     ("get", "/readyz"),
 }
@@ -84,11 +85,6 @@ class TestNoBusinessLogicYet:
         ("method", "path", "body"),
         [
             ("post", "/runs/r1/cap", {"new_cap_usd": 0.1, "raised_by": "Joe"}),
-            (
-                "post",
-                "/reports",
-                {"item_id": "met:1", "error_type": "attribution", "note": "wrong artist"},
-            ),
         ],
     )
     def test_endpoints_are_stubs(self, client, method, path, body):

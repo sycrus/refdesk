@@ -444,12 +444,36 @@
       }
     },
     "/reports": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "List Reports",
+        "description": "The S8 review queue, oldest first.",
+        "operationId": "list_reports_reports_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/QueuedReport"
+                  },
+                  "type": "array",
+                  "title": "Response List Reports Reports Get"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
-          "runs"
+          "reports"
         ],
         "summary": "Report Error",
-        "description": "S8: \"This is wrong\". Queued for human review.",
+        "description": "S8: \"This is wrong\". Queued for human review, with who and when. The board is not\nchanged.",
         "operationId": "report_error_reports_post",
         "requestBody": {
           "content": {
@@ -472,8 +496,18 @@
               }
             }
           },
-          "501": {
-            "description": "Not implemented yet",
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The board has no such item",
             "content": {
               "application/json": {
                 "schema": {
@@ -1089,15 +1123,10 @@
       "ErrorReport": {
         "properties": {
           "run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
+            "type": "string",
+            "minLength": 1,
+            "title": "Run Id",
+            "description": "The board the item is on"
           },
           "item_id": {
             "type": "string",
@@ -1111,14 +1140,22 @@
             "type": "string",
             "minLength": 1,
             "title": "Note"
+          },
+          "reporter": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reporter",
+            "description": "Who reported it; recorded with the report"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "run_id",
           "item_id",
           "error_type",
-          "note"
+          "note",
+          "reporter"
         ],
         "title": "ErrorReport",
         "description": "S8: \"This is wrong\". Queued for human review, then may feed the golden set."
@@ -1408,6 +1445,57 @@
           "message"
         ],
         "title": "Problem"
+      },
+      "QueuedReport": {
+        "properties": {
+          "report_id": {
+            "type": "string",
+            "title": "Report Id"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "error_type": {
+            "$ref": "#/components/schemas/ErrorType"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "reported_by": {
+            "type": "string",
+            "title": "Reported By"
+          },
+          "reported_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Reported At"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued for review",
+            "title": "Status",
+            "default": "queued for review"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "report_id",
+          "run_id",
+          "item_id",
+          "error_type",
+          "note",
+          "reported_by",
+          "reported_at"
+        ],
+        "title": "QueuedReport",
+        "description": "A filed S8 report, as it waits in the review queue."
       },
       "Readiness": {
         "properties": {

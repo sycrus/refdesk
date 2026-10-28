@@ -1,6 +1,14 @@
 // The API calls the screens use (issue 46 onwards). The API enforces every gate; this
 // client only reports what it says. Errors carry the API's own message, never a guess.
-import type { BoardRequest, ExportReceipt, ReviewRequest, RunCreated, RunView } from "./types";
+import type {
+  BoardRequest,
+  ErrorReport,
+  ExportReceipt,
+  ReportAccepted,
+  ReviewRequest,
+  RunCreated,
+  RunView,
+} from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -70,4 +78,8 @@ export function approveRun(runId: string, approval: { approver: string; acknowle
 
 export function exportRun(runId: string): Promise<ExportReceipt> {
   return post(`/runs/${encodeURIComponent(runId)}/export`, { format: "csv" });
+}
+
+export function reportError(report: ErrorReport): Promise<ReportAccepted> {
+  return post("/reports", report);
 }

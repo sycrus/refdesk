@@ -39,6 +39,7 @@ from refdesk.api.models import (
     BoardItem,
     BoardRequest,
     Cost,
+    ErrorReport,
     Evidence,
     ExportReceipt,
     ExportRequest,
@@ -47,6 +48,7 @@ from refdesk.api.models import (
     GateState,
     ItemReview,
     LoopState,
+    QueuedReport,
     ReviewRequest,
     RunView,
 )
@@ -76,6 +78,11 @@ CREATE TABLE IF NOT EXISTS runs (
     updated_at TEXT NOT NULL,
     request TEXT NOT NULL,
     view TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reports (
+    report_id TEXT PRIMARY KEY,
+    reported_at TEXT NOT NULL,
+    report TEXT NOT NULL
 );
 """
 
@@ -115,6 +122,18 @@ class RunStore:
         with self._connect() as db:
             row = db.execute("SELECT view FROM runs WHERE run_id = ?", (run_id,)).fetchone()
         return RunView.model_validate_json(row[0]) if row else None
+
+    def add_report(self, report: QueuedReport) -> None:
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO reports (report_id, reported_at, report) VALUES (?, ?, ?)",
+                (report.report_id, report.reported_at.isoformat(), report.model_dump_json()),
+            )
+
+    def reports(self) -> list[QueuedReport]:
+        with self._connect() as db:
+            rows = db.execute("SELECT report FROM reports ORDER BY rowid").fetchall()
+        return [QueuedReport.model_validate_json(r[0]) for r in rows]
 
 
 def to_query(request: BoardRequest) -> Query:
@@ -786,6 +805,30 @@ class BoardService:
             "exported_at": exported_at.isoformat(),
             "not_legal_advice": NOT_LEGAL_ADVICE,
         }
+
+    def report(self, request: ErrorReport) -> QueuedReport:
+        """S8: queue one board item for human review, with who and when. The board is not
+        changed, so an exported board can still be reported."""
+        view = self.runs.get(request.run_id)
+        if view is None:
+            raise UnknownRun(request.run_id)
+        if all(i.record.id != request.item_id for i in view.items):
+            raise UnknownItem(request.item_id)
+        queued = QueuedReport(
+            report_id=f"report-{uuid.uuid4().hex[:12]}",
+            run_id=request.run_id,
+            item_id=request.item_id,
+            error_type=request.error_type,
+            note=request.note,
+            reported_by=request.reporter,
+            reported_at=datetime.now(UTC),
+        )
+        self.runs.add_report(queued)
+        return queued
+
+    def reports(self) -> list[QueuedReport]:
+        """The S8 review queue, oldest first."""
+        return self.runs.reports()
 
 
 def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService:

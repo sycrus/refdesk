@@ -154,10 +154,11 @@ class ExportRequest(_Model):
 class ErrorReport(_Model):
     """S8: "This is wrong". Queued for human review, then may feed the golden set."""
 
-    run_id: str | None = None
+    run_id: NonEmpty = Field(description="The board the item is on")
     item_id: NonEmpty
     error_type: ErrorType
     note: NonEmpty
+    reporter: NonEmpty = Field(description="Who reported it; recorded with the report")
 
 
 # Responses
@@ -246,6 +247,19 @@ class RunView(_Model):
 
 class ReportAccepted(_Model):
     report_id: str
+    status: Literal["queued for review"] = "queued for review"
+
+
+class QueuedReport(_Model):
+    """A filed S8 report, as it waits in the review queue."""
+
+    report_id: str
+    run_id: str
+    item_id: str
+    error_type: ErrorType
+    note: str
+    reported_by: str
+    reported_at: datetime
     status: Literal["queued for review"] = "queued for review"
 
 
