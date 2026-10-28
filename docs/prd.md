@@ -568,7 +568,8 @@ Values are placeholders until measured. This is what the Tier 1-2 delivery work 
 | `POST /runs/{id}/cap` | Raise the spend cap (explicit, recorded with name and time) and resume from the checkpoint |
 | `POST /runs/{id}/approve` | Record approval (G4): acknowledgement and approver name |
 | `POST /runs/{id}/export` | Export the provenance pack (G5). Requires an approval record |
-| `POST /reports` | "This is wrong" report |
+| `POST /reports` | "This is wrong" report (S8), queued for review; the board is not changed |
+| `GET /reports` | The S8 review queue. Not exposed through MCP |
 | `GET /healthz` | Liveness |
 | `GET /readyz` | Readiness. Fails when the metadata store, embedding index or required model backend is unavailable |
 

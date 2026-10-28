@@ -137,6 +137,21 @@ export interface ReviewRequest {
   decisions: { item_id: string; decision: "keep" | "drop"; note?: string | null }[];
 }
 
+export type ErrorType = "attribution" | "rights" | "irrelevant" | "rationale";
+
+export interface ErrorReport {
+  run_id: string;
+  item_id: string;
+  error_type: ErrorType;
+  note: string;
+  reporter: string;
+}
+
+export interface ReportAccepted {
+  report_id: string;
+  status: "queued for review";
+}
+
 export interface ExportReceipt {
   run_id: string;
   file: string;

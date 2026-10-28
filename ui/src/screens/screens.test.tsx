@@ -232,6 +232,52 @@ describe("S4 ItemDetail", () => {
   });
 });
 
+describe("S8 This is wrong", () => {
+  async function openForm() {
+    await userEvent.click(await screen.findByRole("button", { name: "This is wrong" }));
+  }
+
+  it("files the report and shows the API's status", async () => {
+    const fetchMock = respond({ body: view() }, { status: 202, body: { report_id: "report-1", status: "queued for review" } });
+    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
+    await openForm();
+    await userEvent.selectOptions(screen.getByLabelText("What is wrong"), "rights");
+    await userEvent.type(screen.getByLabelText("What you found"), "The Met page says the image is restricted.");
+    await userEvent.type(screen.getByLabelText("Your name (recorded with the report)"), "Joe");
+    await userEvent.click(screen.getByRole("button", { name: "Send report" }));
+    expect((await screen.findByText(/queued for review/)).textContent).toBe(
+      "Report report-1: queued for review. The board is not changed.",
+    );
+    expect(fetchMock.mock.calls[1][0]).toBe("/reports");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      run_id: "run-1",
+      item_id: "met:436535",
+      error_type: "rights",
+      note: "The Met page says the image is restricted.",
+      reporter: "Joe",
+    });
+  });
+
+  it("shows the API's refusal", async () => {
+    respond({ body: view() }, { status: 400, body: { code: "unknown_item", message: "This board has no item 'met:436535'." } });
+    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
+    await openForm();
+    await userEvent.type(screen.getByLabelText("What you found"), "Wrong artist.");
+    await userEvent.type(screen.getByLabelText("Your name (recorded with the report)"), "Joe");
+    await userEvent.click(screen.getByRole("button", { name: "Send report" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("This board has no item 'met:436535'.");
+  });
+
+  it("explains why it cannot send until the note and name are filled", async () => {
+    const fetchMock = respond({ body: view() });
+    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
+    await openForm();
+    expect(screen.getByText("Say what you found and who you are.")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Send report" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("S5 ReviewScreen", () => {
   const flaggedItem: BoardItem = { ...ITEM, flag_reasons: ["claim 2 (date): the judge found it unsupported"] };
 

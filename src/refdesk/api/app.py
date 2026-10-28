@@ -28,6 +28,7 @@ from refdesk.api.models import (
     GateBlocked,
     Health,
     Problem,
+    QueuedReport,
     Readiness,
     ReportAccepted,
     ReviewRequest,
@@ -215,16 +216,32 @@ def export(run_id: str, request: ExportRequest, service: Service):
         return JSONResponse(status_code=500, content=problem.model_dump())
 
 
+# S8 reports are tagged `reports`, not `read`: filing is a write, and the queue holds
+# operator notes for Joe's review, so neither is exposed through MCP (ADR-015).
 @app.post(
     "/reports",
     status_code=202,
     response_model=ReportAccepted,
-    tags=["runs"],
-    responses=NOT_IMPLEMENTED,
+    tags=["reports"],
+    responses={**NOT_FOUND, 400: {"model": Problem, "description": "The board has no such item"}},
 )
-def report_error(request: ErrorReport):
-    """S8: "This is wrong". Queued for human review."""
-    return _not_implemented()
+def report_error(request: ErrorReport, service: Service):
+    """S8: "This is wrong". Queued for human review, with who and when. The board is not
+    changed."""
+    try:
+        queued = service.report(request)
+    except UnknownRun:
+        return _unknown_run(request.run_id)
+    except UnknownItem as error:
+        problem = Problem(code="unknown_item", message=f"This board has no item {error.args[0]!r}.")
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    return ReportAccepted(report_id=queued.report_id)
+
+
+@app.get("/reports", response_model=list[QueuedReport], tags=["reports"])
+def list_reports(service: Service):
+    """The S8 review queue, oldest first."""
+    return service.reports()
 
 
 @app.get("/healthz", response_model=Health, tags=["ops"])

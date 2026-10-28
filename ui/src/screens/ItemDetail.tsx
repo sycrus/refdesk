@@ -10,6 +10,7 @@ import { safeUrl } from "../components/safeUrl";
 import { StatusBadge } from "../components/StatusBadge";
 import { showsImage } from "../components/EvidenceCard";
 import { NOT_LEGAL_ADVICE } from "../generated/wording";
+import { ReportForm } from "./ReportForm";
 import "./screens.css";
 
 export interface ItemDetailProps {
@@ -178,6 +179,11 @@ export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
           <dt>Run</dt>
           <dd className="rd-mono">{run.run_id}</dd>
         </dl>
+      </section>
+
+      <section aria-labelledby="report-title">
+        <h2 id="report-title">Report an error</h2>
+        <ReportForm runId={run.run_id} itemId={record.id} />
       </section>
     </section>
   );
