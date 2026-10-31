@@ -129,6 +129,16 @@ stateDiagram-v2
 - **`GET /runs/{id}`** returns `events` without the recordings (`recorded: null`); the file keeps them. The stored view in SQLite never holds the events.
 - **What breaks without it:** a stopped or failed run leaves only its final view, so nobody can see which step went wrong or rerun it.
 
+### Trajectory evals (issue #173, PRD 11.7)
+
+`evals/trajectory.py` evaluates the loop, not only the answer. A suite (`tests/fixtures/trajectory/<version>/`: `suite.json` plus one recorded run log per run) holds briefs with k recorded runs each. Every run replays through the current `LoopController` with its recordings standing in for the retriever and the model, so it is deterministic and offline.
+
+- **Outcome per run**, first match wins: `wrong_retrieval` (worked on a record the brief does not allow), `bad_decision` (another tier, or a keep-local brief sent to a cloud provider), `verification_miss` (a planted wrong rationale shown as verified), `bad_stop` (another stop reason, a call after the recording ended, or recorded calls left unmade), `rationale_error` (stopped correctly but short of K), else `success`. `diverged` (a request differs from the recording, e.g. a changed prompt) is a harness outcome, not a PRD category: re-record or explain.
+- **Metrics.** Single-run success per brief (share of its k runs that succeed) and pass^k (all k succeed), averaged over briefs with bootstrap intervals; failed runs counted by step.
+- **Gate.** Each recorded run carries the outcome the correct loop gives. `check_gate` fails when any replay differs; `tests/evals/test_trajectory.py` runs it in CI, and its `TestPlantedBadChanges` shows that deliberately bad changes (verifier ignoring the judge, no stuck rule, counting unverified items, a changed prompt) fail it.
+- **The suite** `trajectory-v0-synthetic` is synthetic (ADR-018 exception): 5 briefs, k = 3, faults planted by `scripts/record_trajectories.py`, which records against the in-process mock and refuses recordings that do not give their expected outcome. Plumbing only: the k runs differ by planted faults, not model variance.
+- **What breaks without it:** answer evals score one pass per brief, so a loop that recovers on one run and stops wrongly on another looks fine, and a verifier or stop-rule regression passes any unit test that does not happen to cover it.
+
 ### Rationales and verification (ADR-022)
 
 - **`rationale.py`** (issue #94): a rationale is JSON, a list of claims (`field`, `value`, `text`) plus a separate `fit` sentence. `parse_rationale` rejects non-JSON, missing fit, and any claim on a field records do not have or this record leaves empty. Claims may rest on title, artist, date, date_begin, date_end, medium, classification and subject_tags; never on rights, which come only from the rights record.
@@ -224,6 +234,7 @@ All via `uv run python -m refdesk <command>` (PowerShell or WSL2):
 | `embed met [--model] [--pretrained]` | Build the FAISS index (needs `uv sync --extra embed`) |
 | `eval [--retriever jaccard\|clip\|combined] [--k 12]` | Run a retriever on a golden set; write manifest, report, history |
 | `eval-rationales` | Verifier pass rates of rationales on a golden set's top-k items |
+| `eval-trajectories [--write]` | Replay the trajectory suite; pass^k, single-run success, failed runs by step; exit 1 on a regression |
 | `compare HASH_A HASH_B` | Paired comparison of two eval runs |
 | `snapshot` | Write `evals/golden/corpus/<corpus version>.tsv` for the store as it is now (ADR-023) |
 | `stats` | Record counts by rights status and ingest progress |
@@ -233,7 +244,7 @@ Also:
 - Servers: `refdesk.llm.mock_server`; `refdesk.evals.label_app [--pass2 | --review] [--token]`.
 - golden-v1: `scripts/build_labelling_pools.py`, `build_review_pools.py`, `build_review_sheet.py`, `judge_proposals.py`, `golden_v1_report.py [--freeze]`.
 - Probes: `scripts/judge_probe.py`, `probe_fit.py`, `smoke_judge.py`.
-- Build and repo: `scripts/build_golden_v0.py`, `record_met_fixtures.py`, `make_e2e_store.py`, `export_openapi.py`, `generate_ui.py`, `verify.py`, `next_issue.py`, `run-loop.ps1`, `kev.ps1`.
+- Build and repo: `scripts/build_golden_v0.py`, `record_met_fixtures.py`, `make_e2e_store.py`, `record_trajectories.py`, `export_openapi.py`, `generate_ui.py`, `verify.py`, `next_issue.py`, `run-loop.ps1`, `kev.ps1`.
 
 ## Not built yet
 

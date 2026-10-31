@@ -17,6 +17,11 @@ eval-rationales [--generator mock|local-small] [--judge auto|TIER] [--retriever 
     [--rationale-prompt rationale-vN] [--fit-prompt fit-vN]
     Generate and verify rationales for each golden case's top-k items; write manifest,
     report and history rows (issue #102). Local and mock tiers only (the brief stays local).
+eval-trajectories [--suite DIR] [--seed 0] [--write]
+    Trajectory evals (issue #173, PRD 11.7): replay each brief's k recorded runs through the
+    loop; print pass^k next to single-run success and failed runs by step. Exit 1 when a
+    run's outcome differs from the suite's expected one. --write saves the report to
+    evals/reports/ (named by the config hash). No model, no network.
 label-routing [--dry-run] [--approve] [--tiers T1,T2] [--judges J1] [--n N] [--db PATH]
     Routing labels (issue #161, PRD 10.3): synthetic briefs through every routing tier,
     verified and judged by a model from another family; the label is the cheapest tier that
@@ -239,6 +244,24 @@ def _label_routing(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def _eval_trajectories(args: argparse.Namespace) -> int:
+    from refdesk.evals import trajectory as tj
+
+    suite = tj.load_suite(args.suite or tj.DEFAULT_SUITE)
+    sha, dirty = git_state(Path.cwd())
+    result = tj.run_trajectory_eval(suite, seed=args.seed, n_boot=args.n_boot, git_sha=sha)
+    today = date.today().isoformat()
+    print(tj.report(result, date=today, dirty=dirty))
+    if args.write:
+        try:
+            path = tj.write_report(result, root=Path.cwd(), date=today, dirty=dirty)
+        except FileExistsError as error:
+            print(error)
+            return 2
+        print(f"wrote {path.relative_to(Path.cwd()).as_posix()}")
+    return 1 if result.regressions else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="refdesk")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -294,6 +317,11 @@ def main(argv: list[str] | None = None) -> int:
     p_reval.add_argument("--seed", type=int, default=0)
     p_reval.add_argument("--n-boot", type=int, default=2000)
     p_reval.add_argument("--db", default=DEFAULT_DB)
+    p_traj = commands.add_parser("eval-trajectories", help="pass^k and step failure taxonomy")
+    p_traj.add_argument("--suite", help="suite directory (default: trajectory-v0-synthetic)")
+    p_traj.add_argument("--seed", type=int, default=0)
+    p_traj.add_argument("--n-boot", type=int, default=2000)
+    p_traj.add_argument("--write", action="store_true", help="write the report")
     p_label = commands.add_parser("label-routing", help="routing labels for the Q1 decision")
     p_label.add_argument("--dry-run", action="store_true", help="estimate only; no request")
     p_label.add_argument("--approve", action="store_true", help="allow paid calls")
@@ -305,6 +333,8 @@ def main(argv: list[str] | None = None) -> int:
     p_signals = commands.add_parser("signals", help="golden signals from run logs (#172)")
     p_signals.add_argument("--runs", default="runs", help="directory of <run_id>/events.jsonl")
     args = parser.parse_args(argv)
+    if args.command == "eval-trajectories":
+        return _eval_trajectories(args)  # recordings only: no store
 
     if args.command == "signals":  # reads run logs only; no store needed
         from refdesk.signals import format_signals, golden_signals, read_runs
