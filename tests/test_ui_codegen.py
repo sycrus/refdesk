@@ -117,6 +117,43 @@ def test_committed_generated_files_are_current(output):
 
 
 HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+# Comments are stripped before the scan: "#158" in a comment is an issue reference, not a
+# colour, and it failed this test twice (#146, #158). Line comments must start a line or
+# follow whitespace, so "https://..." inside a string is not cut.
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+LINE_COMMENT = re.compile(r"(^|\s)//[^\n]*", re.MULTILINE)
+
+
+def hex_colours(text: str) -> list[str]:
+    code = LINE_COMMENT.sub(r"\1", BLOCK_COMMENT.sub("", text))
+    return HEX.findall(code)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "/* S2 kill switch (#158): cancel */ .a { color: var(--x); }",
+        "/*\n * issue #146\n */",
+        "// Report form (#146)\nconst a = 1;",
+        "const x = 1; // see #abc",
+        'const u = "https://example.org/a"; // #158',
+    ],
+)
+def test_hex_scan_ignores_issue_references_in_comments(text):
+    assert hex_colours(text) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        ".a { color: #fff; }",
+        "/* note */ .a { background: #1a2b3c; }",
+        'const c = "#158";',
+        "const style = { color: '#abcdef' }; // fine comment",
+    ],
+)
+def test_hex_scan_still_catches_colours_in_code(text):
+    assert hex_colours(text) != []
 
 
 def test_ui_source_has_no_hardcoded_hex_colours():
@@ -126,7 +163,7 @@ def test_ui_source_has_no_hardcoded_hex_colours():
         for path in (ROOT / "ui" / "src").rglob("*")
         if path.suffix in {".css", ".ts", ".tsx"}
         and "generated" not in path.parts
-        and HEX.search(path.read_text(encoding="utf-8"))
+        and hex_colours(path.read_text(encoding="utf-8"))
     ]
     assert offenders == []
 

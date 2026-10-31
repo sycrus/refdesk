@@ -184,6 +184,82 @@ describe("S2/S3 RunScreen", () => {
   });
 });
 
+// S2 live meter and kill switch (issue 158): the meter tracks the polled spend against
+// the cap, and Cancel asks before it stops the run, because a cancelled run can never be
+// approved or exported (the API enforces that; the button only reflects it).
+describe("S2 live meter and cancel", () => {
+  it("the cost meter updates while the run works", async () => {
+    respond(
+      { body: view({ state: "generate", items: [], cost: { spent_usd: 0.012, cap_usd: 0.05, currency: "USD" } }) },
+      { body: view({ state: "verify", items: [], cost: { spent_usd: 0.041, cap_usd: 0.05, currency: "USD" } }) },
+    );
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    expect(await screen.findByText("USD 0.012 of 0.050 cap")).toBeTruthy();
+    expect(await screen.findByText("USD 0.041 of 0.050 cap", {}, { timeout: 2000 })).toBeTruthy();
+  });
+
+  it("Cancel asks first, then posts the kill switch and shows the cancelled run", async () => {
+    const fetchMock = respond(
+      { body: view({ state: "generate", items: [] }) },
+      { body: view({ state: "generate", items: [] }) }, // the POST /cancel response
+      {
+        body: view({
+          state: "cancelled",
+          items: [],
+          stop_reason: StopReason.CANCELLED,
+          stop_banner: STOP_REASON_BANNER.cancelled,
+          stop_detail: "Cancelled by the operator.",
+        }),
+      },
+    );
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel the run" }));
+    expect(screen.getByRole("group", { name: "Confirm the kill switch" })).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Yes, cancel the run" }));
+    const call = await waitFor(() => {
+      const posted = fetchMock.mock.calls.find(([url]) => url === "/runs/run-1/cancel");
+      expect(posted).toBeTruthy();
+      return posted;
+    });
+    expect(call[1].method).toBe("POST");
+    expect(await screen.findByRole("heading", { name: STOP_REASON_BANNER.cancelled })).toBeTruthy();
+    expect(screen.getByText("Cancelled by the operator.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Cancel the run" })).toBeNull();
+  });
+
+  it("Keep the run going dismisses the confirm and posts nothing", async () => {
+    const fetchMock = respond(
+      { body: view({ state: "retrieve", items: [] }) },
+      { body: view({ state: "generate", items: [] }) },
+    );
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel the run" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep the run going" }));
+    expect(screen.queryByRole("group", { name: "Confirm the kill switch" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Cancel the run" })).toBeTruthy();
+    const cancels = fetchMock.mock.calls.filter(([url]) => url === "/runs/run-1/cancel");
+    expect(cancels).toEqual([]);
+  });
+
+  it("shows the API's refusal instead of pretending the run was cancelled", async () => {
+    respond(
+      { body: view({ state: "retrieve", items: [] }) },
+      { status: 404, body: { code: "unknown_run", message: "No run 'run-1'." } },
+    );
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Cancel the run" }));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, cancel the run" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("The run was not cancelled: No run 'run-1'.");
+  });
+
+  it("an ended run has no Cancel button", async () => {
+    respond({ body: view() });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Wheat Field with Cypresses" });
+    expect(screen.queryByRole("button", { name: "Cancel the run" })).toBeNull();
+  });
+});
+
 describe("S4 ItemDetail", () => {
   const detailed: BoardItem = {
     ...ITEM,

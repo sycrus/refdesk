@@ -1,6 +1,6 @@
-"""HTTP API (PRD 13A). Every route has its real request and response models; routes not
-implemented by their issue return 501. /healthz is liveness; /readyz (issue #168) runs
-the real dependency checks.
+"""HTTP API (PRD 13A). Every route has its real request and response models, and every
+route is built (issue #158 replaced the last 501 stub). /healthz is liveness; /readyz
+(issue #168) runs the real dependency checks.
 
 Tags matter for the MCP server (FR-12, ADR-015): it may expose only `read` operations.
 `gates` operations (approve, export) are never exposed through MCP.
@@ -99,7 +99,6 @@ def get_service() -> BoardService:
 Service = Annotated[BoardService, Depends(get_service)]
 
 NOT_FOUND = {404: {"model": Problem, "description": "Unknown run"}}
-NOT_IMPLEMENTED = {501: {"model": Problem, "description": "Not implemented yet"}}
 GATE_BLOCKED = {409: {"model": GateBlocked, "description": "A gate has not passed"}}
 
 
@@ -111,11 +110,6 @@ def _unknown_run(run_id: str) -> JSONResponse:
 def _gate_blocked(error: GateRefused) -> JSONResponse:
     blocked = GateBlocked(gate=error.gate, reason=error.reason)
     return JSONResponse(status_code=409, content=blocked.model_dump())
-
-
-def _not_implemented() -> JSONResponse:
-    problem = Problem(code="not_implemented", message="Contract only (issue #13).")
-    return JSONResponse(status_code=501, content=problem.model_dump())
 
 
 @app.post(
@@ -191,11 +185,37 @@ def review(run_id: str, request: ReviewRequest, service: Service):
     "/runs/{run_id}/cap",
     response_model=RunView,
     tags=["runs"],
-    responses={**NOT_FOUND, **GATE_BLOCKED, **NOT_IMPLEMENTED},
+    responses={**NOT_FOUND, **GATE_BLOCKED},
 )
-def raise_cap(run_id: str, request: CapRaise):
-    """G1: raise the spend cap (recorded with name and time) and resume from the checkpoint."""
-    return _not_implemented()
+def raise_cap(run_id: str, request: CapRaise, background: BackgroundTasks, service: Service):
+    """G1: raise the spend cap — recorded with who and when — and resume from the
+    checkpoint. Refused (409) for any run the budget cap did not stop. The resume runs
+    after this returns, the way POST /boards starts the loop; poll GET /runs/{run_id}."""
+    try:
+        view = service.raise_cap(run_id, request)
+    except UnknownRun:
+        return _unknown_run(run_id)
+    except GateRefused as error:
+        return _gate_blocked(error)
+    background.add_task(service.resume_after_raise, view.run_id)
+    return view
+
+
+@app.post(
+    "/runs/{run_id}/cancel",
+    response_model=RunView,
+    tags=["runs"],
+    responses={**NOT_FOUND},
+)
+def cancel_run(run_id: str, service: Service):
+    """Kill switch (PRD 10.2): the run stops before its next step or model call, and
+    nothing on it can ever be approved or exported. The run's own thread writes
+    Cancelled at its next guard check, so poll GET /runs/{run_id} for the final state."""
+    try:
+        service.cancel(run_id)
+    except UnknownRun:
+        return _unknown_run(run_id)
+    return service.get(run_id)
 
 
 @app.post(
