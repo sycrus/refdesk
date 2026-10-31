@@ -108,8 +108,13 @@ class RunStore:
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as db:
+        db = self._connect()
+        try:
             db.executescript(_SCHEMA)
+        finally:
+            # Explicit close: `with` only commits, and a connection left to the GC can
+            # keep the Windows file lock past this call (found by the /readyz tests).
+            db.close()
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path)

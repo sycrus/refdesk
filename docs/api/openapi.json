@@ -535,7 +535,7 @@
           "ops"
         ],
         "summary": "Healthz",
-        "description": "Liveness.",
+        "description": "Liveness: the process is up. Touches no dependency, so it answers even when\n/readyz fails.",
         "operationId": "healthz_healthz_get",
         "responses": {
           "200": {
@@ -557,7 +557,7 @@
           "ops"
         ],
         "summary": "Readyz",
-        "description": "Readiness: fails when the metadata store, embedding index or model backend is down.",
+        "description": "Readiness (issue #168): 503 when the metadata store, the embedding index or a\nrequired model backend is unavailable, with the reason per check. The store path is\nthe metadata store: the runs store shares its SQLite file (default_service).",
         "operationId": "readyz_readyz_get",
         "responses": {
           "200": {

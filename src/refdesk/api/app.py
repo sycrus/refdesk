@@ -1,6 +1,6 @@
-"""HTTP API skeleton (PRD 13A, issue #13). Contract only: every route has its real request
-and response models, but returns 501 until its issue implements it. /healthz is live;
-/readyz honestly reports not ready.
+"""HTTP API (PRD 13A). Every route has its real request and response models; routes not
+implemented by their issue return 501. /healthz is liveness; /readyz (issue #168) runs
+the real dependency checks.
 
 Tags matter for the MCP server (FR-12, ADR-015): it may expose only `read` operations.
 `gates` operations (approve, export) are never exposed through MCP.
@@ -45,6 +45,7 @@ from refdesk.boards import (
     UnknownRun,
     default_service,
 )
+from refdesk.readiness import report as readiness_report
 from refdesk.retrieval.combined import ConditionNotUnderstood
 
 app = FastAPI(
@@ -246,8 +247,14 @@ def list_reports(service: Service):
 
 @app.get("/healthz", response_model=Health, tags=["ops"])
 def healthz():
-    """Liveness."""
+    """Liveness: the process is up. Touches no dependency, so it answers even when
+    /readyz fails."""
     return Health()
+
+
+# Where the embedding index lives (refdesk.retrieval.registry.Resources.default reads
+# the same place; override for a deployment that keeps it elsewhere).
+INDEX_DIR = Path(os.environ.get("REFDESK_INDEX_DIR", "data/index/met-clip"))
 
 
 @app.get(
@@ -256,12 +263,19 @@ def healthz():
     tags=["ops"],
     responses={503: {"model": Readiness, "description": "Not ready"}},
 )
-def readyz():
-    """Readiness: fails when the metadata store, embedding index or model backend is down."""
-    checks = dict.fromkeys(
-        ("metadata_store", "embedding_index", "model_backend"), "not implemented"
+def readyz(service: Service):
+    """Readiness (issue #168): 503 when the metadata store, the embedding index or a
+    required model backend is unavailable, with the reason per check. The store path is
+    the metadata store: the runs store shares its SQLite file (default_service)."""
+    result = readiness_report(
+        store_path=service.runs.path,
+        retriever_name=service.retriever_name,
+        reasoner=service.reasoner,
+        index_dir=INDEX_DIR,
     )
-    return JSONResponse(status_code=503, content=Readiness(ready=False, checks=checks).model_dump())
+    return JSONResponse(
+        status_code=200 if result.ready else 503, content=result.model_dump()
+    )
 
 
 # The UI (PRD 8A, issue #41): the static build of ui/, served at /. It is mounted after

@@ -105,6 +105,16 @@ def create_app(
 
     set_script(script or ["ok"])
 
+    @app.get("/v1/models")
+    async def models():
+        """OpenAI-style model list: what readiness probes (`GET {base}/models`, issue
+        #168) and discovery hit instead of a completion call. The mock tiers of
+        config/providers.yaml."""
+        return {
+            "object": "list",
+            "data": [{"id": name, "object": "model"} for name in ("mock-1", "mock-2")],
+        }
+
     @app.post("/v1/chat/completions")
     async def chat(payload: Annotated[dict[str, Any], Body()]):
         behaviour = next(state["cycle"])

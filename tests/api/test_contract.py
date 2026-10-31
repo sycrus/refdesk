@@ -74,11 +74,16 @@ class TestNoBusinessLogicYet:
     def test_healthz_is_live(self, client):
         assert client.get("/healthz").json() == {"status": "ok"}
 
-    def test_readyz_reports_not_ready_with_reasons(self, client):
-        response = client.get("/readyz")
-        assert response.status_code == 503
-        body = response.json()
-        assert body["ready"] is False
+    def test_readyz_reports_the_three_dependency_checks(self, tmp_path, monkeypatch, client):
+        # Implemented (#168): with a healthy service over a temporary store it is ready.
+        from test_readyz import endpoint_service, index_dir
+
+        from refdesk.api import app as app_module
+
+        app.dependency_overrides[get_service] = lambda: endpoint_service(tmp_path)
+        monkeypatch.setattr(app_module, "INDEX_DIR", index_dir(tmp_path))
+        body = client.get("/readyz").json()
+        assert body["ready"] is True
         assert set(body["checks"]) == {"metadata_store", "embedding_index", "model_backend"}
 
     @pytest.mark.parametrize(

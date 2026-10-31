@@ -73,6 +73,12 @@ RETRIEVERS: dict[str, Callable[[list[ArtworkRecord], Resources], Retriever]] = {
     "combined": _combined,
 }
 
+# Retrievers that load the image index (`Resources.load_index`). /readyz checks the
+# index only when the configured retriever needs it (issue #168): a metadata-only
+# deployment is ready without one. Add a name here when a retriever starts reading the
+# index, or readiness will not watch it.
+NEEDS_INDEX = frozenset({"clip", "combined"})
+
 
 def build_retriever(
     name: str, records: list[ArtworkRecord], resources: Resources | None = None
