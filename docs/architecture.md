@@ -141,6 +141,10 @@ stateDiagram-v2
 
 `config/retrieval.yaml` (`api.reasoning`) defaults to the mock generator and the mock judge (CLAUDE.md: default to the mock). `REFDESK_GENERATOR_TIER` and `REFDESK_JUDGE_TIER` override them, so a session on real models never edits the committed config; set both, or a real generator is paired with the mock judge. `REFDESK_GENERATOR_TIER=none` gives retrieval-only boards: every attribution stays "Needs human check", G0 and G2 are skipped, cost is 0 and `sent_to` is empty.
 
+### Routing labels (issue #161, PRD 10.3, ADR-021)
+
+`routing_labels.py` (`refdesk label-routing`) builds Kev's Q1 labels. It generates template synthetic briefs (`provenance: synthetic`, a `brief_type` kept for out-of-domain holds), retrieves top-k records once per brief, and runs every routing tier through generate, code checks and the claim judge, one phase per model. The label is the first tier in routing order whose verified share meets `quality_bar.min_verified_share` in `config/labelling.yaml`, a placeholder until M4-01 (#153). At startup it picks a judge per tier from another family (`NoValidJudge` otherwise) and checks paid tiers for key, budget and `--approve`. A refusal or provider error mid-run stops it with nothing written. Output: `runs/routing-labels/<date>-<hash>/` (`briefs.jsonl`, `labels.jsonl`, `manifest.json`), never overwritten. `--dry-run` prints calls, tokens and cost and makes no request: against the real config (1,500 briefs, k = 3) the worst case is 7.31 USD against `labelling_budget_usd: 20`. It uses `KeepAliveTransport` (one connection per host). Without it, tens of thousands of fresh connections exhaust Windows' ephemeral ports (WinError 10048). The labels are not trusted until the judge's agreement with Joe's ratings is reported (#16).
+
 On golden-v0 (plumbing only, not a claim), qwen3.5:9b with phi4 gives verified 0.988 [0.964, 1.000] and fit_pass 0.417 [0.286, 0.548] (`evals/reports/rationale-eval-2026-10-27-local-small-2472ecf95802.md`). The quality bar for that tier is Joe's call in #102.
 
 ## API

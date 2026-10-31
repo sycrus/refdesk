@@ -74,6 +74,10 @@ tiers:
   mock:
     provider: mock
     model: mock-1
+  mock-strong:
+    # A second mock tier for routing-label drills (#161): two tiers to choose between.
+    provider: mock
+    model: mock-2
   mock-judge:
     provider: mock-judge
     model: mock-1

@@ -1,0 +1,15 @@
+# Routing-label pipeline (PRD 10.3, ADR-021; read by src/refdesk/routing_labels.py, issue #161).
+#
+# Every value here is a PLACEHOLDER until Joe sets it. The quality bar in particular is
+# Joe's judgement (docs/decision-contract.md, "Routing-label quality bar", M4-01 / #153).
+# Claude Code does not choose it; it only made it a config value so the code can run.
+labelling:
+  n_briefs: 1500          # about 1,500 synthetic briefs (PRD 10.3)
+  seed: 0                 # brief generator seed; same seed, same briefs
+  items_per_brief: 3      # top-k retrieved records each tier explains per brief (placeholder)
+  retriever: jaccard      # metadata retriever; no GPU needed
+  quality_bar:
+    # A tier "met the bar" on a brief if at least this share of its items were verified
+    # (code checks and the phi4 claim judge both passed). PLACEHOLDER until M4-01 (#153).
+    min_verified_share: 1.0
+    placeholder: true     # written into every manifest while true

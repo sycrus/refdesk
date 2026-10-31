@@ -109,6 +109,61 @@ class UrllibTransport:
             raise ProviderError(f"cannot reach {url}: {error.reason}") from error
 
 
+class KeepAliveTransport:
+    """Like `UrllibTransport`, but reuses one HTTP connection per host (issue #161).
+
+    Why: a new TCP connection per request leaves each socket in TIME_WAIT; tens of
+    thousands of calls (the routing-label run) exhaust Windows' ephemeral ports
+    (WinError 10048) and the run stops. A dropped connection is reopened once."""
+
+    def __init__(self, timeout: float = 60.0, connect: Callable[..., Any] | None = None):
+        import http.client
+
+        self.timeout = timeout
+        self._connect = connect or (
+            lambda scheme, host, timeout: (
+                http.client.HTTPSConnection if scheme == "https" else http.client.HTTPConnection
+            )(host, timeout=timeout)
+        )
+        self._conns: dict[tuple[str, str], Any] = {}
+
+    def post_json(self, url, headers, payload):
+        import http.client
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(url)
+        key = (parts.scheme, parts.netloc)
+        path = parts.path + (f"?{parts.query}" if parts.query else "")
+        body = json.dumps(payload).encode()
+        all_headers = {"Content-Type": "application/json", **headers}
+        for attempt in (1, 2):
+            conn = self._conns.get(key)
+            if conn is None:
+                conn = self._conns[key] = self._connect(parts.scheme, parts.netloc, self.timeout)
+            try:
+                conn.request("POST", path, body=body, headers=all_headers)
+                response = conn.getresponse()
+                raw = response.read()
+            except TimeoutError as error:
+                self._drop(key)
+                raise ProviderTimeout(f"timeout after {self.timeout}s: {url}") from error
+            except (http.client.HTTPException, ConnectionError, OSError) as error:
+                self._drop(key)
+                if attempt == 2:
+                    raise ProviderError(f"cannot reach {url}: {error}") from error
+                continue
+            text = raw.decode("utf-8", errors="replace")
+            if response.status == 200:
+                return 200, json.loads(text)
+            return response.status, text
+        raise ProviderError(f"cannot reach {url}")  # pragma: no cover
+
+    def _drop(self, key) -> None:
+        conn = self._conns.pop(key, None)
+        if conn is not None:
+            conn.close()
+
+
 @dataclass(frozen=True)
 class Estimate:
     tokens_in: int

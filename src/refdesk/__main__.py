@@ -17,6 +17,12 @@ eval-rationales [--generator mock|local-small] [--judge auto|TIER] [--retriever 
     [--rationale-prompt rationale-vN] [--fit-prompt fit-vN]
     Generate and verify rationales for each golden case's top-k items; write manifest,
     report and history rows (issue #102). Local and mock tiers only (the brief stays local).
+label-routing [--dry-run] [--approve] [--tiers T1,T2] [--judges J1] [--n N] [--db PATH]
+    Routing labels (issue #161, PRD 10.3): synthetic briefs through every routing tier,
+    verified and judged by a model from another family; the label is the cheapest tier that
+    met the quality bar (config/labelling.yaml). --dry-run prints calls, tokens and cost and
+    makes no request. Paid tiers need a key in .env and --approve. Writes
+    runs/routing-labels/<date>-<hash>/. Mock drill: --tiers mock,mock-strong --judges mock-judge.
 compare HASH_A HASH_B [HASH ...] [--write]
     Paired comparison of eval runs (B - A per case, with a 95% CI), for every pair.
     --write saves one report to evals/reports/ (named by the run hashes).
@@ -178,6 +184,61 @@ def _eval_rationales(store: Store, args: argparse.Namespace) -> int:
     return 0
 
 
+def _label_routing(store: Store, args: argparse.Namespace) -> int:
+    from refdesk import routing_labels as rl
+    from refdesk.llm.client import KeepAliveTransport, LLMPolicyError, ProviderError
+    from refdesk.llm.config import Budgets, ProvidersConfig
+    from refdesk.llm.model_manager import ModelManager, OllamaBackend, load_specs
+
+    config = ProvidersConfig.load("config/providers.yaml")
+    budgets = Budgets.load("config/budgets.yaml")
+    settings = rl.LabellingSettings.load(args.settings)
+    if args.n is not None:
+        settings = settings.model_copy(update={"n_briefs": args.n})
+    specs = load_specs("config/models.yaml")
+    manager = ModelManager(specs, {"ollama": OllamaBackend()})
+
+    def ensure(model: str) -> None:
+        if model in specs:  # GPU models only; the mock needs nothing
+            manager.ensure(model)
+
+    try:
+        pipeline = rl.LabellingPipeline(
+            config, budgets, settings,
+            tiers=args.tiers.split(",") if args.tiers else None,
+            judges=args.judges.split(",") if args.judges else None,
+            approved=args.approve, dry_run=args.dry_run,
+            ensure_model=None if args.dry_run else ensure,
+            transport=KeepAliveTransport(),  # tens of thousands of calls (WinError 10048)
+        )  # fmt: skip
+    except LLMPolicyError as error:
+        print(f"Refused at startup: {type(error).__name__}: {error}")
+        return 2
+    records = list(store.iter_records())
+    if not records:
+        print("The store has no records; ingest first.")
+        return 2
+    retriever = rl.StoreRetriever(settings.retriever, records)
+    briefs = rl.synthetic_briefs(settings.n_briefs, seed=settings.seed)
+    print(f"tiers {pipeline.tiers}; judge per tier {pipeline.judge_for}")
+    if settings.quality_bar.placeholder:
+        print(f"quality bar {settings.quality_bar.min_verified_share} is a PLACEHOLDER (#153)")
+    if args.dry_run:
+        print(rl.format_estimate(pipeline.estimate(briefs, retriever)))
+        return 0
+    try:
+        result = pipeline.run(briefs, retriever)
+    except (LLMPolicyError, ProviderError) as error:
+        print(f"Stopped: {type(error).__name__}: {error}. No labels written; nothing fell back.")
+        return 1
+    result.corpus = rl.corpus_digest(records)
+    paths = rl.write_outputs(result, root=Path.cwd(), date=date.today().isoformat())
+    manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+    print(f"labels {manifest['counts']['labelled']}; spent {result.spent_usd:.4f} USD")
+    print(f"wrote {paths['labels'].as_posix()} and {paths['manifest'].as_posix()}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="refdesk")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -233,6 +294,14 @@ def main(argv: list[str] | None = None) -> int:
     p_reval.add_argument("--seed", type=int, default=0)
     p_reval.add_argument("--n-boot", type=int, default=2000)
     p_reval.add_argument("--db", default=DEFAULT_DB)
+    p_label = commands.add_parser("label-routing", help="routing labels for the Q1 decision")
+    p_label.add_argument("--dry-run", action="store_true", help="estimate only; no request")
+    p_label.add_argument("--approve", action="store_true", help="allow paid calls")
+    p_label.add_argument("--tiers", help="comma-separated tiers (default: routing)")
+    p_label.add_argument("--judges", help="comma-separated judge tiers (default: judges)")
+    p_label.add_argument("--n", type=int, help="number of briefs (default: config)")
+    p_label.add_argument("--settings", default="config/labelling.yaml")
+    p_label.add_argument("--db", default=DEFAULT_DB)
     args = parser.parse_args(argv)
 
     with Store(args.db) as store:
@@ -294,6 +363,8 @@ def main(argv: list[str] | None = None) -> int:
             return _eval(store, args)
         if args.command == "eval-rationales":
             return _eval_rationales(store, args)
+        if args.command == "label-routing":
+            return _label_routing(store, args)
         if args.command == "rebuild":
             result = rebuild(store, args.source)
             print(f"rebuilt {result.rebuilt}, missing raw {len(result.missing_raw)}")
