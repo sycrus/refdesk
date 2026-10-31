@@ -221,7 +221,7 @@ describe("S2 live meter and cancel", () => {
       expect(posted).toBeTruthy();
       return posted;
     });
-    expect(call[1].method).toBe("POST");
+    expect(call?.[1]?.method).toBe("POST");
     expect(await screen.findByRole("heading", { name: STOP_REASON_BANNER.cancelled })).toBeTruthy();
     expect(screen.getByText("Cancelled by the operator.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Cancel the run" })).toBeNull();
