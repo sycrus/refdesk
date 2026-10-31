@@ -6,7 +6,8 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 
 > The queue is GitHub Issues (see `docs/agents/issue-tracker.md`). Permissions for unattended runs are in `.claude/settings.json`.
 
-- **Outer runner** (`scripts/run-loop.ps1`): asks `scripts/next_issue.py` for the first open `ready-for-agent` issue with no open blockers (by milestone, then number), runs Claude Code on it, verifies the result, commits to a `build/loop-<date>` branch, and moves on. It never pushes or merges. `-Skip 2,6` skips issues by hand.
+- **Outer runner** (`scripts/run-loop.ps1`): asks `scripts/next_issue.py` for the first open `ready-for-agent` issue with no open blockers (by milestone, then number), runs Claude Code on it, verifies the result, commits to a `build/loop-<date>` branch made from `origin/main`, and moves on. It never pushes or merges. `-Skip 2,6` skips issues by hand. Issues labelled `needs-info` are skipped until Joe removes the label.
+- **Staging rules** (`scripts/loop_git.py`, issue #182): the runner starts only on a clean tree, so everything changed afterwards is the agent's work. It stages those paths by name (never `git add -A`) and refuses any path under `data/` or `runs/`.
 - **Inner loop** (`/goal`): Claude Code's built-in completion-condition command. It keeps working across turns until a separate model judges the condition met. The condition must be provable from what Claude prints, and it must include a turn cap.
 - **Deterministic verifier** (`scripts/verify.py`, also run in CI): tests, frozen golden files (edits, deletions and renames), staged `.env`, secrets. A script, not a judgement.
 - **Human gates**: issues labelled `ready-for-human`. The runner never picks them, and stops with exit code 3 when the remaining agent work is blocked by one.
@@ -15,7 +16,7 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 
 - Claude Code v2.1.139 or later (`claude --version`). Check the current `/goal` documentation: https://code.claude.com/docs/en/goal
 - Git, a Python environment with pytest, PowerShell 7 or WSL2.
-- A clean working tree on a branch you can throw away.
+- A clean working tree: no changes and no untracked files. The runner refuses otherwise (exit 5) and makes its own branch from `origin/main`.
 - Read `CLAUDE.md` and `docs/prd.md` once yourself before running anything.
 
 ## Running it
@@ -34,6 +35,9 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 | Wall-clock | `-TimeoutMinutes` kills the job |
 | Verifier fails | The runner stops on the first failure and leaves the tree for you to inspect |
 | Human gate | Remaining agent work is blocked by a `ready-for-human` issue. The runner exits with code 3 |
+| Judgement needed | The agent added `needs-info` to its issue. The runner logs `needs-info`, leaves the draft uncommitted and exits with code 4 |
+| Dirty tree at start | Exit code 5, before anything runs |
+| Staging refused | A changed path is under `data/` or `runs/`. Nothing is committed; exit code 1 |
 | Task count | `-MaxTasks` |
 | Queue empty | Nothing unchecked |
 

@@ -62,3 +62,11 @@ class TestPickNext:
     def test_issues_without_milestone_come_last(self):
         issues = [issue(30, "ready-for-agent", milestone=None), issue(31, "ready-for-agent")]
         assert next_issue.pick_next(issues, skip=set())[0]["number"] == 31
+
+    def test_skips_an_issue_waiting_on_joe_with_needs_info(self):
+        # An agent that stopped for a judgement adds needs-info; picking it again would
+        # redo the same stop (issue #182).
+        waiting = issue(5, "ready-for-agent")
+        waiting["labels"].append({"name": "needs-info"})
+        issues = [waiting, issue(6, "ready-for-agent")]
+        assert next_issue.pick_next(issues, skip=set())[0]["number"] == 6

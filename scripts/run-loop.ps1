@@ -1,10 +1,13 @@
 # Build loop runner (PowerShell, Windows). One GitHub issue per iteration.
 # Picks the first open ready-for-agent issue with no open blockers (scripts/next_issue.py),
 # runs Claude Code on it, verifies (scripts/verify.py), and commits to a build/loop-<date>
-# branch. It never pushes or merges: open the PR yourself after reviewing the commits.
+# branch made from origin/main. It never pushes or merges: open the PR yourself after
+# reviewing the commits. It starts only on a clean tree and stages only the agent's changes,
+# by name (scripts/loop_git.py, issue #182).
 #
 # Stops on: queue empty (0), agent work waiting on a ready-for-human issue (3), a failed
-# check or timeout (1), a picker error (2), or -MaxTasks.
+# check, staging refusal or timeout (1), a picker error (2), the agent adding needs-info
+# for Joe (4, work left uncommitted), a dirty tree at start (5), or -MaxTasks.
 # Run with -DryRun first, then -MaxTasks 1, and review the diff before continuing.
 param(
   [int]$MaxTasks = 3,
@@ -18,8 +21,15 @@ New-Item -ItemType Directory -Force runs | Out-Null
 $log = 'runs/build-loop.log'
 if (-not (Test-Path $log)) { 'timestamp,issue,status,minutes,branch' | Out-File $log -Encoding utf8 }
 
+# A clean start means everything changed after the agent runs is the agent's own work.
+uv run python scripts/loop_git.py start
+if ($LASTEXITCODE -ne 0) { Write-Host 'Refused: commit, stash or remove the changes above first.'; exit 5 }
+git fetch -q origin
+if ($LASTEXITCODE -ne 0) { Write-Host 'git fetch failed.'; exit 2 }
+
 $branch = "build/loop-$(Get-Date -Format 'yyyyMMdd-HHmm')"
-if (-not $DryRun) { git switch -c $branch | Out-Null }
+if ($DryRun) { Write-Host "DRY RUN: would create $branch from origin/main" }
+else { git switch -q -c $branch origin/main; if ($LASTEXITCODE -ne 0) { exit 2 } }
 
 $done = @()
 $skipList = @($Skip)
@@ -50,7 +60,21 @@ while ($done.Count -lt $MaxTasks) {
   Remove-Job $job -Force
   $out | Out-File "runs/loop-issue-$n.txt" -Encoding utf8
 
-  git add -A
+  # The agent stopped for a judgement reserved for Joe: leave its draft for review.
+  $labels = gh issue view $n -R sycrus/refdesk --json labels --jq '[.labels[].name] | join(",")'
+  if ($labels -split ',' -contains 'needs-info') {
+    $minutes = [math]::Round(((Get-Date) - $start).TotalMinutes, 1)
+    "$(Get-Date -Format s),$n,needs-info,$minutes,$branch" | Out-File $log -Append -Encoding utf8
+    Write-Host "Stopped at #${n}: the agent asked for your judgement (needs-info). Its draft is uncommitted on $branch."
+    exit 4
+  }
+
+  uv run python scripts/loop_git.py stage
+  if ($LASTEXITCODE -ne 0) {
+    "$(Get-Date -Format s),$n,fail-staging,0,$branch" | Out-File $log -Append -Encoding utf8
+    Write-Host "Stopped at #${n}: refused to stage (see above). Nothing was committed."
+    exit 1
+  }
   uv run python scripts/verify.py --run-tests
   $verified = ($LASTEXITCODE -eq 0)
   $minutes = [math]::Round(((Get-Date) - $start).TotalMinutes, 1)
