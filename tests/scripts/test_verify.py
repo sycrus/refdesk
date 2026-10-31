@@ -21,6 +21,13 @@ class TestFrozenGolden:
     def test_synthetic_version_is_frozen_too(self):
         assert verify.check_frozen(["M\tevals/golden/golden-v0-synthetic.jsonl"])
 
+    def test_corpus_snapshots_are_frozen_too(self):
+        # ADR-023: a golden set's scores only mean something against its snapshot.
+        assert verify.check_frozen(["M	evals/golden/corpus/met-2588-d188937d8a53.tsv"])
+
+    def test_adding_a_new_snapshot_passes(self):
+        assert verify.check_frozen(["A	evals/golden/corpus/met-2600-abcdef123456.tsv"]) == []
+
     def test_adding_a_new_version_passes(self):
         assert verify.check_frozen(["A\tevals/golden/golden-v2.jsonl"]) == []
 

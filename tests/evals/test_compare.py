@@ -73,13 +73,19 @@ class TestPairedDifferences:
 
 class TestRefusal:
     @pytest.mark.parametrize(
-        "field", ["golden_version", "golden_sha256", "corpus_version", "scorers_version"]
+        "field",
+        ["golden_version", "golden_sha256", "corpus_version", "corpus_drift", "scorers_version"],
     )
     def test_refuses_runs_that_are_not_comparable(self, tmp_path, field):
         write_run(tmp_path, "a", [row("g1", 0.5)])
         write_run(tmp_path, "b", [row("g1", 0.5)], **{field: "different"})
         with pytest.raises(NotComparable, match=field):
             compare_runs(tmp_path, "a", "b", seed=0)
+
+    def test_a_manifest_from_before_snapshots_means_no_drift(self, tmp_path):
+        write_run(tmp_path, "a", [row("g1", 0.5)])
+        write_run(tmp_path, "b", [row("g1", 0.5)], corpus_drift="")
+        assert compare_runs(tmp_path, "a", "b", seed=0).metrics["recall"].n == 1
 
     def test_a_different_retriever_or_k_is_what_we_compare(self, tmp_path):
         write_run(tmp_path, "a", [row("g1", 0.5)])

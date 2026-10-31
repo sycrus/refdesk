@@ -18,8 +18,11 @@ import re
 import subprocess
 import sys
 
-# Every frozen golden version, including golden-v0-synthetic. New versions may be added.
-FROZEN_GOLDEN = re.compile(r"^evals/golden/golden-v\d+(-[a-z0-9-]+)?\.jsonl$")
+# Every frozen golden version, including golden-v0-synthetic, and every corpus snapshot a
+# golden set is pinned to (ADR-023). New versions and snapshots may be added.
+FROZEN_GOLDEN = re.compile(
+    r"^evals/golden/(golden-v\d+(-[a-z0-9-]+)?\.jsonl|corpus/[a-z0-9+]+-\d+-[0-9a-f]{12}\.tsv)$"
+)
 ENV_FILE = re.compile(r"(^|/)\.env$")
 SECRET_PATTERNS = [
     re.compile(r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][A-Za-z0-9_\-]{16,}['\"]"),

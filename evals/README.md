@@ -9,7 +9,9 @@ Evals are plain code in this repo (ADR-005). The rules: every score has a confid
 | `golden-v0-synthetic.jsonl` | 31 cases written by Claude Code; expected references derived by an explicit rule per case over the ingested corpus (`corpus_version met:2588:d188937d8a53`) | Building and testing the harness **only**. Rules over metadata favour the metadata baseline, so it cannot rank retrievers (ADR-018) |
 | `golden-v1` (in progress, not frozen) | 45 briefs: 20 labelled blind by Joe twice, 21 reviewed by Joe from Claude's proposals checked by phi4, 4 decline cases (ADR-018). Steps in `labelling/v1/README.md` | Required before any number goes public |
 
-Frozen: `scripts/verify.py` fails any edit, deletion or rename of a committed `golden-vN*.jsonl`. Changes mean a new version. Validation: `evals/reports/golden-v0-synthetic-validation.md`.
+**Corpus snapshots** (`corpus/`, ADR-023): each golden set is pinned to the record IDs it was labelled on, one TSV per `corpus_version` (ID, rights status, content hash). The store keeps growing; `eval` filters it to the snapshot first, ignores newer works, refuses if a pinned record is missing or its rights status changed, and lists other changed records in the report. `uv run python -m refdesk snapshot` writes the store's current snapshot; `golden_v1_report.py --freeze` makes sure golden-v1's exists.
+
+Frozen: `scripts/verify.py` fails any edit, deletion or rename of a committed `golden-vN*.jsonl` or corpus snapshot. Changes mean a new version. Validation: `evals/reports/golden-v0-synthetic-validation.md`.
 
 ## Running
 
@@ -20,14 +22,14 @@ uv run python -m refdesk eval-rationales                   # verifier pass rates
 uv run python scripts/golden_v1_report.py                  # golden-v1 trust report; --freeze is Joe's call
 ```
 
-Each run writes `runs/<config-hash>/manifest.json` and `cases.jsonl` (gitignored), a report `evals/reports/eval-report-<date>-<retriever>-<hash>.md` (committed), and one row per metric in `results/history.csv`. The config hash covers every input that can change a score (git SHA, golden file hash and version, corpus version, retriever and parameters, k, seed, scorer version). `eval` refuses to run when the golden set's corpus version does not match the store.
+Each run writes `runs/<config-hash>/manifest.json` and `cases.jsonl` (gitignored), a report `evals/reports/eval-report-<date>-<retriever>-<hash>.md` (committed), and one row per metric in `results/history.csv`. The config hash covers every input that can change a score (git SHA, golden file hash and version, corpus version and any drift in pinned records, retriever and parameters, k, seed, scorer version). `eval` refuses to run when the store cannot reproduce the golden set's corpus snapshot.
 
 ## Metrics (`scorers-v1`)
 
 - **recall@k, capped:** hits ÷ min(relevant, k). Capped until graded data exists (Joe, 2026-10-11); on golden-v0 it is close to precision@k.
 - **precision@k**, **MRR**, and **open-rights share** of the top k for reproduction cases.
 - Seeded percentile bootstrap, 95% intervals, overall and by difficulty and usage mode.
-- **Paired comparison:** bootstrap over per-case differences between two runs; refuses runs with a different golden set, corpus or scorer version.
+- **Paired comparison:** bootstrap over per-case differences between two runs; refuses runs with a different golden set, corpus, corpus drift or scorer version.
 
 Gates: `docs/eval-gate-policy.md`. Today golden-v0 is a non-blocking tripwire: any score change must be explained in the PR.
 

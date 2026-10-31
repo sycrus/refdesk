@@ -11,7 +11,8 @@ images met [--db PATH] [--dir data/images] [--limit N]
 embed met [--model ViT-B-32] [--pretrained laion2b_s34b_b79k] [--device cuda]
     Embed cached images of open works into a FAISS index (needs: uv sync --extra embed).
 eval [--retriever jaccard|clip|combined] [--golden PATH] [--k 12] [--seed 0] [--db PATH]
-    Run a retriever over a golden set; write manifest, report and history row.
+    Run a retriever over a golden set; write manifest, report and history row. The store is
+    filtered to the golden set's corpus snapshot first (ADR-023).
 eval-rationales [--generator mock|local-small] [--judge auto|TIER] [--retriever jaccard] [--k 3]
     [--rationale-prompt rationale-vN] [--fit-prompt fit-vN]
     Generate and verify rationales for each golden case's top-k items; write manifest,
@@ -19,6 +20,9 @@ eval-rationales [--generator mock|local-small] [--judge auto|TIER] [--retriever 
 compare HASH_A HASH_B [HASH ...] [--write]
     Paired comparison of eval runs (B - A per case, with a 95% CI), for every pair.
     --write saves one report to evals/reports/ (named by the run hashes).
+snapshot [--db PATH]
+    Write evals/golden/corpus/<corpus version>.tsv for the store as it is now: the record IDs
+    a golden set built today is pinned to (ADR-023). Never overwrites a different snapshot.
 """
 
 from __future__ import annotations
@@ -36,7 +40,8 @@ from refdesk.evals.compare import (
     format_comparison,
     write_comparison_report,
 )
-from refdesk.evals.golden import GoldenCase, corpus_version
+from refdesk.evals.corpus import CorpusMismatch, PinnedCorpus, pin, write_snapshot
+from refdesk.evals.golden import GoldenCase
 from refdesk.evals.harness import EvalConfig, file_sha256, git_state, run_eval, write_outputs
 from refdesk.images import cache_images
 from refdesk.ingest import ingest, rebuild
@@ -56,16 +61,30 @@ def _print_stats(store: Store) -> None:
         print(f"  progress {outcome}: {n}")
 
 
+def _pinned(store: Store, cases: list[GoldenCase]) -> PinnedCorpus | None:
+    """The store filtered to the golden set's corpus snapshot, or None (printed why)."""
+    versions = {c.corpus_version for c in cases}
+    if len(versions) != 1:
+        print(f"Not comparable: the golden set mixes corpus versions {sorted(versions)}.")
+        return None
+    try:
+        pinned = pin(list(store.iter_records()), versions.pop())
+    except CorpusMismatch as error:
+        print(f"Not comparable: {error}")
+        return None
+    for note in pinned.notes():
+        print(note.replace("**", ""))
+    return pinned
+
+
 def _eval(store: Store, args: argparse.Namespace) -> int:
     golden = Path(args.golden)
     lines = [line for line in golden.read_text(encoding="utf-8").splitlines() if line]
     cases = [GoldenCase(**json.loads(line)) for line in lines]
-    records = list(store.iter_records())
-    corpus = corpus_version(records)
-    golden_corpus = {c.corpus_version for c in cases}
-    if golden_corpus != {corpus}:
-        print(f"Not comparable: golden set is for {golden_corpus}, the store is {corpus}.")
+    pinned = _pinned(store, cases)
+    if pinned is None:
         return 2
+    records, corpus = pinned.records, pinned.version
     sha, dirty = git_state(Path.cwd())
     config = EvalConfig(
         retriever=args.retriever,
@@ -79,8 +98,10 @@ def _eval(store: Store, args: argparse.Namespace) -> int:
         corpus_version=corpus,
         git_sha=sha,
         git_dirty=dirty,
+        corpus_drift=pinned.drift,
     )
     result = run_eval(build_retriever(args.retriever, records), cases, records, config)
+    result.corpus_notes = pinned.notes()
     paths = write_outputs(result, root=Path.cwd(), date=date.today().isoformat())
     for metric, s in result.summary.items():
         print(f"{metric}: {s['mean']:.3f} [{s['low']:.3f}, {s['high']:.3f}] n={s['n']}")
@@ -102,11 +123,10 @@ def _eval_rationales(store: Store, args: argparse.Namespace) -> int:
     golden = Path(args.golden)
     lines = [line for line in golden.read_text(encoding="utf-8").splitlines() if line]
     cases = [GoldenCase(**json.loads(line)) for line in lines]
-    records = list(store.iter_records())
-    corpus = corpus_version(records)
-    if {c.corpus_version for c in cases} != {corpus}:
-        print(f"Not comparable: golden set is for another corpus; the store is {corpus}.")
+    pinned = _pinned(store, cases)
+    if pinned is None:
         return 2
+    records, corpus = pinned.records, pinned.version
     settings = yaml.safe_load(Path("config/retrieval.yaml").read_text(encoding="utf-8"))
     prompt_names = dict(settings["api"]["reasoning"].get("prompts") or {})
     if args.rationale_prompt:
@@ -139,6 +159,7 @@ def _eval_rationales(store: Store, args: argparse.Namespace) -> int:
         git_dirty=dirty,
         model=tiers[args.generator].model,
         prompt_hashes={p.name: p.sha256 for p in prompts},
+        corpus_drift=pinned.drift,
     )
     budget = Budgets.load("config/budgets.yaml").for_job("rationale_eval") or 0.0
     try:
@@ -149,6 +170,7 @@ def _eval_rationales(store: Store, args: argparse.Namespace) -> int:
     except EvalStopped as stop:
         print(f"Stopped, no report written: {stop}")
         return 1
+    result.corpus_notes = pinned.notes()
     paths = write_rationale_outputs(result, root=Path.cwd(), date=date.today().isoformat())
     for metric, s in result.summary.items():
         print(f"{metric}: {s['mean']:.3f} [{s['low']:.3f}, {s['high']:.3f}] n={s['n']}")
@@ -191,6 +213,8 @@ def main(argv: list[str] | None = None) -> int:
     p_embed.add_argument("--model", default="ViT-B-32")
     p_embed.add_argument("--pretrained", default="laion2b_s34b_b79k")
     p_embed.add_argument("--device", default="cuda")
+    p_snapshot = commands.add_parser("snapshot", help="write the store's corpus snapshot")
+    p_snapshot.add_argument("--db", default=DEFAULT_DB)
     p_eval = commands.add_parser("eval", help="evaluate a retriever on a golden set")
     p_eval.add_argument("--retriever", choices=sorted(RETRIEVERS), default="jaccard")
     p_eval.add_argument("--golden", default=DEFAULT_GOLDEN)
@@ -257,6 +281,14 @@ def main(argv: list[str] | None = None) -> int:
             seconds = time.perf_counter() - started
             action = "built" if result.built else "up to date (skipped)"
             print(f"{action}: {result.count} vectors, {embedder.model_id}, {seconds:.1f} s")
+            return 0
+        if args.command == "snapshot":
+            try:
+                path = write_snapshot(list(store.iter_records()))
+            except FileExistsError as error:
+                print(error)
+                return 2
+            print(f"snapshot {path.as_posix()}")
             return 0
         if args.command == "eval":
             return _eval(store, args)

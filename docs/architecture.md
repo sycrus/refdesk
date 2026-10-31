@@ -21,6 +21,9 @@ flowchart LR
   REG --> EVAL[evals/harness.py<br/>scores, CIs, manifest, report]
   REG --> BOARDS[boards.py<br/>see Board path]
   GOLDEN[evals/golden/*.jsonl] --> EVAL
+  STORE --> PIN[evals/corpus.py<br/>filter to the golden set's snapshot]
+  SNAP[evals/golden/corpus/*.tsv] --> PIN
+  PIN --> EVAL
 ```
 
 | Module | What it does | What breaks without it |
@@ -34,6 +37,7 @@ flowchart LR
 | `embeddings.py` | FAISS exact index over normalised CLIP vectors; manifest skips unchanged rebuilds; VRAM check before loading. | No similarity retrieval. |
 | `retrieval/` | `Query`, `Hit`, `Retriever` protocol; rights filter `allowed()` shared by every retriever; Jaccard and CLIP retrievers; registry with lazy resources. | Retrievers would diverge on rights and avoid lists. |
 | `retrieval/combined.py` | FR-3 score: `w_similarity x cosine + w_attributes x jaccard`, each hit's two terms in `Hit.components` (they sum to the score). Conditions boost or filter per field; records without an image vector rank on attributes alone. A condition it cannot apply raises `ConditionNotUnderstood` (API: 400). Weights in `config/retrieval.yaml` feed the eval config hash. | No search that uses both conditions and similarity; no per-hit explanation of a mixed score. |
+| `evals/corpus.py` | Corpus snapshots (ADR-023): filters the store to the record IDs a golden set was labelled on before any retriever is built. Refuses if a pinned record is missing or its rights status changed; lists other changed records in the report and adds their hash to the config hash. | Every re-ingest that adds a work breaks every frozen golden set. |
 | `evals/` | Golden-case format and validator, rule engine (golden-v0), scorers, bootstrap CIs, harness, paired comparison, judge probe, rationale eval, golden-v1 labelling. | No measured claims. |
 
 ## Model path
@@ -164,6 +168,7 @@ All via `uv run python -m refdesk <command>` (PowerShell or WSL2):
 | `eval [--retriever jaccard\|clip\|combined] [--k 12]` | Run a retriever on a golden set; write manifest, report, history |
 | `eval-rationales` | Verifier pass rates of rationales on a golden set's top-k items |
 | `compare HASH_A HASH_B` | Paired comparison of two eval runs |
+| `snapshot` | Write `evals/golden/corpus/<corpus version>.tsv` for the store as it is now (ADR-023) |
 | `stats` | Record counts by rights status and ingest progress |
 
 Also:

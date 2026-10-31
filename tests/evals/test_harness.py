@@ -130,8 +130,20 @@ class TestConfigHash:
         assert config(k=3).config_hash() != config().config_hash()
         assert config(golden_sha256="other").config_hash() != config().config_hash()
 
+    def test_corpus_drift_changes_the_hash_only_when_present(self):
+        # No drift keeps every pre-#151 hash, so earlier runs still reproduce.
+        assert config(corpus_drift="").config_hash() == config().config_hash()
+        assert "corpus_drift" not in config().hash_fields()
+        assert config(corpus_drift="abc").config_hash() != config().config_hash()
+
 
 class TestOutputs:
+    def test_report_shows_corpus_notes(self, tmp_path):
+        noted = run_eval(JaccardRetriever(RECORDS), CASES, RECORDS, config())
+        noted.corpus_notes = ["Pinned to `met:4:test`; 2 newer store records ignored."]
+        paths = write_outputs(noted, root=tmp_path, date="2026-10-31")
+        assert "2 newer store records ignored" in paths["report"].read_text("utf-8")
+
     def test_writes_manifest_report_and_history(self, result, tmp_path):
         paths = write_outputs(result, root=tmp_path, date="2026-10-11")
         manifest = json.loads(paths["manifest"].read_text("utf-8"))
