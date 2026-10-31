@@ -1,7 +1,8 @@
 """Boards behind POST /boards and GET /runs/{id} (issues #45, #98).
 
 With a `Reasoner` (issue #98), each item also gets a rationale, code checks and a judge
-verdict (`reasoning.py`): the run moves retrieve, generate, verify; G1 shows the spend
+verdict (`reasoning.py`), and the loop controller (`loop.py`, issue #155) runs the rounds
+and stop conditions of PRD 10.2; G1 shows the spend
 against the cap and G2 the verification result; an item is "Attribution verified from
 record" only when both checks pass. Without one, runs are retrieval-only, as below.
 
@@ -30,6 +31,7 @@ import sqlite3
 import threading
 import uuid
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -52,6 +54,7 @@ from refdesk.api.models import (
     ReviewRequest,
     RunView,
 )
+from refdesk.loop import LoopConfig, LoopController, LoopResult
 from refdesk.rationale import field_value
 from refdesk.reasoning import ItemReasoning, Reasoner, ReasoningOutcome
 from refdesk.retrieval import Hit, Query, Retriever
@@ -84,7 +87,13 @@ CREATE TABLE IF NOT EXISTS reports (
     reported_at TEXT NOT NULL,
     report TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS cancellations (
+    run_id TEXT PRIMARY KEY,
+    requested_at TEXT NOT NULL
+);
 """
+# The kill switch is its own table, not a field of the stored view: the run's thread
+# rewrites the view at every state, so a flag inside it would be overwritten.
 
 
 def _now() -> str:
@@ -122,6 +131,18 @@ class RunStore:
         with self._connect() as db:
             row = db.execute("SELECT view FROM runs WHERE run_id = ?", (run_id,)).fetchone()
         return RunView.model_validate_json(row[0]) if row else None
+
+    def cancel(self, run_id: str) -> None:
+        with self._connect() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO cancellations (run_id, requested_at) VALUES (?, ?)",
+                (run_id, _now()),
+            )
+
+    def is_cancelled(self, run_id: str) -> bool:
+        with self._connect() as db:
+            row = db.execute("SELECT 1 FROM cancellations WHERE run_id = ?", (run_id,)).fetchone()
+        return row is not None
 
     def add_report(self, report: QueuedReport) -> None:
         with self._connect() as db:
@@ -178,10 +199,13 @@ def evidence_for(hit: Hit, record: ArtworkRecord) -> list[Evidence]:
 
 
 def _reasoned_gates(
-    state: LoopState, items: list[BoardItem], cap: float, outcome: ReasoningOutcome | None
+    state: LoopState,
+    items: list[BoardItem],
+    cap: float,
+    outcome: ReasoningOutcome | LoopResult | None,
 ) -> list[Gate]:
     """Gates once a Reasoner runs: G1 is the real spend, G2 the verification result."""
-    done = state in (LoopState.DONE, LoopState.STOPPED)
+    done = state in (LoopState.DONE, LoopState.STOPPED, LoopState.CANCELLED)
     spent = outcome.spent_usd if outcome else 0.0
     if outcome and outcome.stop is StopReason.BUDGET_CAP:
         spend = Gate(
@@ -364,7 +388,7 @@ def _view(
     items: list[BoardItem] = (),  # type: ignore[assignment]
     stop: StopReason | None = None,
     detail: str | None = None,
-    outcome: ReasoningOutcome | None = None,
+    outcome: ReasoningOutcome | LoopResult | None = None,
     reasoned: bool = False,
 ) -> RunView:
     if reasoned:
@@ -372,6 +396,17 @@ def _view(
     else:
         gates = _gates(state, len(items), request.budget_cap_usd)
     gates = review_gates(gates, list(items), state in (LoopState.DONE, LoopState.STOPPED))
+    if state is LoopState.CANCELLED:  # kill switch: nothing can be approved or exported
+        cancelled = "Run cancelled. Nothing was exported."
+        gates = _with_gate(
+            _with_gate(
+                gates,
+                Gate(id=GateId.G4_APPROVE, state=GateState.BLOCKED, status_text=cancelled,
+                     actor="approver"),
+            ),
+            Gate(id=GateId.G5_EXPORT, state=GateState.BLOCKED, status_text=cancelled,
+                 actor="approver"),
+        )  # fmt: skip
     return RunView(
         run_id=run_id,
         request=request,
@@ -471,8 +506,10 @@ class BoardService:
         retriever_name: str,
         check_conditions: Callable[[dict[str, str]], None] | None = None,
         reasoner: Reasoner | None = None,
+        loop: LoopConfig | None = None,
     ):
         self.runs = runs
+        self._loop = loop  # None: config/loop.yaml, read when a reasoned run starts
         self._load_records = load_records
         self._build = build_retriever
         self.retriever_name = retriever_name
@@ -525,8 +562,12 @@ class BoardService:
             return view
 
         records = self.records()
+        query = to_query(request)
+        if self.reasoner is not None:
+            # The loop may need later rounds: rank enough candidates for every round.
+            query = replace(query, k=request.target_items * self.loop_config().max_rounds)
         try:
-            hits = retriever.search(to_query(request))
+            hits = retriever.search(query)
         except ConditionNotUnderstood as error:  # normally refused at create()
             view = _view(
                 run_id, request, LoopState.STOPPED, stop=StopReason.DECLINED, detail=str(error)
@@ -553,37 +594,59 @@ class BoardService:
     def _execute_reasoned(
         self, run_id: str, request: BoardRequest, hits: list[Hit], records: dict
     ) -> RunView:
-        def phase(name: str) -> None:
-            state = LoopState.GENERATE if name == "generate" else LoopState.VERIFY
-            self.runs.save(_view(run_id, request, state, reasoned=True))
+        """The loop controller (loop.py) runs the rounds; this turns its result into a board."""
+        by_id = {hit.record_id: hit for hit in hits}
+        queue = list(hits)
 
-        chosen = [records[hit.record_id] for hit in hits]
-        outcome = self.reasoner.run(
+        def retrieve(n: int) -> list[ArtworkRecord]:
+            """The next n ranked candidates not yet handed out."""
+            taken, queue[:] = queue[:n], queue[n:]
+            return [records[hit.record_id] for hit in taken]
+
+        def show(state: LoopState, result: LoopResult) -> None:
+            if state not in (LoopState.STOPPED, LoopState.CANCELLED, LoopState.DONE):
+                self.runs.save(_view(run_id, request, state, outcome=result, reasoned=True))
+
+        controller = LoopController(
+            self.loop_config(),
+            self.reasoner,
+            cancelled=lambda: self.runs.is_cancelled(run_id),
+            on_state=show,
+        )
+        result = controller.run(
             brief=request.brief,
-            records=chosen,
+            retrieve=retrieve,
+            target=request.target_items,
             keep_local=request.keep_local,
             cap_usd=request.budget_cap_usd,
-            on_phase=phase,
         )
-        items = [
-            self._reasoned_item(hit, records[hit.record_id], outcome.items[hit.record_id])
-            for hit in hits
-        ]
-        if outcome.stop is StopReason.DECLINED:
+        items = [self._reasoned_item(by_id[r.id], r, result.items[r.id]) for r in result.records]
+        if result.stop is StopReason.DECLINED:
             items = []  # nothing was sent anywhere, so a declined request shows no board
-        state = LoopState.STOPPED if outcome.stop else LoopState.DONE
         view = _view(
             run_id,
             request,
-            state,
+            result.state,
             items,
-            stop=outcome.stop,
-            detail=outcome.stop_detail,
-            outcome=outcome,
+            stop=result.stop,
+            detail=result.stop_detail,
+            outcome=result,
             reasoned=True,
         )
         self.runs.save(view)
         return view
+
+    def loop_config(self) -> LoopConfig:
+        if self._loop is None:
+            self._loop = LoopConfig.load()
+        return self._loop
+
+    def cancel(self, run_id: str) -> None:
+        """Kill switch: the run reaches Cancelled before its next step or model call, and
+        can never be approved or exported. The cancel endpoint and S2 button are M4-06."""
+        if self.runs.get(run_id) is None:
+            raise UnknownRun(run_id)
+        self.runs.cancel(run_id)
 
     def _reasoned_item(self, hit: Hit, record: ArtworkRecord, r: ItemReasoning) -> BoardItem:
         item = self._item(hit, record)
@@ -687,6 +750,8 @@ class BoardService:
         g4 = GateId.G4_APPROVE
         if view.read_only:
             raise GateRefused(g4, "the board is exported and read-only")
+        if view.state is LoopState.CANCELLED:
+            raise GateRefused(g4, "the run was cancelled; nothing can be approved")
         if view.approval is not None:
             raise GateRefused(g4, f"already approved by {view.approval.approver}")
         if view.state not in (LoopState.DONE, LoopState.STOPPED):
@@ -728,6 +793,8 @@ class BoardService:
             raise UnknownRun(run_id)
         if view.read_only:
             raise GateRefused(GateId.G5_EXPORT, "already exported; the board is read-only")
+        if view.state is LoopState.CANCELLED:
+            raise GateRefused(GateId.G5_EXPORT, "the run was cancelled; nothing is exported")
         if view.approval is None:
             raise GateRefused(GateId.G5_EXPORT, "no approval record (G4)")
         if request.format != "csv":

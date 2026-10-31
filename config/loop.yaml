@@ -1,0 +1,12 @@
+# Loop controller stop conditions (PRD 10.2; read by src/refdesk/loop.py, issue #155).
+#
+# Every value is a PRD placeholder until Joe confirms or changes it, with a reason
+# (M4-02, issue #154). Claude Code does not choose these values.
+loop:
+  max_rounds: 6           # step cap: at most 6 retrieval rounds (placeholder)
+  timeout_s: 120          # wall-clock limit per run, in seconds (placeholder)
+  stuck_rounds: 2         # stuck: no new accepted item in 2 consecutive rounds (placeholder)
+  target_items: 12        # K accepted items; must match BoardRequest.target_items (placeholder)
+  budget_cap_usd: 0.05    # per board; must match BoardRequest.budget_cap_usd and
+                          # config/budgets.yaml per_board_cap (placeholder, PRD 12)
+  drop_after_failed_verifications: 2  # not enforced yet: needs a regeneration retry (placeholder)

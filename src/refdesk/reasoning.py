@@ -75,7 +75,19 @@ class ModelUnavailable(RuntimeError):
     """A local model could not be loaded (backend down, not enough VRAM)."""
 
 
+class Interrupted(Exception):
+    """Raised by `before_call` to stop before the next model call (the loop controller's
+    kill switch and timeout, issue #155)."""
+
+    def __init__(self, reason: StopReason, detail: str):
+        super().__init__(detail)
+        self.reason = reason
+        self.detail = detail
+
+
 def _stop_for(error: Exception) -> tuple[StopReason, str]:
+    if isinstance(error, Interrupted):
+        return error.reason, error.detail
     if isinstance(error, BudgetExceeded):
         return StopReason.BUDGET_CAP, f"The next model call could exceed the cap: {error}"
     if isinstance(error, KeepLocalViolation):
@@ -150,7 +162,10 @@ class Reasoner:
         keep_local: bool,
         cap_usd: float,
         on_phase: Callable[[str], None] = lambda phase: None,
+        before_call: Callable[[], None] = lambda: None,
     ) -> ReasoningOutcome:
+        """`before_call` runs before every model call and may raise `Interrupted` to stop
+        the run there (the loop controller's kill switch and timeout)."""
         client = self._client(cap_usd)
         outcome = ReasoningOutcome(items={r.id: ItemReasoning(r.id) for r in records})
 
@@ -166,6 +181,7 @@ class Reasoner:
                 self.ensure_model(model)
             for record in records:
                 item = outcome.items[record.id]
+                before_call()
                 item.generated = generate_rationale(
                     client, tier=self.generator_tier, brief=brief, record=record,
                     keep_local=keep_local, job=JOB, prompt=self.prompts["rationale"],
@@ -174,7 +190,7 @@ class Reasoner:
                 outcome.models_used["generator"] = item.generated.model_reported or model
                 if item.generated.ok:
                     item.code = check_claims(item.generated.rationale, record)
-        except (LLMPolicyError, ProviderError, ModelUnavailable) as error:
+        except (LLMPolicyError, ProviderError, ModelUnavailable, Interrupted) as error:
             outcome.stop, outcome.stop_detail = _stop_for(error)
 
         judge_tier = self.judge_tier()
@@ -193,6 +209,7 @@ class Reasoner:
                     item = outcome.items[record.id]
                     if item.code is None or not item.code.passed:
                         continue
+                    before_call()
                     item.judged = judge_rationale(
                         client, judge_tier=judge_tier, generator_tier=self.generator_tier,
                         record=record, rationale=item.generated.rationale,
@@ -203,7 +220,7 @@ class Reasoner:
                     outcome.models_used["judge"] = (
                         item.judged.model_reported or self.config.tiers[judge_tier].model
                     )
-            except (LLMPolicyError, ProviderError, ModelUnavailable) as error:
+            except (LLMPolicyError, ProviderError, ModelUnavailable, Interrupted) as error:
                 outcome.stop, outcome.stop_detail = _stop_for(error)
 
         if outcome.stop is not None:
