@@ -1,8 +1,9 @@
 """Pick the next GitHub issue for the build loop (docs/build-loop.md).
 
-Rules (docs/agents/issue-tracker.md): only open `ready-for-agent` issues, skipping any
-whose `## Blocked by` section lists an issue that is still open; ordered by milestone
-(M0 before M1), then issue number. Issues without a milestone come last.
+Rules (docs/agents/issue-tracker.md): only open `ready-for-agent` issues without
+`needs-info`, skipping any whose `## Blocked by` section lists an issue that is still
+open; ordered by milestone (M0 before M1), then issue number. Issues without a milestone
+come last.
 
 Why this is separate from run-loop.ps1: the selection rules are the part most likely
 to be wrong, so they live in plain, tested Python. The PowerShell runner only calls it.
@@ -24,6 +25,7 @@ import sys
 REPO = "sycrus/refdesk"
 AGENT = "ready-for-agent"
 HUMAN = "ready-for-human"
+NEEDS_INFO = "needs-info"  # the agent stopped for Joe's judgement (#182)
 EXIT_PICKED, EXIT_NEEDS_HUMAN, EXIT_EMPTY = 0, 3, 10
 
 _SECTION = re.compile(r"^##\s+Blocked by\s*$(.*?)(?=^##\s|\Z)", re.MULTILINE | re.DOTALL)
@@ -49,7 +51,11 @@ def pick_next(open_issues: list[dict], skip: set[int]) -> tuple[dict | None, str
     """Return (issue, "picked") or (None, "needs-human" | "empty")."""
     open_numbers = {i["number"] for i in open_issues}
     human = {i["number"] for i in open_issues if HUMAN in _labels(i)}
-    candidates = [i for i in open_issues if AGENT in _labels(i) and i["number"] not in skip]
+    candidates = [
+        i
+        for i in open_issues
+        if AGENT in _labels(i) and NEEDS_INFO not in _labels(i) and i["number"] not in skip
+    ]
     waiting_on_human = False
     for candidate in sorted(candidates, key=_order):
         open_blockers = [b for b in parse_blockers(candidate["body"]) if b in open_numbers]
