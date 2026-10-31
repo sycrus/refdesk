@@ -87,6 +87,21 @@ class Transport(Protocol):
     ) -> tuple[int, Any]: ...
 
 
+class Answer(tuple):
+    """`(status, body)` as every transport returns it, plus `reused`: True when the
+    answer came from the run's checkpoint store instead of the provider (issue #157).
+    The client does not log a reused answer as an attempt — the checkpoint layer logs
+    the reuse — but its recorded cost still counts against the budget. Unpacks like
+    the plain tuple transports have always returned."""
+
+    reused: bool
+
+    def __new__(cls, status: int, body: Any, reused: bool = False):
+        self = super().__new__(cls, (status, body))
+        self.reused = reused
+        return self
+
+
 class UrllibTransport:
     def __init__(self, timeout: float = 60.0):
         self.timeout = timeout
@@ -300,7 +315,7 @@ class LLMClient:
         for attempt in range(1, self.max_retries + 2):
             sent = time.perf_counter()
             try:
-                status, body = self.transport.post_json(url, headers, payload)
+                answer = self.transport.post_json(url, headers, payload)
             except ProviderTimeout:
                 self.observe(
                     CallObservation(tier, url, payload, None, None, time.perf_counter() - sent)
@@ -309,19 +324,26 @@ class LLMClient:
                     raise
                 self._sleep(self.backoff * 2 ** (attempt - 1))
                 continue
+            status, body = answer
+            reused = getattr(answer, "reused", False)  # answered from the checkpoint store
             observation = CallObservation(
                 tier, url, payload, status, body, time.perf_counter() - sent
             )
             if status == 200:
+                # The successful attempt is observed once, after the completion is
+                # built (the reused answer is never observed: the checkpoint layer
+                # logs the reuse as a `checkpoint` event).
                 break
-            self.observe(observation)
+            if not reused:
+                self.observe(observation)
             if status is not None and (status not in RETRY_STATUSES or attempt > self.max_retries):
                 raise ProviderError(f"{tier}: HTTP {status}: {str(body)[:200]}")
             self._sleep(self.backoff * 2 ** (attempt - 1))
         latency = time.perf_counter() - start
         message = body["choices"][0]["message"]
         if not (message.get("content") or "").strip():
-            self.observe(observation)
+            if not reused:
+                self.observe(observation)
             where = "reasoning" if message.get("reasoning") else "nothing"
             raise EmptyCompletion(
                 f"{tier}: empty answer; output tokens went to {where}. "
@@ -346,7 +368,8 @@ class LLMClient:
             latency_s=latency,
             attempts=attempt,
         )
-        self.observe(replace(observation, completion=completion))
+        if not reused:  # a reused answer is logged by the checkpoint layer, not here
+            self.observe(replace(observation, completion=completion))
         return completion
 
 

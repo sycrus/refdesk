@@ -21,11 +21,19 @@ connections cannot cross threads.
 If the retriever cannot load (no torch, no index), the run stops with "source
 unavailable" and `stop_detail` says what is missing. It never falls back to another
 retriever silently.
+
+Every completed step also writes a checkpoint (checkpoints.py, issue #157): the
+ranked search, each completed model answer and the export land in the store's
+`checkpoints` table under an idempotency key (run ID, step, hash of inputs), so
+`resume` re-runs the loop with completed steps answered from the store — no model
+call or export is ever repeated. `resume_interrupted` (api/app.py) starts a resume
+for every unfinished run when the API process starts.
 """
 
 from __future__ import annotations
 
 import csv
+import json
 import os
 import sqlite3
 import threading
@@ -54,6 +62,12 @@ from refdesk.api.models import (
     ReviewRequest,
     RunView,
 )
+from refdesk.checkpoints import (
+    EXPORT_STEP,
+    CheckpointTransport,
+    ResumeLog,
+    checkpointed_search,
+)
 from refdesk.loop import LoopConfig, LoopController, LoopResult
 from refdesk.rationale import field_value
 from refdesk.reasoning import ItemReasoning, Reasoner, ReasoningOutcome
@@ -61,7 +75,7 @@ from refdesk.retrieval import Hit, Query, Retriever
 from refdesk.retrieval.combined import ConditionNotUnderstood
 from refdesk.retrieval.metadata import _phrase
 from refdesk.runlog import FILENAME as EVENTS_FILE
-from refdesk.runlog import RunLog, read_events
+from refdesk.runlog import RunLog, args_hash, read_events
 from refdesk.schema import ArtworkRecord, RightsStatus
 from refdesk.verifier import _norm, item_status
 from refdesk.wording import (
@@ -93,7 +107,18 @@ CREATE TABLE IF NOT EXISTS cancellations (
     run_id TEXT PRIMARY KEY,
     requested_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS checkpoints (
+    run_id TEXT NOT NULL,
+    step TEXT NOT NULL,
+    key_hash TEXT NOT NULL,
+    result TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (run_id, step, key_hash)
+);
 """
+# Checkpoints (issue #157): one row per completed step, keyed by the idempotency key
+# (run ID, step, hash of inputs). INSERT OR IGNORE keeps the first result for a key,
+# so a repeated step can never overwrite what its first completion produced.
 # The kill switch is its own table, not a field of the stored view: the run's thread
 # rewrites the view at every state, so a flag inside it would be overwritten.
 
@@ -151,6 +176,39 @@ class RunStore:
         with self._connect() as db:
             row = db.execute("SELECT 1 FROM cancellations WHERE run_id = ?", (run_id,)).fetchone()
         return row is not None
+
+    def put_checkpoint(self, run_id: str, step: str, key_hash: str, result: dict) -> None:
+        """Record a completed step's result (issue #157). The first result for a key
+        wins; a repeated step never overwrites it."""
+        with self._connect() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO checkpoints (run_id, step, key_hash, result, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (run_id, step, key_hash, json.dumps(result, ensure_ascii=False), _now()),
+            )
+
+    def get_checkpoint(self, run_id: str, step: str, key_hash: str) -> dict | None:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT result FROM checkpoints WHERE run_id = ? AND step = ? AND key_hash = ?",
+                (run_id, step, key_hash),
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def checkpoint_count(self, run_id: str) -> int:
+        with self._connect() as db:
+            (count,) = db.execute(
+                "SELECT count(*) FROM checkpoints WHERE run_id = ?", (run_id,)
+            ).fetchone()  # fmt: skip
+        return int(count)
+
+    def interrupted_ids(self) -> list[str]:
+        """Runs whose stored view is not terminal — the runs a restarted process should
+        resume (issue #157). A cancelled run is terminal: the kill switch outlives it."""
+        terminal = {LoopState.DONE.value, LoopState.STOPPED.value, LoopState.CANCELLED.value}
+        with self._connect() as db:
+            rows = db.execute("SELECT run_id, view FROM runs ORDER BY rowid").fetchall()
+        return [run_id for run_id, view in rows if json.loads(view)["state"] not in terminal]
 
     def add_report(self, report: QueuedReport) -> None:
         with self._connect() as db:
@@ -558,8 +616,9 @@ class BoardService:
     def events_path(self, run_id: str) -> Path:
         return self.runs_dir / run_id / EVENTS_FILE
 
-    def run_log(self, run_id: str, request: BoardRequest) -> RunLog:
-        return RunLog(self.events_path(run_id), run_id=run_id, brief=request.brief)
+    def run_log(self, run_id: str, request: BoardRequest, *, resuming: bool = False) -> RunLog:
+        cls = ResumeLog if resuming else RunLog
+        return cls(self.events_path(run_id), run_id=run_id, brief=request.brief)
 
     def _end(self, log: RunLog, view: RunView) -> RunView:
         """A run that ends before the loop starts still logs how it ended."""
@@ -571,8 +630,22 @@ class BoardService:
         self.runs.save(view)
         return view
 
-    def execute(self, run_id: str, request: BoardRequest) -> RunView:
-        log = self.run_log(run_id, request)
+    def execute(self, run_id: str, request: BoardRequest, *, resuming: bool = False) -> RunView:
+        """Run the board. `resuming=True` continues a run the last process left
+        unfinished (issue #157): the log notes the resume, and the steps the killed
+        process completed are answered from its checkpoints (checkpoints.py)."""
+        log = self.run_log(run_id, request, resuming=resuming)
+        if resuming:
+            recorded = self.runs.checkpoint_count(run_id)
+            log.transition(
+                LoopState.INIT,
+                reason_code="resume",
+                result=(
+                    f"Resuming after a restart: {recorded} completed step(s) will be reused "
+                    "from the store."
+                ),
+                data={"checkpoints": recorded},
+            )
         try:
             retriever = self.retriever()
         except Exception as error:  # noqa: BLE001 - any load failure stops the run, loudly
@@ -595,7 +668,9 @@ class BoardService:
             # The loop may need later rounds: rank enough candidates for every round.
             query = replace(query, k=request.target_items * self.loop_config().max_rounds)
         try:
-            hits = retriever.search(query)
+            hits = checkpointed_search(
+                self.runs, run_id, request.brief, query, lambda: retriever.search(query)
+            )
         except ConditionNotUnderstood as error:  # normally refused at create()
             view = _view(
                 run_id, request, LoopState.STOPPED, stop=StopReason.DECLINED, detail=str(error)
@@ -646,6 +721,10 @@ class BoardService:
             target=request.target_items,
             keep_local=request.keep_local,
             cap_usd=request.budget_cap_usd,
+            transport=CheckpointTransport(  # completed calls come back from the store
+                self.reasoner.transport, store=self.runs, run_id=run_id, brief=request.brief,
+                log=log,
+            ),  # fmt: skip
         )
         items = [self._reasoned_item(by_id[r.id], r, result.items[r.id]) for r in result.records]
         if result.stop is StopReason.DECLINED:
@@ -667,6 +746,26 @@ class BoardService:
         if self._loop is None:
             self._loop = LoopConfig.load()
         return self._loop
+
+    def resume(self, run_id: str) -> RunView:
+        """Continue a run the last process left unfinished (issue #157; PRD 10.2,
+        acceptance scenario 3).
+
+        Everything needed is in the store — the request, the checkpoints and the run
+        log — so a fresh process resumes it (this is how the API starts up; no
+        endpoint is involved). The loop runs again from Init: completed steps are
+        answered from the checkpoints, so no model call or export repeats, and the
+        board is re-derived exactly before the run continues past the kill. A finished
+        run resumes as itself; a cancelled run stays cancelled — the kill switch
+        outlives a restart."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        if view.state in (LoopState.DONE, LoopState.STOPPED, LoopState.CANCELLED):
+            return view
+        if view.request is None:  # only possible through a hand-edited store
+            raise ValueError(f"run {run_id} has no stored request to resume from")
+        return self.execute(run_id, view.request, resuming=True)
 
     def cancel(self, run_id: str) -> None:
         """Kill switch: the run reaches Cancelled before its next step or model call, and
@@ -834,34 +933,50 @@ class BoardService:
         if request.format != "csv":
             raise FormatNotSupported(request.format)
         included, _, _ = pack_items(view.items)
-        exported_at = datetime.now(UTC)
-        versions = {
-            "generator": view.models_used.get("generator", "none"),
-            "judge": view.models_used.get("judge", "none"),
-            "retriever": self.retriever_name,
-            "git": _git_sha(),
-        }
-        target = Path(self.exports_dir) / f"{run_id}.csv"
-        try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            partial = target.with_suffix(".csv.partial")
-            with partial.open("w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=PACK_COLUMNS)
-                writer.writeheader()
-                for item in included:
-                    writer.writerow(self._pack_row(view, item, versions, exported_at))
-            os.replace(partial, target)
-        except OSError as error:
-            raise ExportFailed(f"{type(error).__name__}: {error}") from error
-        receipt = ExportReceipt(
-            run_id=run_id,
-            file=target.as_posix(),
-            exported_at=exported_at,
-            approver=view.approval.approver,
-            versions=versions,
-            notice=EXPORTED,
-            not_legal_advice=NOT_LEGAL_ADVICE,
+        brief = view.request.brief if view.request else ""
+        # Idempotency key for this pack: the same items, approved by the same person,
+        # is the same export (PRD 10.2: a resume never repeats an export).
+        pack_key = args_hash(
+            {"items": [i.record.id for i in included], "approver": view.approval.approver}, brief
         )
+        target = Path(self.exports_dir) / f"{run_id}.csv"
+        recorded = self.runs.get_checkpoint(run_id, EXPORT_STEP, pack_key)
+        if recorded is not None:
+            # The pack was written and checkpointed, but the view save was lost — a
+            # crash between the two writes. Return the recorded receipt; the pack is
+            # never written twice.
+            receipt = ExportReceipt.model_validate(recorded["receipt"])
+        else:
+            exported_at = datetime.now(UTC)
+            versions = {
+                "generator": view.models_used.get("generator", "none"),
+                "judge": view.models_used.get("judge", "none"),
+                "retriever": self.retriever_name,
+                "git": _git_sha(),
+            }
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                partial = target.with_suffix(".csv.partial")
+                with partial.open("w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=PACK_COLUMNS)
+                    writer.writeheader()
+                    for item in included:
+                        writer.writerow(self._pack_row(view, item, versions, exported_at))
+                os.replace(partial, target)
+            except OSError as error:
+                raise ExportFailed(f"{type(error).__name__}: {error}") from error
+            receipt = ExportReceipt(
+                run_id=run_id,
+                file=target.as_posix(),
+                exported_at=exported_at,
+                approver=view.approval.approver,
+                versions=versions,
+                notice=EXPORTED,
+                not_legal_advice=NOT_LEGAL_ADVICE,
+            )
+            self.runs.put_checkpoint(
+                run_id, EXPORT_STEP, pack_key, {"receipt": receipt.model_dump(mode="json")}
+            )
         exported = Gate(
             id=GateId.G5_EXPORT,
             state=GateState.PASSED,

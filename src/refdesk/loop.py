@@ -26,10 +26,16 @@ Decide is a pass-through to the configured generator tier until the router exist
 
 Not here yet: dropping an item after two failed verifications needs a regeneration
 retry, which the loop does not do (each candidate is generated once);
-`drop_after_failed_verifications` is loaded so M4-02 can set it. Checkpoint and resume
-is M4-05 (#157). With a `RunLog` (runlog.py, issue #156) every state entered writes one
+`drop_after_failed_verifications` is loaded so M4-02 can set it. With a `RunLog`
+(runlog.py, issue #156) every state entered writes one
 transition event and every retrieval and model request one call event, so the run can
 be replayed from its recordings.
+
+Checkpoint and resume (#157): `run(transport=...)` takes the checkpoint layer
+(checkpoints.py), which answers already-completed calls from the store; a resumed run
+re-derives its rounds through the same states — the round counter, stuck rule and
+guard checks therefore count re-derived work exactly as the killed process counted it
+— without repeating a model call.
 """
 
 from __future__ import annotations
@@ -118,6 +124,7 @@ class LoopController:
         target: int,
         keep_local: bool,
         cap_usd: float,
+        transport=None,
     ) -> LoopResult:
         """`retrieve(n)` returns up to n candidates not handed out before; an empty list
         means the pool is exhausted."""
@@ -233,6 +240,7 @@ class LoopController:
                     on_phase=lambda phase: enter(S.GENERATE if phase == "generate" else S.VERIFY),
                     before_call=guard,
                     observe=log.model_call if log is not None else None,
+                    transport=transport,
                 )
                 result.records += candidates
                 result.items.update(outcome.items)

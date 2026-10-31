@@ -1,24 +1,30 @@
 """Loop controller: the PRD 10.2 state machine in plain code (issue #155; PRD 10.4 stage 1).
 
 Acceptance scenarios 1, 2, 4, 5 and 6, the kill switch, and the step-cap, timeout and
-pool-exhausted stops. Scenario 3 (resume without repeating a call) is M4-05 (#157).
+pool-exhausted stops. Scenario 3 — kill a run, resume it, no model call or export
+repeats — is `TestScenario3Resume` below (issue #157); its mechanics live in
+test_checkpoints.py.
 
 The real Reasoner and LLM client run against the in-process mock server (`Mocks`), so
 every "model call" below is a real request to the mock, counted in `mocks.calls`.
 """
 
 import re
+import threading
+import time
 from urllib.parse import urlsplit
 
 import pytest
 from test_boards import rec
 from test_boards_reasoning import CONFIG, Mocks
 
+from refdesk.api.app import resume_interrupted
 from refdesk.api.models import ApprovalRequest, BoardRequest, ExportRequest, LoopState
 from refdesk.boards import BoardService, GateRefused, RunStore
 from refdesk.loop import LoopConfig, LoopController
 from refdesk.reasoning import Reasoner
 from refdesk.retrieval.metadata import JaccardRetriever
+from refdesk.runlog import read_events
 from refdesk.wording import AttributionStatus, StopReason
 
 S = LoopState
@@ -221,6 +227,111 @@ def board(svc, **body):
     request = BoardRequest(brief="boats", **body)
     view = svc.create(request)
     return svc.execute(view.run_id, request)
+
+
+class KillDuringGenerate:
+    """A transport that dies mid-call, the way a killed process does: the calls before
+    the kill complete (and are checkpointed); the call in flight never returns."""
+
+    def __init__(self, inner, kill_at=2):
+        self.inner = inner
+        self.kill_at = kill_at  # die with this call (0-based) in flight
+        self.payloads = []
+
+    def post_json(self, url, headers, payload):
+        index = len(self.payloads)
+        self.payloads.append(payload)
+        if index == self.kill_at:
+            threading.Event().wait()  # the process dies here; this call never returns
+        return self.inner.post_json(url, headers, payload)
+
+
+def run_until_third_call_is_in_flight(killer, started):
+    deadline = time.monotonic() + 30
+    while len(killer.payloads) < killer.kill_at + 1:
+        assert time.monotonic() < deadline, "the run never reached its in-flight call"
+        assert started.is_alive(), "the run stopped before the kill"
+        time.sleep(0.01)
+
+
+class TestScenario3Resume:
+    """PRD 10.2 scenario 3: kill a run mid-generate, resume it, and count the calls
+    and exports: no completed model call repeats and no export repeats (issue #157)."""
+
+    def test_kill_mid_generate_resume_no_model_call_repeats(self, tmp_path):
+        mocks = Mocks()
+        killer = KillDuringGenerate(mocks, kill_at=2)  # gen1, judge1 done; gen2 dies
+        svc = service(tmp_path, killer)
+        request = BoardRequest(brief="boats", target_items=2)
+        run_id = svc.create(request).run_id
+        started = threading.Thread(
+            target=svc.execute, args=(run_id, request), daemon=True
+        )  # fmt: skip
+        started.start()
+        run_until_third_call_is_in_flight(killer, started)
+
+        # The process dies here. The store alone answers the resume.
+        view = svc.resume(run_id)
+
+        assert view.state is S.DONE and len(view.items) == 2
+        # Call 3 was in flight (never completed), so the resume re-asks it — the same
+        # request, once. Completed calls (gen1, judge1) are never sent again.
+        assert killer.payloads[3] == killer.payloads[2]
+        assert killer.payloads.count(killer.payloads[0]) == 1
+        assert killer.payloads.count(killer.payloads[1]) == 1
+        # The log holds each real call once: the re-derived retrieval and the two
+        # completed answers are checkpoint events, not second call events.
+        events = read_events(svc.events_path(run_id))
+        llm_hashes = [e.args_hash for e in events if e.tool and e.tool.startswith("llm:")]
+        # Every answered call is logged exactly once; the in-flight call never returned,
+        # so it is never logged.
+        assert len(llm_hashes) == len(set(llm_hashes)) == len(killer.payloads) - 1
+        reused = [e for e in events if e.tool == "checkpoint"]
+        assert len(reused) == 3 and all("reused from checkpoint" in e.result for e in reused)
+
+    def test_a_restarted_api_resumes_from_the_store_alone(self, tmp_path):
+        mocks = Mocks()
+        killer = KillDuringGenerate(mocks, kill_at=2)
+        request = BoardRequest(brief="boats", target_items=2)
+        first = service(tmp_path, killer)
+        run_id = first.create(request).run_id
+        started = threading.Thread(
+            target=first.execute, args=(run_id, request), daemon=True
+        )  # fmt: skip
+        started.start()
+        run_until_third_call_is_in_flight(killer, started)
+
+        # A new process, a fresh BoardService on the same store: no request object, no
+        # in-memory state — resume_interrupted is what the API's lifespan runs.
+        restarted = service(tmp_path, killer)
+        resume_interrupted(restarted)
+        deadline = time.monotonic() + 30
+        while restarted.runs.get(run_id).state not in (S.DONE, S.STOPPED):
+            assert time.monotonic() < deadline, "the resumed run never finished"
+            time.sleep(0.01)
+
+        view = restarted.runs.get(run_id)
+        assert view.state is S.DONE and len(view.items) == 2
+        assert killer.payloads[3] == killer.payloads[2]
+        assert killer.payloads.count(killer.payloads[0]) == 1
+        assert killer.payloads.count(killer.payloads[1]) == 1
+
+    def test_an_export_never_writes_the_pack_twice(self, tmp_path):
+        svc = service(tmp_path, Mocks())
+        view = board(svc, target_items=2)
+        svc.approve(view.run_id, ApprovalRequest(approver="joe", acknowledged=True))
+        before = svc.runs.get(view.run_id)  # approved, not yet exported
+        receipt = svc.export(view.run_id, ExportRequest(format="csv"))
+        pack = (svc.exports_dir / f"{view.run_id}.csv").read_bytes()
+
+        # The crash window: the checkpoint was written, but the read-only save was
+        # lost. The recovered store still shows the board as approved-not-exported,
+        # so the second export takes the checkpoint path: the same receipt (the same
+        # exported_at stamp) and the pack is not rewritten.
+        svc.runs.save(before)
+        again = svc.export(view.run_id, ExportRequest(format="csv"))
+        assert again == receipt
+        assert (svc.exports_dir / f"{view.run_id}.csv").read_bytes() == pack
 
 
 class TestBoardService:
