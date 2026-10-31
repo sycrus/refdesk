@@ -1,9 +1,11 @@
 // S2 Run progress and S3 Board review (PRD 8A) for retrieval-only runs. While the run is
-// working, the screen polls GET /runs/{id} and shows the state in words; when it ends, it
-// shows the board. Nothing the API reports is hidden: the stop banner and its detail,
-// both badges on every card, the cost, and where the brief was sent.
+// working, the screen polls GET /runs/{id} and shows the state in words, the live cost
+// meter against the cap, and the kill switch: Cancel asks first, because a cancelled run
+// can never be approved or exported. When the run ends, it shows the board. Nothing the
+// API reports is hidden: the stop banner and its detail, both badges on every card, the
+// cost, and where the brief was sent.
 import { useEffect, useState } from "react";
-import { ApiError, getRun } from "../api/client";
+import { ApiError, cancelRun, getRun } from "../api/client";
 import type { BoardItem, RunView } from "../api/types";
 import { Button } from "../components/Button";
 import { CostMeter } from "../components/CostMeter";
@@ -45,6 +47,8 @@ export function RunScreen({
 }: RunScreenProps) {
   const [run, setRun] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +86,14 @@ export function RunScreen({
 
   const request = run.request;
   const working = !ENDED.has(run.state);
+  async function doCancel() {
+    try {
+      setRun(await cancelRun(runId));
+      setConfirmingCancel(false);
+    } catch (err) {
+      setCancelError(err instanceof ApiError ? err.message : `Could not reach the API: ${String(err)}`);
+    }
+  }
   const sentTo = run.sent_to.length ? run.sent_to.join(", ") : "nowhere: no model was called (retrieval only)";
   const models = Object.entries(run.models_used ?? {});
   const verified = run.items.filter((item) => item.attribution_status === AttributionStatus.VERIFIED).length;
@@ -119,6 +131,32 @@ export function RunScreen({
           <dd className="rd-mono">{run.run_id}</dd>
         </dl>
         <CostMeter spent={run.cost.spent_usd} cap={run.cost.cap_usd} currency={run.cost.currency} />
+        {working && !confirmingCancel && (
+          <Button variant="danger" onClick={() => { setCancelError(null); setConfirmingCancel(true); }}>
+            Cancel the run
+          </Button>
+        )}
+        {confirmingCancel && (
+          <div className="rd-cancel" role="group" aria-label="Confirm the kill switch">
+            <p>Cancel this run now? A cancelled run can never be approved or exported.</p>
+            <span className="rd-cancel-actions">
+              <Button
+                variant="danger"
+                onClick={() => {
+                  void doCancel();
+                }}
+              >
+                Yes, cancel the run
+              </Button>
+              <Button onClick={() => setConfirmingCancel(false)}>Keep the run going</Button>
+            </span>
+          </div>
+        )}
+        {cancelError && (
+          <p role="alert">
+            The run was not cancelled: {cancelError}
+          </p>
+        )}
         <Button onClick={onNewBoard}>New board</Button>
       </header>
 

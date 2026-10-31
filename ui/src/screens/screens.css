@@ -126,6 +126,29 @@
   font-weight: 600;
 }
 
+/* S2 kill switch (issue 158): the cancel confirm sits where the button was, in the header
+   grid, so the layout does not jump while the run keeps working behind it. */
+.rd-cancel {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+}
+
+.rd-cancel p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.rd-cancel-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
 .rd-board-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

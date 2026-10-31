@@ -1,6 +1,6 @@
 """API contract (issue #13, PRD 13A): the OpenAPI spec is valid, lists every endpoint,
-matches the committed file, and endpoints not built yet are honest stubs. POST /boards and
-GET /runs/{id} are tested in test_boards.py."""
+and matches the committed file. Every endpoint is built (#158 replaced the last stubs);
+POST /boards and GET /runs/{id} are tested in test_boards.py."""
 
 import json
 from pathlib import Path
@@ -14,12 +14,14 @@ from refdesk.wording import AttributionStatus, RightsStatus, StopReason
 
 SPEC_FILE = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.json"
 
-# PRD Section 13A, endpoint table (GET /reports added with S8, issue #146).
+# PRD Section 13A, endpoint table (GET /reports added with S8, issue #146;
+# POST /runs/{run_id}/cancel, the kill switch, added with #158).
 PRD_13A = {
     ("post", "/boards"),
     ("get", "/runs/{run_id}"),
     ("post", "/runs/{run_id}/review"),
     ("post", "/runs/{run_id}/cap"),
+    ("post", "/runs/{run_id}/cancel"),
     ("post", "/runs/{run_id}/approve"),
     ("post", "/runs/{run_id}/export"),
     ("post", "/reports"),
@@ -70,7 +72,7 @@ class TestSpec:
             assert "409" in spec["paths"][path]["post"]["responses"]
 
 
-class TestNoBusinessLogicYet:
+class TestLiveEndpoints:
     def test_healthz_is_live(self, client):
         assert client.get("/healthz").json() == {"status": "ok"}
 
@@ -90,11 +92,18 @@ class TestNoBusinessLogicYet:
         ("method", "path", "body"),
         [
             ("post", "/runs/r1/cap", {"new_cap_usd": 0.1, "raised_by": "Joe"}),
+            ("post", "/runs/r1/cancel", None),
         ],
     )
-    def test_endpoints_are_stubs(self, client, method, path, body):
-        response = client.request(method, path, json=body)
-        assert response.status_code == 501
+    def test_endpoints_answer_for_a_real_run(self, tmp_path, method, path, body):
+        """No 501 stubs remain (#158 built the last two). Each answers 404 for an unknown
+        run rather than a stub response: the contract is the real behaviour."""
+        from test_readyz import endpoint_service
+
+        app.dependency_overrides[get_service] = lambda: endpoint_service(tmp_path)
+        response = TestClient(app).request(method, path, json=body)
+        assert response.status_code == 404
+        assert response.json()["code"] == "unknown_run"
 
 
 class TestRequestValidation:
@@ -112,6 +121,9 @@ class TestRequestValidation:
         body = {"reviewer": "Joe", "decisions": [{"item_id": "met:1", "decision": "keep"}]}
         assert client.post("/runs/r1/review", json=body).status_code == 422
 
-    def test_cap_must_be_positive(self, client):
+    def test_cap_must_be_positive(self, tmp_path, client):
+        from test_readyz import endpoint_service
+
+        app.dependency_overrides[get_service] = lambda: endpoint_service(tmp_path)
         body = {"new_cap_usd": 0, "raised_by": "Joe"}
         assert client.post("/runs/r1/cap", json=body).status_code == 422

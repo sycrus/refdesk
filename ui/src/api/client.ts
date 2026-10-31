@@ -76,6 +76,12 @@ export function approveRun(runId: string, approval: { approver: string; acknowle
   return post(`/runs/${encodeURIComponent(runId)}/approve`, approval);
 }
 
+// The kill switch (S2): the API stops the run before its next step or model call, and
+// the run's own thread writes the final state, so the caller keeps polling afterwards.
+export function cancelRun(runId: string): Promise<RunView> {
+  return post(`/runs/${encodeURIComponent(runId)}/cancel`, {});
+}
+
 export function exportRun(runId: string): Promise<ExportReceipt> {
   return post(`/runs/${encodeURIComponent(runId)}/export`, { format: "csv" });
 }

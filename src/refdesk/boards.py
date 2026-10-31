@@ -39,7 +39,7 @@ import sqlite3
 import threading
 import uuid
 from collections.abc import Callable
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -48,6 +48,7 @@ from refdesk.api.models import (
     ApprovalRequest,
     BoardItem,
     BoardRequest,
+    CapRaise,
     Cost,
     ErrorReport,
     Evidence,
@@ -107,6 +108,13 @@ CREATE TABLE IF NOT EXISTS cancellations (
     run_id TEXT PRIMARY KEY,
     requested_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS cap_raises (
+    run_id TEXT NOT NULL,
+    previous_cap_usd REAL NOT NULL,
+    new_cap_usd REAL NOT NULL,
+    raised_by TEXT NOT NULL,
+    raised_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS checkpoints (
     run_id TEXT NOT NULL,
     step TEXT NOT NULL,
@@ -121,10 +129,23 @@ CREATE TABLE IF NOT EXISTS checkpoints (
 # so a repeated step can never overwrite what its first completion produced.
 # The kill switch is its own table, not a field of the stored view: the run's thread
 # rewrites the view at every state, so a flag inside it would be overwritten.
+# Cap raises (issue #158) are append-only: every raise of a run's cap is kept, with
+# who and when (G1 is a governance gate).
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+@dataclass(frozen=True)
+class CapRaiseRecord:
+    """One recorded G1 raise (issue #158): who raised the cap, when, from what to what."""
+
+    run_id: str
+    previous_cap_usd: float
+    new_cap_usd: float
+    raised_by: str
+    raised_at: datetime
 
 
 class RunStore:
@@ -176,6 +197,34 @@ class RunStore:
         with self._connect() as db:
             row = db.execute("SELECT 1 FROM cancellations WHERE run_id = ?", (run_id,)).fetchone()
         return row is not None
+
+    def record_cap_raise(self, record: CapRaiseRecord) -> None:
+        """Append one raise to the record (issue #158). Nothing is updated or deleted:
+        a run's raises are kept all together."""
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO cap_raises (run_id, previous_cap_usd, new_cap_usd, raised_by, "
+                "raised_at) VALUES (?, ?, ?, ?, ?)",
+                (
+                    record.run_id, record.previous_cap_usd, record.new_cap_usd,
+                    record.raised_by, record.raised_at.isoformat(),
+                ),  # fmt: skip
+            )
+
+    def cap_raises(self, run_id: str) -> list[CapRaiseRecord]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT run_id, previous_cap_usd, new_cap_usd, raised_by, raised_at "
+                "FROM cap_raises WHERE run_id = ? ORDER BY rowid",
+                (run_id,),
+            ).fetchall()
+        return [
+            CapRaiseRecord(
+                run_id=r[0], previous_cap_usd=r[1], new_cap_usd=r[2], raised_by=r[3],
+                raised_at=datetime.fromisoformat(r[4]),
+            )  # fmt: skip
+            for r in rows
+        ]
 
     def put_checkpoint(self, run_id: str, step: str, key_hash: str, result: dict) -> None:
         """Record a completed step's result (issue #157). The first result for a key
@@ -630,10 +679,14 @@ class BoardService:
         self.runs.save(view)
         return view
 
-    def execute(self, run_id: str, request: BoardRequest, *, resuming: bool = False) -> RunView:
+    def execute(
+        self, run_id: str, request: BoardRequest, *, resuming: bool = False,
+        resume_reason: str = "restart",
+    ) -> RunView:
         """Run the board. `resuming=True` continues a run the last process left
         unfinished (issue #157): the log notes the resume, and the steps the killed
-        process completed are answered from its checkpoints (checkpoints.py)."""
+        process completed are answered from its checkpoints (checkpoints.py). A cap
+        raise (issue #158) resumes the same way, with its own reason for the log."""
         log = self.run_log(run_id, request, resuming=resuming)
         if resuming:
             recorded = self.runs.checkpoint_count(run_id)
@@ -641,8 +694,8 @@ class BoardService:
                 LoopState.INIT,
                 reason_code="resume",
                 result=(
-                    f"Resuming after a restart: {recorded} completed step(s) will be reused "
-                    "from the store."
+                    f"Resuming after a {resume_reason}: {recorded} completed step(s) will be "
+                    "reused from the store."
                 ),
                 data={"checkpoints": recorded},
             )
@@ -769,10 +822,96 @@ class BoardService:
 
     def cancel(self, run_id: str) -> None:
         """Kill switch: the run reaches Cancelled before its next step or model call, and
-        can never be approved or exported. The cancel endpoint and S2 button are M4-06."""
+        can never be approved or exported. The endpoint and S2 button are M4-06 (#158)."""
         if self.runs.get(run_id) is None:
             raise UnknownRun(run_id)
         self.runs.cancel(run_id)
+
+    def raise_cap(self, run_id: str, request: CapRaise) -> RunView:
+        """G1: an explicit, recorded decision to raise the spend cap (issue #158; PRD 10.2
+        stop table, 13A). Only a run the budget cap stopped can be raised, and the kill
+        switch outlives a raise: a cancelled run refuses. The raise goes into the store's
+        `cap_raises` table and the run log (who and when — G1 is a governance gate), the
+        stored request's cap is raised, and `resume_after_raise` continues the run from
+        its checkpoints: the steps already completed are reused, so their calls never
+        repeat, and their recorded cost counts against the new cap."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        if self.runs.is_cancelled(run_id):
+            raise GateRefused(GateId.G1_SPEND, "the run was cancelled; a raise cannot resume it")
+        if view.state is not LoopState.STOPPED or view.stop_reason is not StopReason.BUDGET_CAP:
+            state = view.state.value
+            if view.stop_reason is not None:
+                state += f" ({view.stop_reason.value})"
+            raise GateRefused(
+                GateId.G1_SPEND,
+                f"only a run the budget cap stopped can be raised; this run is {state}",
+            )
+        if view.request is None:  # only possible through a hand-edited store
+            raise ValueError(f"run {run_id} has no stored request to raise the cap for")
+        previous = view.request.budget_cap_usd
+        if request.new_cap_usd <= previous:
+            raise GateRefused(
+                GateId.G1_SPEND,
+                f"USD {request.new_cap_usd:.3f} does not raise the cap of USD {previous:.3f}",
+            )
+        raised = CapRaiseRecord(
+            run_id=run_id, previous_cap_usd=previous, new_cap_usd=request.new_cap_usd,
+            raised_by=request.raised_by, raised_at=datetime.now(UTC),
+        )  # fmt: skip
+        self.runs.record_cap_raise(raised)
+        log = self.run_log(run_id, view.request)
+        log.call(
+            "cap_raise", {"new_cap_usd": request.new_cap_usd},
+            result=(
+                f"Cap raised from USD {previous:.3f} to USD {request.new_cap_usd:.3f} "
+                f"by {request.raised_by}; the run resumes from its checkpoint."
+            ),
+            data={
+                "previous_cap_usd": previous, "new_cap_usd": request.new_cap_usd,
+                "raised_by": request.raised_by, "raised_at": raised.raised_at.isoformat(),
+            },
+        )  # fmt: skip
+        raised_request = view.request.model_copy(update={"budget_cap_usd": request.new_cap_usd})
+        gates = _with_gate(
+            view.gates,
+            Gate(
+                id=GateId.G1_SPEND,
+                state=GateState.ACTIVE,
+                status_text=(
+                    f"Cap raised to USD {request.new_cap_usd:.3f} by {request.raised_by}; "
+                    "the run resumes from its checkpoint."
+                ),
+                actor="operator",
+            ),
+        )
+        updated = view.model_copy(
+            update={
+                "request": raised_request,
+                "cost": view.cost.model_copy(update={"cap_usd": request.new_cap_usd}),
+                "gates": gates,
+            }
+        )
+        self.runs.save(updated)
+        return updated
+
+    def resume_after_raise(self, run_id: str) -> RunView:
+        """Continue a budget-stopped run whose cap an operator raised (`raise_cap`; the
+        API schedules this as a background task, the way POST /boards starts the loop).
+
+        `resume` itself refuses a stopped run — a restarted process must not spend past
+        a cap nobody raised — so the explicit raise has its own path here. The kill
+        switch still wins: if the run was cancelled after the raise, the loop's guard
+        fires at its first check and writes Cancelled, the same as anywhere else."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        if view.state is not LoopState.STOPPED or view.stop_reason is not StopReason.BUDGET_CAP:
+            return view
+        if view.request is None:
+            raise ValueError(f"run {run_id} has no stored request to resume from")
+        return self.execute(run_id, view.request, resuming=True, resume_reason="cap raise")
 
     def _reasoned_item(self, hit: Hit, record: ArtworkRecord, r: ItemReasoning) -> BoardItem:
         item = self._item(hit, record)

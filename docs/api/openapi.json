@@ -200,7 +200,7 @@
           "runs"
         ],
         "summary": "Raise Cap",
-        "description": "G1: raise the spend cap (recorded with name and time) and resume from the checkpoint.",
+        "description": "G1: raise the spend cap — recorded with who and when — and resume from the\ncheckpoint. Refused (409) for any run the budget cap did not stop. The resume runs\nafter this returns, the way POST /boards starts the loop; poll GET /runs/{run_id}.",
         "operationId": "raise_cap_runs__run_id__cap_post",
         "parameters": [
           {
@@ -254,8 +254,51 @@
               }
             }
           },
-          "501": {
-            "description": "Not implemented yet",
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/cancel": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Cancel Run",
+        "description": "Kill switch (PRD 10.2): the run stops before its next step or model call, and\nnothing on it can ever be approved or exported. The run's own thread writes\nCancelled at its next guard check, so poll GET /runs/{run_id} for the final state.",
+        "operationId": "cancel_run_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
             "content": {
               "application/json": {
                 "schema": {
