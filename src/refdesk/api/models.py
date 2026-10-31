@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
@@ -225,6 +225,41 @@ class ExportReceipt(_Model):
     not_legal_advice: str
 
 
+class EventKind(StrEnum):
+    TRANSITION = "transition"  # the loop entered a state
+    CALL = "call"  # a tool call inside the current step
+
+
+class RunEvent(_Model):
+    """One line of a run's events.jsonl (PRD 10.2 run log, issue #156). The brief is
+    redacted before the line is written."""
+
+    seq: int = Field(description="1, 2, 3 ... in the order written")
+    run_id: str
+    at: datetime
+    step: int = Field(description="Transition number; a call carries the step it ran in")
+    kind: EventKind
+    state: LoopState
+    round: int = Field(0, description="Retrieval round")
+    tool: str | None = Field(None, description="retrieve, decide or llm:<tier>")
+    args_hash: str | None = Field(None, description="SHA-256 of the arguments, after redaction")
+    result: str | None = Field(None, description="Result summary")
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    cost_usd: float | None = None
+    latency_s: float | None = None
+    model: str | None = Field(None, description="Model the provider reported, else requested")
+    adapter: str | None = Field(None, description="Decision-model adapter hash, when one runs")
+    probabilities: dict[str, float] | None = Field(
+        None, description="Decision probabilities; none until the router (M4-13)"
+    )
+    reason_code: str | None = Field(None, description="Stop reason or decision reason")
+    data: dict[str, Any] = Field({}, description="Run parameters (Init) or where a stop fired")
+    recorded: Any = Field(
+        None, description="The tool's output for replay; left out by GET /runs/{id}"
+    )
+
+
 class RunView(_Model):
     run_id: str
     request: BoardRequest | None = Field(None, description="What was asked (S3 header)")
@@ -243,6 +278,9 @@ class RunView(_Model):
     approval: Approval | None = Field(None, description="G4 record, once approved")
     export: ExportReceipt | None = Field(None, description="G5 receipt, once exported")
     read_only: bool = False
+    events: list[RunEvent] = Field(
+        [], description="The run log, brief redacted (PRD 10.2); the trace view until Phoenix"
+    )
 
 
 class ReportAccepted(_Model):

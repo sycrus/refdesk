@@ -27,20 +27,24 @@ Decide is a pass-through to the configured generator tier until the router exist
 Not here yet: dropping an item after two failed verifications needs a regeneration
 retry, which the loop does not do (each candidate is generated once);
 `drop_after_failed_verifications` is loaded so M4-02 can set it. Checkpoint and resume
-is M4-05 (#157); the events log is M4-04 (#156).
+is M4-05 (#157). With a `RunLog` (runlog.py, issue #156) every state entered writes one
+transition event and every retrieval and model request one call event, so the run can
+be replayed from its recordings.
 """
 
 from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 from refdesk.api.models import LoopState
 from refdesk.reasoning import Interrupted, ItemReasoning, Reasoner
+from refdesk.runlog import RunLog
 from refdesk.schema import ArtworkRecord
 from refdesk.verifier import item_status
 from refdesk.wording import AttributionStatus, StopReason
@@ -97,12 +101,14 @@ class LoopController:
         clock: Callable[[], float] = time.monotonic,
         cancelled: Callable[[], bool] = lambda: False,
         on_state: Callable[[LoopState, LoopResult], None] = lambda state, result: None,
+        log: RunLog | None = None,
     ):
         self.config = config
         self.reasoner = reasoner
         self.clock = clock
         self.cancelled = cancelled  # the kill switch, polled before each step and call
         self.on_state = on_state  # lets the board service show the current state
+        self.log = log  # the run log (runlog.py, issue #156); None writes nothing
 
     def run(
         self,
@@ -117,34 +123,55 @@ class LoopController:
         means the pool is exhausted."""
         result = LoopResult()
         started = self.clock()
+        log = self.log
+        checks = 0  # guard checks so far; replay fires the kill switch or timeout at the same one
+        interrupt: dict[str, float] = {}
 
-        def enter(state: LoopState) -> None:
+        def enter(state: LoopState, **event: Any) -> None:
+            """Every state entered writes exactly one transition event."""
             result.state = state
             result.trace.append(state)
+            if log is not None:
+                log.transition(state, round=result.rounds, **event)
             self.on_state(state, result)
+
+        def board_summary() -> str:
+            return f"{result.accepted} of {target} items accepted, {len(result.records)} reasoned"
 
         def stop(reason: StopReason, detail: str) -> LoopResult:
             result.stop, result.stop_detail = reason, detail
+            event = {"reason_code": reason.value, "result": detail, "data": dict(interrupt)}
             if reason is StopReason.CANCELLED:
-                enter(S.CANCELLED)  # no Assemble: a cancelled run has no board to approve
+                enter(S.CANCELLED, **event)  # no Assemble: a cancelled run has no board
                 return result
-            enter(S.STOPPED)
-            enter(S.ASSEMBLE)  # the partial board, with the stop reason beside it
+            enter(S.STOPPED, **event)
+            enter(S.ASSEMBLE, reason_code=reason.value, result=f"Partial: {board_summary()}.")
             result.state = S.STOPPED
             return result
 
         def guard() -> None:
             """Before every step and every model call: kill switch, then wall clock."""
+            nonlocal checks
+            checks += 1
             if self.cancelled():
+                interrupt.update(guard_check=checks)
                 raise Interrupted(StopReason.CANCELLED, "Cancelled by the operator.")
             elapsed = self.clock() - started
             if elapsed >= self.config.timeout_s:
+                interrupt.update(guard_check=checks, elapsed_s=elapsed)
                 raise Interrupted(
                     StopReason.TIMEOUT,
                     f"The run took {elapsed:.0f} s; the limit is {self.config.timeout_s:.0f} s.",
                 )
 
-        enter(S.INIT)
+        enter(
+            S.INIT,
+            data={
+                "target": target, "keep_local": keep_local, "cap_usd": cap_usd,
+                "loop": asdict(self.config), "generator_tier": self.reasoner.generator_tier,
+                "prompts": {k: p.name for k, p in self.reasoner.prompts.items()},
+            },
+        )  # fmt: skip
         no_progress = 0
         try:
             while True:
@@ -155,9 +182,12 @@ class LoopController:
                         f"{result.rounds} retrieval rounds, the most allowed; "
                         f"{result.accepted} of {target} items accepted.",
                     )
-                enter(S.RETRIEVE)
-                candidates = retrieve(target - result.accepted)
                 result.rounds += 1
+                enter(S.RETRIEVE)
+                wanted, began = target - result.accepted, time.perf_counter()
+                candidates = retrieve(wanted)
+                if log is not None:
+                    log.retrieval(wanted, candidates, time.perf_counter() - began)
                 if not candidates:
                     if not result.records:
                         return stop(
@@ -169,13 +199,18 @@ class LoopController:
                         f"No candidates left: {result.accepted} of {target} items accepted. "
                         "Relax the conditions to find more."
                     )
-                    enter(S.ASSEMBLE)
+                    enter(
+                        S.ASSEMBLE, reason_code=StopReason.POOL_EXHAUSTED.value,
+                        result=result.stop_detail,
+                    )  # fmt: skip
                     result.state = S.DONE
                     return result
 
                 guard()
-                enter(S.DECIDE)
                 tier = self.reasoner.generator_tier  # pass-through until the router (#165)
+                enter(
+                    S.DECIDE, tool="decide", result=f"tier {tier}", reason_code="router_not_built"
+                )
                 result.tiers.append(tier)
                 if (
                     keep_local
@@ -197,6 +232,7 @@ class LoopController:
                     cap_usd=cap_usd - result.spent_usd,  # one cap for the whole board
                     on_phase=lambda phase: enter(S.GENERATE if phase == "generate" else S.VERIFY),
                     before_call=guard,
+                    observe=log.model_call if log is not None else None,
                 )
                 result.records += candidates
                 result.items.update(outcome.items)
@@ -207,7 +243,7 @@ class LoopController:
                     return stop(outcome.stop, outcome.stop_detail or outcome.stop.banner)
 
                 if result.accepted >= target:
-                    enter(S.ASSEMBLE)
+                    enter(S.ASSEMBLE, result=f"{board_summary()}.")
                     result.state = S.DONE
                     return result
                 no_progress = no_progress + 1 if result.accepted == before else 0

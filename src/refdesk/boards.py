@@ -60,6 +60,8 @@ from refdesk.reasoning import ItemReasoning, Reasoner, ReasoningOutcome
 from refdesk.retrieval import Hit, Query, Retriever
 from refdesk.retrieval.combined import ConditionNotUnderstood
 from refdesk.retrieval.metadata import _phrase
+from refdesk.runlog import FILENAME as EVENTS_FILE
+from refdesk.runlog import RunLog, read_events
 from refdesk.schema import ArtworkRecord, RightsStatus
 from refdesk.verifier import _norm, item_status
 from refdesk.wording import (
@@ -114,17 +116,18 @@ class RunStore:
 
     def save(self, view: RunView, request: BoardRequest | None = None) -> None:
         now = _now()
+        stored = view.model_dump_json(exclude={"events"})  # events live in events.jsonl
         with self._connect() as db:
             if request is None:
                 db.execute(
                     "UPDATE runs SET view = ?, updated_at = ? WHERE run_id = ?",
-                    (view.model_dump_json(), now, view.run_id),
+                    (stored, now, view.run_id),
                 )
             else:
                 db.execute(
                     "INSERT INTO runs (run_id, created_at, updated_at, request, view) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (view.run_id, now, now, request.model_dump_json(), view.model_dump_json()),
+                    (view.run_id, now, now, request.model_dump_json(), stored),
                 )
 
     def get(self, run_id: str) -> RunView | None:
@@ -507,8 +510,12 @@ class BoardService:
         check_conditions: Callable[[dict[str, str]], None] | None = None,
         reasoner: Reasoner | None = None,
         loop: LoopConfig | None = None,
+        runs_dir: str | Path | None = None,
     ):
         self.runs = runs
+        # <runs_dir>/<run_id>/events.jsonl. The API uses runs/ (gitignored); by default it
+        # sits beside the run store, so a test's store and logs share its temp directory.
+        self.runs_dir = Path(runs_dir) if runs_dir is not None else runs.path.parent / "runs"
         self._loop = loop  # None: config/loop.yaml, read when a reasoned run starts
         self._load_records = load_records
         self._build = build_retriever
@@ -543,7 +550,24 @@ class BoardService:
         self.runs.save(view, request)
         return view
 
+    def events_path(self, run_id: str) -> Path:
+        return self.runs_dir / run_id / EVENTS_FILE
+
+    def run_log(self, run_id: str, request: BoardRequest) -> RunLog:
+        return RunLog(self.events_path(run_id), run_id=run_id, brief=request.brief)
+
+    def _end(self, log: RunLog, view: RunView) -> RunView:
+        """A run that ends before the loop starts still logs how it ended."""
+        log.transition(
+            view.state,
+            reason_code=view.stop_reason.value if view.stop_reason else None,
+            result=view.stop_detail or f"{len(view.items)} items, retrieval only.",
+        )
+        self.runs.save(view)
+        return view
+
     def execute(self, run_id: str, request: BoardRequest) -> RunView:
+        log = self.run_log(run_id, request)
         try:
             retriever = self.retriever()
         except Exception as error:  # noqa: BLE001 - any load failure stops the run, loudly
@@ -558,8 +582,7 @@ class BoardService:
                 stop=StopReason.SOURCE_UNAVAILABLE,
                 detail=detail,
             )
-            self.runs.save(view)
-            return view
+            return self._end(log, view)
 
         records = self.records()
         query = to_query(request)
@@ -572,11 +595,10 @@ class BoardService:
             view = _view(
                 run_id, request, LoopState.STOPPED, stop=StopReason.DECLINED, detail=str(error)
             )
-            self.runs.save(view)
-            return view
+            return self._end(log, view)
         hits = [hit for hit in hits if hit.record_id in records]
         if hits and self.reasoner is not None:
-            return self._execute_reasoned(run_id, request, hits, records)
+            return self._execute_reasoned(run_id, request, hits, records, log)
         items = [self._item(hit, records[hit.record_id]) for hit in hits]
         if items:
             view = _view(run_id, request, LoopState.DONE, items)
@@ -588,11 +610,10 @@ class BoardService:
                 stop=StopReason.POOL_EXHAUSTED,
                 detail="No record matched the brief, conditions and rights filter.",
             )
-        self.runs.save(view)
-        return view
+        return self._end(log, view)
 
     def _execute_reasoned(
-        self, run_id: str, request: BoardRequest, hits: list[Hit], records: dict
+        self, run_id: str, request: BoardRequest, hits: list[Hit], records: dict, log: RunLog
     ) -> RunView:
         """The loop controller (loop.py) runs the rounds; this turns its result into a board."""
         by_id = {hit.record_id: hit for hit in hits}
@@ -612,6 +633,7 @@ class BoardService:
             self.reasoner,
             cancelled=lambda: self.runs.is_cancelled(run_id),
             on_state=show,
+            log=log,
         )
         result = controller.run(
             brief=request.brief,
@@ -706,7 +728,14 @@ class BoardService:
         )
 
     def get(self, run_id: str) -> RunView | None:
-        return self.runs.get(run_id)
+        """The stored view plus its events. Recordings (replay material) stay on disk."""
+        view = self.runs.get(run_id)
+        if view is None:
+            return None
+        events = [
+            e.model_copy(update={"recorded": None}) for e in read_events(self.events_path(run_id))
+        ]
+        return view.model_copy(update={"events": events})
 
     def review(self, run_id: str, request: ReviewRequest) -> RunView:
         """G3: record keep (with a note) or drop for flagged items, with who and when."""
@@ -942,6 +971,7 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
         name,
         check,
         reasoner=default_reasoner(config.get("api", {}).get("reasoning") or {}),
+        runs_dir="runs",
     )
 
 

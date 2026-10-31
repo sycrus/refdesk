@@ -1170,6 +1170,14 @@
         ],
         "title": "ErrorType"
       },
+      "EventKind": {
+        "type": "string",
+        "enum": [
+          "transition",
+          "call"
+        ],
+        "title": "EventKind"
+      },
       "Evidence": {
         "properties": {
           "field": {
@@ -1698,6 +1706,195 @@
         ],
         "title": "RunCreated"
       },
+      "RunEvent": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "description": "1, 2, 3 ... in the order written"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "step": {
+            "type": "integer",
+            "title": "Step",
+            "description": "Transition number; a call carries the step it ran in"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EventKind"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LoopState"
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round",
+            "description": "Retrieval round",
+            "default": 0
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool",
+            "description": "retrieve, decide or llm:<tier>"
+          },
+          "args_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Args Hash",
+            "description": "SHA-256 of the arguments, after redaction"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result",
+            "description": "Result summary"
+          },
+          "tokens_in": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens In"
+          },
+          "tokens_out": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Out"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "latency_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency S"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Model the provider reported, else requested"
+          },
+          "adapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter",
+            "description": "Decision-model adapter hash, when one runs"
+          },
+          "probabilities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probabilities",
+            "description": "Decision probabilities; none until the router (M4-13)"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code",
+            "description": "Stop reason or decision reason"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data",
+            "description": "Run parameters (Init) or where a stop fired",
+            "default": {}
+          },
+          "recorded": {
+            "title": "Recorded",
+            "description": "The tool's output for replay; left out by GET /runs/{id}"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "seq",
+          "run_id",
+          "at",
+          "step",
+          "kind",
+          "state"
+        ],
+        "title": "RunEvent",
+        "description": "One line of a run's events.jsonl (PRD 10.2 run log, issue #156). The brief is\nredacted before the line is written."
+      },
       "RunView": {
         "properties": {
           "run_id": {
@@ -1817,6 +2014,15 @@
             "type": "boolean",
             "title": "Read Only",
             "default": false
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/RunEvent"
+            },
+            "type": "array",
+            "title": "Events",
+            "description": "The run log, brief redacted (PRD 10.2); the trace view until Phoenix",
+            "default": []
           }
         },
         "additionalProperties": false,

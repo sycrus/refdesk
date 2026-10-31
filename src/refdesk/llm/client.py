@@ -23,7 +23,7 @@ import urllib.error
 import urllib.request
 from collections import defaultdict
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from refdesk.llm.config import Budgets, ProvidersConfig
@@ -131,6 +131,21 @@ class Completion:
     attempts: int = 1
 
 
+@dataclass(frozen=True)
+class CallObservation:
+    """One request attempt as the transport answered it: what the run log records so a
+    run can be replayed (issue #156). `status` is None for a timeout. `completion` is set
+    only on the attempt that succeeded, so its cost is counted once."""
+
+    tier: str
+    url: str
+    payload: dict[str, Any]
+    status: int | None
+    body: Any
+    latency_s: float
+    completion: Completion | None = None
+
+
 def _approx_tokens(messages: list[dict[str, str]]) -> int:
     # A deliberately simple estimate (about 4 characters per token), used only to check
     # the budget before a call. The real cost uses the provider's reported usage.
@@ -149,8 +164,11 @@ class LLMClient:
         max_retries: int = 2,
         backoff: float = 1.0,
         sleep: Callable[[float], None] = time.sleep,
+        observe: Callable[[CallObservation], None] | None = None,
     ):
         self.config = config
+        # Told about every request attempt and its raw answer (the run log, issue #156).
+        self.observe = observe or (lambda observation: None)
         self.budgets = budgets
         self.env = os.environ if env is None else env
         self.approved = approved
@@ -225,20 +243,30 @@ class LLMClient:
         url = f"{self._base_url(tier)}/chat/completions"
         start = time.perf_counter()
         for attempt in range(1, self.max_retries + 2):
+            sent = time.perf_counter()
             try:
                 status, body = self.transport.post_json(url, headers, payload)
             except ProviderTimeout:
+                self.observe(
+                    CallObservation(tier, url, payload, None, None, time.perf_counter() - sent)
+                )
                 if attempt > self.max_retries:
                     raise
-                status, body = None, None
+                self._sleep(self.backoff * 2 ** (attempt - 1))
+                continue
+            observation = CallObservation(
+                tier, url, payload, status, body, time.perf_counter() - sent
+            )
             if status == 200:
                 break
+            self.observe(observation)
             if status is not None and (status not in RETRY_STATUSES or attempt > self.max_retries):
                 raise ProviderError(f"{tier}: HTTP {status}: {str(body)[:200]}")
             self._sleep(self.backoff * 2 ** (attempt - 1))
         latency = time.perf_counter() - start
         message = body["choices"][0]["message"]
         if not (message.get("content") or "").strip():
+            self.observe(observation)
             where = "reasoning" if message.get("reasoning") else "nothing"
             raise EmptyCompletion(
                 f"{tier}: empty answer; output tokens went to {where}. "
@@ -250,7 +278,7 @@ class LLMClient:
         cost = self._price(tier, tokens_in, tokens_out)
         self.spent[job] += cost
         provider = self.config.provider_of(tier)
-        return Completion(
+        completion = Completion(
             text=message["content"],
             tier=tier,
             provider=self.config.tiers[tier].provider,
@@ -263,6 +291,8 @@ class LLMClient:
             latency_s=latency,
             attempts=attempt,
         )
+        self.observe(replace(observation, completion=completion))
+        return completion
 
 
 def pick_judge(config: ProvidersConfig, *, generator_tier: str, candidates: list[str]) -> str:

@@ -27,6 +27,7 @@ from refdesk.generator import GeneratedRationale, generate_rationale
 from refdesk.judge import JudgeResult, judge_rationale
 from refdesk.llm.client import (
     BudgetExceeded,
+    CallObservation,
     KeepLocalViolation,
     LLMClient,
     LLMPolicyError,
@@ -145,13 +146,14 @@ class Reasoner:
         except NoValidJudge:
             return None
 
-    def _client(self, cap_usd: float) -> LLMClient:
+    def _client(self, cap_usd: float, observe=None) -> LLMClient:
         return LLMClient(
             self.config,
             Budgets({f"{JOB}_budget_usd": cap_usd}),
             env=self.env,
             approved=self.approved,
             transport=self.transport,
+            observe=observe,
         )
 
     def run(
@@ -163,10 +165,12 @@ class Reasoner:
         cap_usd: float,
         on_phase: Callable[[str], None] = lambda phase: None,
         before_call: Callable[[], None] = lambda: None,
+        observe: Callable[[CallObservation], None] | None = None,
     ) -> ReasoningOutcome:
         """`before_call` runs before every model call and may raise `Interrupted` to stop
-        the run there (the loop controller's kill switch and timeout)."""
-        client = self._client(cap_usd)
+        the run there (the loop controller's kill switch and timeout). `observe` is told
+        about every request attempt (the run log, issue #156)."""
+        client = self._client(cap_usd, observe)
         outcome = ReasoningOutcome(items={r.id: ItemReasoning(r.id) for r in records})
 
         def sent(tier: str) -> None:

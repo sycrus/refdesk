@@ -115,7 +115,17 @@ stateDiagram-v2
 - **Kill switch.** `BoardService.cancel` writes to a `cancellations` table, not into the stored view (the run's thread rewrites the view at every state). A cancelled run shows G4 and G5 blocked ("Run cancelled. Nothing was exported."), and approve and export refuse it (409). The endpoint and S2 button are #158.
 - **Values** are in `config/loop.yaml`: PRD placeholders until Joe sets them (#154). `drop_after_failed_verifications` is loaded but not enforced: each candidate is generated once, with no regeneration retry yet.
 - **What breaks without it:** one fixed pass would end "done" even when every item failed verification; there would be no step cap, timeout, stuck rule or kill switch, and the cap would apply per pass rather than per board.
-- Not yet: checkpoint and resume (#157, scenario 3) and the events log (#156).
+- Not yet: checkpoint and resume (#157, scenario 3).
+
+### Run log (issue #156, PRD 10.2 and 13A)
+
+`runlog.py` writes an append-only `runs/<run_id>/events.jsonl` per run (gitignored). It is the trace view until Phoenix (M5-06).
+
+- **Two kinds of event.** A `transition` event each time the loop enters a state, so the transition events match `LoopResult.trace` one to one. A `call` event for each tool call inside a step: each `retrieve` and each model request attempt (`LLMClient.observe`, retries included). Each event (`RunEvent` in `api/models.py`) holds the PRD fields: run ID, `seq`, step, state, round, tool, `args_hash`, result summary, tokens, cost, latency, model, adapter, probabilities and reason code. Decide logs the tier with `reason_code: router_not_built` and no probabilities until the router (#165). Stops carry the `StopReason` value as the reason code. A run that ends before the loop (retriever down, declined condition, no match) logs one event for how it ended.
+- **Redaction.** Every string in an event is scrubbed of the brief before the line is written: any case, any whitespace, JSON-escaped, or cut off at the end of a string (the client keeps 200 characters of an error body). The serialised line is checked again. `args_hash` is the SHA-256 of the arguments *after* redaction, so it cannot be used to guess a short brief. Limits: it matches the whole brief, not single words or paraphrases.
+- **Replay.** Call events keep the tool's recorded output (candidate records, the provider's raw status and body). `replay(path, brief=..., make_reasoner=...)` runs the loop again with the recordings standing in for the retriever and the model transport, so nothing leaves the process, and gives the same items, trace and stop reason. The Init event records the run's parameters (target, keep-local, cap, loop config, tier, prompt names). The kill switch and the timeout are replayed at the same guard check (`data.guard_check`, `data.elapsed_s` on the Stopped or Cancelled event). A request whose arguments differ from the recording raises `ReplayDiverged` naming the step; that is how a faulty step is found. Replay needs the brief (from the operator or the run store) to restore it into recordings and rebuild the hashes; a wrong brief diverges at the first model call.
+- **`GET /runs/{id}`** returns `events` without the recordings (`recorded: null`); the file keeps them. The stored view in SQLite never holds the events.
+- **What breaks without it:** a stopped or failed run leaves only its final view, so nobody can see which step went wrong or rerun it.
 
 ### Rationales and verification (ADR-022)
 
