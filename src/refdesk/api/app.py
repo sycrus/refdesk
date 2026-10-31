@@ -9,6 +9,8 @@ Tags matter for the MCP server (FR-12, ADR-015): it may expose only `read` opera
 from __future__ import annotations
 
 import os
+import threading
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
@@ -48,6 +50,34 @@ from refdesk.boards import (
 from refdesk.readiness import report as readiness_report
 from refdesk.retrieval.combined import ConditionNotUnderstood
 
+
+def resume_interrupted(service: BoardService) -> list[threading.Thread]:
+    """Resume every run the last process left unfinished (issue #157), each in its own
+    thread, the way POST /boards runs new ones. Resume works from the store alone: the
+    request, the checkpoints and the run log are all on disk, so a killed run continues
+    from its last completed step and no model call or export repeats. Returns the
+    threads so a caller can wait for them."""
+    threads = [
+        threading.Thread(
+            target=service.resume, args=(run_id,), name=f"resume-{run_id}", daemon=True
+        )
+        for run_id in service.runs.interrupted_ids()
+    ]
+    for thread in threads:
+        thread.start()
+    return threads
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """A run killed by a restart resumes here, before the first request (PRD 10.2,
+    acceptance scenario 3). Off with REFDESK_AUTO_RESUME=0 (the tests set this; a
+    service can also be resumed by hand through `BoardService.resume`)."""
+    if os.environ.get("REFDESK_AUTO_RESUME", "1") == "1":
+        resume_interrupted(get_service())
+    yield
+
+
 app = FastAPI(
     title="refdesk API",
     version=__version__,
@@ -55,6 +85,7 @@ app = FastAPI(
         "Rights-checked, explained art references from open museum collections. "
         "The API enforces approval gates; clients only reflect them (PRD 8B)."
     ),
+    lifespan=lifespan,
 )
 
 
