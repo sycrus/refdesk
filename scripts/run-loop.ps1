@@ -22,7 +22,7 @@ param(
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force runs | Out-Null
 $log = 'runs/build-loop.log'
-if (-not (Test-Path $log)) { 'timestamp,issue,status,minutes,branch' | Out-File $log -Encoding utf8 }
+if (-not (Test-Path $log)) { 'timestamp,issue,status,minutes,branch,session' | Out-File $log -Encoding utf8 }
 
 # A clean start means everything changed after the agent runs is the agent's own work.
 uv run python scripts/loop_git.py start
@@ -70,26 +70,34 @@ while ($done.Count -lt $MaxTasks) {
   git switch -q -c $branch origin/main
   if ($LASTEXITCODE -ne 0) { exit 2 }
 
+  # Live step view (issue #185): scripts/loop_stream.py runs claude with stream-json output,
+  # prints one line per step as it happens, saves the full stream to runs/loop-issue-<n>.jsonl
+  # and the final message to runs/loop-issue-<n>.txt, records the session ID, and kills the
+  # process tree after -TimeoutMinutes (exit 124). The prompt goes through a file so
+  # PowerShell 5.1 never re-quotes it.
   $start = Get-Date
-  $job = Start-Job -ScriptBlock { param($dir, $p) Set-Location $dir; & claude -p $p 2>&1 } -ArgumentList (Get-Location).Path, $prompt
-  $finished = Wait-Job $job -Timeout ($TimeoutMinutes * 60)
-  $out = Receive-Job $job
-  if (-not $finished) { Stop-Job $job; $status = 'timeout' } else { $status = 'finished' }
-  Remove-Job $job -Force
-  $out | Out-File "runs/loop-issue-$n.txt" -Encoding utf8
+  $promptFile = "runs/loop-issue-$n.prompt.txt"
+  $sessionFile = "runs/loop-issue-$n.session"
+  [IO.File]::WriteAllText((Join-Path (Get-Location).Path $promptFile), $prompt)
+  uv run python scripts/loop_stream.py --issue $n --prompt-file $promptFile --jsonl "runs/loop-issue-$n.jsonl" --final "runs/loop-issue-$n.txt" --session-out $sessionFile --timeout-minutes $TimeoutMinutes -- claude -p --output-format stream-json --verbose
+  if ($LASTEXITCODE -eq 124) { $status = 'timeout' } else { $status = 'finished' }
+  $session = if (Test-Path $sessionFile) { (Get-Content $sessionFile -Raw) } else { '' }
+  if ($null -eq $session) { $session = '' }
+  $session = $session.Trim()
+  if ($session) { Write-Host "Session: $session (reopen with: claude --resume $session)" }
 
   # The agent stopped for a judgement reserved for Joe: leave its draft for review.
   $labels = gh issue view $n -R sycrus/refdesk --json labels --jq '[.labels[].name] | join(",")'
   if ($labels -split ',' -contains 'needs-info') {
     $minutes = [math]::Round(((Get-Date) - $start).TotalMinutes, 1)
-    "$(Get-Date -Format s),$n,needs-info,$minutes,$branch" | Out-File $log -Append -Encoding utf8
+    "$(Get-Date -Format s),$n,needs-info,$minutes,$branch,$session" | Out-File $log -Append -Encoding utf8
     Write-Host "Stopped at #${n}: the agent asked for your judgement (needs-info). Its draft is uncommitted on $branch."
     exit 4
   }
 
   uv run python scripts/loop_git.py stage
   if ($LASTEXITCODE -ne 0) {
-    "$(Get-Date -Format s),$n,fail-staging,0,$branch" | Out-File $log -Append -Encoding utf8
+    "$(Get-Date -Format s),$n,fail-staging,0,$branch,$session" | Out-File $log -Append -Encoding utf8
     Write-Host "Stopped at #${n}: refused to stage (see above). Nothing was committed."
     exit 1
   }
@@ -106,7 +114,7 @@ while ($done.Count -lt $MaxTasks) {
 
     git push -q -u origin $branch
     if ($LASTEXITCODE -ne 0) {
-      "$(Get-Date -Format s),$n,fail-push,$minutes,$branch" | Out-File $log -Append -Encoding utf8
+      "$(Get-Date -Format s),$n,fail-push,$minutes,$branch,$session" | Out-File $log -Append -Encoding utf8
       Write-Host "Stopped at #${n}: committed on $branch but the push failed. Push and open the PR by hand."
       exit 1
     }
@@ -115,15 +123,15 @@ while ($done.Count -lt $MaxTasks) {
     gh pr create --head $branch --title $prTitle --body-file $prBodyFile
     Remove-Item $prBodyFile
     if ($LASTEXITCODE -ne 0) {
-      "$(Get-Date -Format s),$n,fail-pr,$minutes,$branch" | Out-File $log -Append -Encoding utf8
+      "$(Get-Date -Format s),$n,fail-pr,$minutes,$branch,$session" | Out-File $log -Append -Encoding utf8
       Write-Host "Stopped at #${n}: pushed $branch but 'gh pr create' failed. Open the PR by hand."
       exit 1
     }
-    "$(Get-Date -Format s),$n,pass,$minutes,$branch" | Out-File $log -Append -Encoding utf8
+    "$(Get-Date -Format s),$n,pass,$minutes,$branch,$session" | Out-File $log -Append -Encoding utf8
     $done += $n
   } else {
-    "$(Get-Date -Format s),$n,fail-$status,$minutes,$branch" | Out-File $log -Append -Encoding utf8
-    Write-Host "Stopped at #${n}: status=$status verified=$verified. Inspect runs/loop-issue-$n.txt and the working tree."
+    "$(Get-Date -Format s),$n,fail-$status,$minutes,$branch,$session" | Out-File $log -Append -Encoding utf8
+    Write-Host "Stopped at #${n}: status=$status verified=$verified. Inspect runs/loop-issue-$n.jsonl, runs/loop-issue-$n.txt and the working tree."
     exit 1
   }
 }

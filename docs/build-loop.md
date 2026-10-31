@@ -8,6 +8,7 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 
 - **Outer runner** (`scripts/run-loop.ps1`): asks `scripts/next_issue.py` for the first open `ready-for-agent` issue with no open blockers and no open PR (by milestone, then number), runs Claude Code on it, verifies the result, then commits to a fresh `build/loop-<date>-issue<N>` branch made from `origin/main`, pushes it, and opens a PR whose body ends in `closes #N`. It never merges and never pushes to `main`. `-Skip 2,6` skips issues by hand. Issues labelled `needs-info` are skipped until Joe removes the label. (Joe decided on 2026-10-31 that the loop follows the CLAUDE.md Git-hygiene rule — one branch and PR per issue — and that merging the PR closes the issue, so the queue clears itself.)
 - **Staging rules** (`scripts/loop_git.py`, issue #182): the runner starts only on a clean tree, so everything changed afterwards is the agent's work. It stages those paths by name (never `git add -A`) and refuses any path under `data/` or `runs/`.
+- **Live step view** (`scripts/loop_stream.py`, issue #185): the runner starts Claude Code through this script with `--output-format stream-json --verbose`. It prints one line per step as it happens, saves the full stream, records the session ID and enforces `-TimeoutMinutes`. Without it, `claude -p` prints only the final message and you see nothing until the run ends. The formatter is plain, tested Python. Unknown event types are shown, not dropped, and a malformed line never stops the stream.
 - **Inner loop** (`/goal`): Claude Code's built-in completion-condition command. It keeps working across turns until a separate model judges the condition met. The condition must be provable from what Claude prints, and it must include a turn cap.
 - **Deterministic verifier** (`scripts/verify.py`, also run in CI): frozen golden files (edits, deletions and renames), staged `.env`, secrets, and with `--run-tests` the same check steps as CI: `ruff check .`, pytest, and in `ui/` `npm run typecheck`, `npm test`, `npm run build` (issue #191). Every check runs even after one fails. A missing tool or `ui/node_modules` is a FAIL, not a skip. The browser tests (`npm run test:e2e`) stay CI-only. A test keeps the list in step with `ci.yml`. The agent's `/goal` prompt tells it to run the same command before it stops. A script, not a judgement.
 - **Human gates**: issues labelled `ready-for-human`. The runner never picks them, and stops with exit code 3 when the remaining agent work is blocked by one.
@@ -28,13 +29,41 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 4. **Review before merging.** The runner never merges. Each task lands as its own PR from a `build/loop-<date>-issue<N>` branch. Read every diff on GitHub the way you would read a colleague's, then merge: `closes #N` in the PR body closes the issue on merge.
 5. **Run again.** Merging clears the queue — closed issues and issues with open PRs are both skipped — so the next `-MaxTasks` picks fresh work.
 
+## Watching a run and reviewing it afterwards
+
+**Live.** The runner window prints one line per step, tagged with the issue:
+
+```text
+[#155] session 1f3c... started (claude-opus-5-5)
+[#155] Read docs/prd.md
+[#155] Edit src/refdesk/loop.py
+[#155] Bash uv run pytest -q
+[#155]   Bash ok
+[#155]   Bash error: Exit code 1 ...
+[#155] says: All acceptance criteria are met ...
+[#155] done: success, 12 turns, session 1f3c...
+```
+
+A tool result names its tool and shows `ok` or `error` with the first part of the error. Exit codes are not in the stream, so a failing command shows as `error`. A line starting `?` is an event or block type the formatter does not know, or a line that was not JSON. It is shown on purpose. If you see many, check the stream format against the installed Claude Code version. A timeout ends with `[#155] killed: timeout after 30 min`.
+
+**Afterwards.** Each run leaves these in `runs/` (gitignored):
+
+| File | What it holds |
+|---|---|
+| `runs/loop-issue-<n>.jsonl` | The full stream, one JSON event per line: every tool call, its input and its result |
+| `runs/loop-issue-<n>.txt` | The final message only, or `(no final result event)` if the run was killed or crashed |
+| `runs/loop-issue-<n>.prompt.txt` | The exact `/goal` prompt the agent received |
+| `runs/build-loop.log` | One CSV row per issue: `timestamp,issue,status,minutes,branch,session` |
+
+To reopen a run interactively, take the session ID from the log (or from the `Session:` line the runner prints) and run `claude --resume <session-id>` in the repo. To scan a stream in PowerShell: `Get-Content runs/loop-issue-155.jsonl | uv run python scripts/loop_stream.py --replay --issue 155`. (A `build-loop.log` created before issue #185 has the old five-column header. Its new rows simply have a sixth field.)
+
 ## Stop conditions
 
 | Stop | Mechanism |
 |---|---|
 | Task done | The `/goal` condition is met and the verifier passes |
 | Turn cap | The turn clause in the condition (`-MaxTurns`) |
-| Wall-clock | `-TimeoutMinutes` kills the job |
+| Wall-clock | After `-TimeoutMinutes`, `loop_stream.py` kills the Claude Code process tree (`taskkill /T /F` on Windows) and exits 124. The runner logs `fail-timeout` and exits 1 without committing |
 | Verifier fails | The runner stops on the first failure and leaves the tree for you to inspect |
 | Human gate | Remaining agent work is blocked by a `ready-for-human` issue. The runner exits with code 3 |
 | Judgement needed | The agent added `needs-info` to its issue. The runner logs `needs-info`, leaves the draft uncommitted and exits with code 4 |
