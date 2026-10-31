@@ -61,7 +61,7 @@ Run the steps in order. Each one builds on the one before. Run `uv run python -m
    ```
    uv run python -m refdesk compare <hashA> <hashB>
    ```
-8. **Mock LLM.** Starts the local mock LLM server, the default generator and judge for boards (`config/retrieval.yaml`, `api.reasoning`). Keep it running for step 9. Its answers are deterministic, and it can script failures (`--script ok,429`). For real models (Ollama, `qwen3.5:9b` and `phi4`), set `REFDESK_GENERATOR_TIER=local-small` and `REFDESK_JUDGE_TIER=auto` rather than editing the config; set both, or the judge stays the mock. `REFDESK_GENERATOR_TIER=none` gives retrieval-only boards.
+8. **Mock LLM.** Starts the local mock LLM server, the default generator and judge for boards (`config/retrieval.yaml`, `api.reasoning`). Keep it running for step 9. Its answers are deterministic, and it can script failures (`--script ok,429`). For real models (Ollama, `qwen3.5:9b` and `phi4`), set `REFDESK_GENERATOR_TIER=local-small` and `REFDESK_JUDGE_TIER=auto` rather than editing the config; set both, or the judge stays the mock. You do not need the mock server then. `REFDESK_GENERATOR_TIER=none` gives retrieval-only boards. The variables can live in `.env` (see `.env.example`), loaded per command with `uv run --env-file .env ...`; refdesk itself never reads `.env`. Don't set `UV_ENV_FILE` globally: `pytest` would then use the real models.
    ```
    uv run python -m refdesk.llm.mock_server --port 8100
    ```
@@ -70,6 +70,7 @@ Run the steps in order. Each one builds on the one before. Run `uv run python -m
    cd ui; npm install; npm run build; cd ..
    uv run uvicorn refdesk.api.app:app --port 8000
    ```
+   With Ollama instead of the mocks (step 8): `uv run --env-file .env uvicorn refdesk.api.app:app --port 8000`.
 
 Copy `.env.example` to `.env` for API keys (DeepSeek). Paid calls also need a budget in `config/budgets.yaml` and an explicit `--approve`. Before committing: `uv run python scripts/verify.py` (frozen golden files, `.env`, secrets). Kev runs in WSL2 through `scripts/kev.ps1`.
 
