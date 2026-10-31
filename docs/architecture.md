@@ -1,4 +1,4 @@
-# Architecture (as built, 28 October 2026)
+# Architecture (as built, 31 October 2026)
 
 What exists in `src/refdesk/`, how the parts connect, and what comes next. The design intent is in `docs/prd.md` (Section 10); decisions are in `docs/adr/`. This page describes the code as it is.
 
@@ -81,6 +81,41 @@ flowchart TD
 ```
 
 Budget (G1) wraps generate and verify: a per-run client whose budget is the board's cap blocks any call that could exceed it, and the run stops with its reason shown. A retriever or model that cannot load stops the run with "source unavailable"; there is no fallback.
+
+### Loop controller (issue #155, PRD 10.2)
+
+`loop.py` runs retrieve, decide, generate and verify as an explicit state machine in plain Python (PRD 10.4 stage 1, the reference for the later LangGraph port). It builds towards K accepted items: an item counts only when the verifier passes it, so a round where everything is flagged goes back to Retrieve for the next ranked candidates. Flagged items stay on the board as "Needs human check".
+
+```mermaid
+stateDiagram-v2
+  [*] --> Init
+  Init --> Retrieve
+  Retrieve --> Decide: candidates
+  Retrieve --> Assemble: pool exhausted (message to relax conditions)
+  Decide --> Generate: tier (pass-through to the configured generator until #165)
+  Generate --> Verify
+  Verify --> Retrieve: fewer than K accepted
+  Verify --> Assemble: K accepted
+  Retrieve --> Stopped: step cap, timeout
+  Decide --> Stopped: keep-local brief and a cloud tier (declined), timeout
+  Generate --> Stopped: budget cap, timeout, source unavailable
+  Verify --> Stopped: budget cap, timeout, no progress
+  Stopped --> Assemble: partial board, stop reason shown
+  Init --> Cancelled: kill switch
+  Retrieve --> Cancelled: kill switch
+  Decide --> Cancelled: kill switch
+  Generate --> Cancelled: kill switch
+  Verify --> Cancelled: kill switch
+  Assemble --> [*]: gates G3 to G5 (PRD 8B)
+  Cancelled --> [*]: no approval, no export
+```
+
+- **Where each stop is checked.** Kill switch and timeout: before every step and before every model call (`Reasoner.run(before_call=...)` raises `Interrupted`), so a cancelled run reaches Cancelled before its next call. Budget cap: the LLM client, before each call, against what is left of the board's one cap across all rounds. Step cap: before each Retrieve. No progress: after Verify, when `stuck_rounds` rounds in a row add no accepted item. Pool exhausted: Retrieve returns nothing; with no items at all the run is Stopped, otherwise it assembles a partial board with the reason shown. Keep-local: Decide refuses a cloud tier before any call, and the client refuses it again.
+- **Every stop is shown.** The run keeps a `StopReason` (fixed banner in `wording.py`) and a detail sentence, including a board that assembled because the pool ran out. `RunView.state` is `done` (assembled, no stop), `stopped` (assembled, partial) or `cancelled`.
+- **Kill switch.** `BoardService.cancel` writes to a `cancellations` table, not into the stored view (the run's thread rewrites the view at every state). A cancelled run shows G4 and G5 blocked ("Run cancelled. Nothing was exported."), and approve and export refuse it (409). The endpoint and S2 button are #158.
+- **Values** are in `config/loop.yaml`: PRD placeholders until Joe sets them (#154). `drop_after_failed_verifications` is loaded but not enforced: each candidate is generated once, with no regeneration retry yet.
+- **What breaks without it:** one fixed pass would end "done" even when every item failed verification; there would be no step cap, timeout, stuck rule or kill switch, and the cap would apply per pass rather than per board.
+- Not yet: checkpoint and resume (#157, scenario 3) and the events log (#156).
 
 ### Rationales and verification (ADR-022)
 
@@ -182,5 +217,5 @@ Also:
 
 - Named period conditions (#64); `novelty` is accepted but not applied; raising the cap and resuming (`POST /runs/{id}/cap`, G1); `/readyz` checks; S7 run history and S9 settings.
 - golden-v1 frozen (#15) and the rationale eval on it with the local-tier decision (#102).
-- M4: routing labels and judge calibration (#16), Kev-4B fine-tune, the loop controller, the MCP server.
+- M4: routing labels and judge calibration (#16), Kev-4B fine-tune, the router in Decide (#165), checkpoint and resume (#157), the MCP server.
 - M5: Docker, kind, drills, LangGraph port, bake-off, usability test (kit in `docs/usability/`, #147).
