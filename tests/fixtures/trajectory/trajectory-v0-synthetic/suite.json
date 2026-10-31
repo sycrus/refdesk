@@ -1,0 +1,101 @@
+{
+  "version": "trajectory-v0-synthetic",
+  "provenance": "synthetic",
+  "note": "Written by Claude Code for issue #173 to build and test the trajectory harness only (the ADR-018 synthetic exception). Records, artists and faults are invented and marked Synthetic. Never used for a product claim. Recordings: uv run python scripts/record_trajectories.py. Frozen once committed: changes make a new version.",
+  "k": 3,
+  "generator_tier": "mock",
+  "prompts": {"rationale": "rationale-v2", "judge": "judge-v1", "fit": "fit-v1"},
+  "loop": {
+    "max_rounds": 6,
+    "timeout_s": 120.0,
+    "stuck_rounds": 2,
+    "target_items": 2,
+    "budget_cap_usd": 0.05,
+    "drop_after_failed_verifications": 2
+  },
+  "cases": [
+    {
+      "id": "t01-calm-harbour",
+      "brief": "calm harbour boats for a tea tin",
+      "target": 2,
+      "pool": [
+        {"object_id": 900001, "title": "Synthetic harbour 1", "artist": "Synthetic Painter A", "date": "1650", "medium": "Oil on canvas", "tags": ["Boats", "Harbors"]},
+        {"object_id": 900002, "title": "Synthetic harbour 2", "artist": "Synthetic Painter B", "date": "1660", "medium": "Oil on wood", "tags": ["Boats"]},
+        {"object_id": 900003, "title": "Synthetic harbour 3", "artist": "Synthetic Painter C", "date": "1670", "medium": "Oil on canvas", "tags": ["Harbors"]}
+      ],
+      "runs": [
+        {"expected": "success"},
+        {"expected": "success"},
+        {"expected": "success"}
+      ]
+    },
+    {
+      "id": "t02-recovers-from-a-wrong-rationale",
+      "brief": "storm at sea for a book cover",
+      "target": 2,
+      "pool": [
+        {"object_id": 900011, "title": "Synthetic storm 1", "artist": "Synthetic Painter D", "date": "1640", "medium": "Oil on canvas", "tags": ["Storms", "Ships"]},
+        {"object_id": 900012, "title": "Synthetic storm 2", "artist": "Synthetic Painter E", "date": "1645", "medium": "Oil on canvas", "tags": ["Storms"]},
+        {"object_id": 900013, "title": "Synthetic storm 3", "artist": "Synthetic Painter F", "date": "1655", "medium": "Oil on wood", "tags": ["Ships"]},
+        {"object_id": 900014, "title": "Synthetic storm 4", "artist": "Synthetic Painter G", "date": "1665", "medium": "Oil on canvas", "tags": ["Storms"]}
+      ],
+      "runs": [
+        {"expected": "success"},
+        {"plants": {"generator": {"met:900012": "wrongtext"}}, "expected": "success"},
+        {"plants": {"generator": {"met:900011": "badfield"}}, "expected": "success"}
+      ]
+    },
+    {
+      "id": "t03-unusable-rationales",
+      "brief": "winter landscape for a greeting card",
+      "target": 2,
+      "pool": [
+        {"object_id": 900021, "title": "Synthetic winter 1", "artist": "Synthetic Painter H", "date": "1610", "medium": "Oil on wood", "tags": ["Winter", "Landscapes"]},
+        {"object_id": 900022, "title": "Synthetic winter 2", "artist": "Synthetic Painter I", "date": "1615", "medium": "Oil on wood", "tags": ["Winter"]},
+        {"object_id": 900023, "title": "Synthetic winter 3", "artist": "Synthetic Painter J", "date": "1620", "medium": "Oil on canvas", "tags": ["Landscapes"]},
+        {"object_id": 900024, "title": "Synthetic winter 4", "artist": "Synthetic Painter K", "date": "1625", "medium": "Oil on canvas", "tags": ["Winter"]},
+        {"object_id": 900025, "title": "Synthetic winter 5", "artist": "Synthetic Painter L", "date": "1630", "medium": "Oil on wood", "tags": ["Winter"]},
+        {"object_id": 900026, "title": "Synthetic winter 6", "artist": "Synthetic Painter M", "date": "1635", "medium": "Oil on canvas", "tags": ["Landscapes"]}
+      ],
+      "runs": [
+        {"expected": "success"},
+        {
+          "plants": {"generator": {"met:900021": "malformed", "met:900022": "malformed", "met:900023": "malformed", "met:900024": "malformed", "met:900025": "malformed", "met:900026": "malformed"}},
+          "expected": "rationale_error",
+          "expected_stop": "no_progress"
+        },
+        {"expected": "success"}
+      ]
+    },
+    {
+      "id": "t04-restricted-candidate",
+      "brief": "flower still life for packaging",
+      "target": 2,
+      "pool": [
+        {"object_id": 900031, "title": "Synthetic flowers 1", "artist": "Synthetic Painter N", "date": "1700", "medium": "Oil on canvas", "tags": ["Flowers"]},
+        {"object_id": 900032, "title": "Synthetic flowers 2", "artist": "Synthetic Painter O", "date": "1705", "medium": "Oil on canvas", "tags": ["Flowers"], "rights": "permission_required"},
+        {"object_id": 900033, "title": "Synthetic flowers 3", "artist": "Synthetic Painter P", "date": "1710", "medium": "Oil on wood", "tags": ["Flowers", "Still Life"]}
+      ],
+      "runs": [
+        {"expected": "success"},
+        {"plants": {"retrieve": ["met:900031", "met:900032", "met:900033"]}, "expected": "wrong_retrieval"},
+        {"expected": "success"}
+      ]
+    },
+    {
+      "id": "t05-keep-local",
+      "brief": "quiet interior with a window for a confidential pitch",
+      "keep_local": true,
+      "target": 2,
+      "pool": [
+        {"object_id": 900041, "title": "Synthetic interior 1", "artist": "Synthetic Painter Q", "date": "1660", "medium": "Oil on canvas", "tags": ["Interiors"]},
+        {"object_id": 900042, "title": "Synthetic interior 2", "artist": "Synthetic Painter R", "date": "1665", "medium": "Oil on canvas", "tags": ["Interiors", "Windows"]}
+      ],
+      "runs": [
+        {"expected": "success"},
+        {"expected": "success"},
+        {"expected": "success"}
+      ]
+    }
+  ]
+}
