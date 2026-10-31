@@ -283,6 +283,23 @@ class RunView(_Model):
     )
 
 
+class RunSummary(_Model):
+    """One row of the S7 run history (issue #159). The brief is redacted, as in the run
+    log (PRD 10.2): the history is a list of what ran, not of what clients asked."""
+
+    run_id: str
+    created_at: datetime
+    brief: str = Field(description="Always redacted; open the run for its request")
+    state: LoopState
+    stop_reason: StopReason | None = None
+    stop_banner: str | None = Field(None, description="Fixed wording; never hidden")
+    cost: Cost
+    keep_local: bool
+    sent_to: list[str] = Field(description="Providers this brief was sent to")
+    approver: str | None = Field(None, description="Who approved (G4), once approved")
+    read_only: bool = False
+
+
 class ReportAccepted(_Model):
     report_id: str
     status: Literal["queued for review"] = "queued for review"

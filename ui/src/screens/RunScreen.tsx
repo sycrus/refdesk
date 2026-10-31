@@ -13,6 +13,7 @@ import { EvidenceCard } from "../components/EvidenceCard";
 import { GateStepper } from "../components/GateStepper";
 import { StopBanner } from "../components/StopBanner";
 import { AttributionStatus } from "../generated/wording";
+import { sentToText } from "./HistoryScreen";
 import "./screens.css";
 
 export const POLL_MS = 500;
@@ -94,7 +95,7 @@ export function RunScreen({
       setCancelError(err instanceof ApiError ? err.message : `Could not reach the API: ${String(err)}`);
     }
   }
-  const sentTo = run.sent_to.length ? run.sent_to.join(", ") : "nowhere: no model was called (retrieval only)";
+  const sentTo = sentToText(run.sent_to);
   const models = Object.entries(run.models_used ?? {});
   const verified = run.items.filter((item) => item.attribution_status === AttributionStatus.VERIFIED).length;
   const doneText =

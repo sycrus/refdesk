@@ -118,6 +118,44 @@ export interface RunView {
   approval?: { approver: string; acknowledged: true; approved_at: string } | null;
   export?: ExportReceipt | null;
   read_only: boolean;
+  events?: RunEvent[];
+}
+
+// One line of the run log (models.py RunEvent), brief already redacted by the API.
+export interface RunEvent {
+  seq: number;
+  run_id: string;
+  at: string;
+  step: number;
+  kind: "transition" | "call";
+  state: LoopState;
+  round?: number;
+  tool?: string | null;
+  args_hash?: string | null;
+  result?: string | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
+  cost_usd?: number | null;
+  latency_s?: number | null;
+  model?: string | null;
+  adapter?: string | null;
+  reason_code?: string | null;
+  data?: Record<string, unknown>;
+}
+
+// One row of GET /runs (S7, issue 159). `brief` is always the redaction marker.
+export interface RunSummary {
+  run_id: string;
+  created_at: string;
+  brief: string;
+  state: LoopState;
+  stop_reason?: StopReason | null;
+  stop_banner?: string | null;
+  cost: Cost;
+  keep_local: boolean;
+  sent_to: string[];
+  approver?: string | null;
+  read_only: boolean;
 }
 
 export interface Problem {

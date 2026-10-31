@@ -15,9 +15,11 @@ from refdesk.wording import AttributionStatus, RightsStatus, StopReason
 SPEC_FILE = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.json"
 
 # PRD Section 13A, endpoint table (GET /reports added with S8, issue #146;
-# POST /runs/{run_id}/cancel, the kill switch, added with #158).
+# POST /runs/{run_id}/cancel, the kill switch, added with #158; GET /runs, the S7 run
+# history, added with #159).
 PRD_13A = {
     ("post", "/boards"),
+    ("get", "/runs"),
     ("get", "/runs/{run_id}"),
     ("post", "/runs/{run_id}/review"),
     ("post", "/runs/{run_id}/cap"),

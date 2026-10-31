@@ -215,3 +215,57 @@
 .rd-facts-row {
   display: contents;
 }
+
+/* S7 Run history and audit (issue 159) */
+.rd-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.rd-table-wrap {
+  overflow-x: auto;
+}
+
+.rd-table-wrap:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rd-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rd-table th,
+.rd-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.rd-table thead th {
+  color: var(--color-ink-muted);
+  border-bottom-color: var(--color-line-strong);
+}
+
+.rd-section-title {
+  font-family: var(--type-title-family);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.rd-app-nav {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}

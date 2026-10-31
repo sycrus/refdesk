@@ -7,6 +7,7 @@ import type {
   ReportAccepted,
   ReviewRequest,
   RunCreated,
+  RunSummary,
   RunView,
 } from "./types";
 
@@ -48,6 +49,13 @@ export async function createBoard(request: BoardRequest): Promise<RunCreated> {
 
 export async function getRun(runId: string): Promise<RunView> {
   const response = await fetch(`/runs/${encodeURIComponent(runId)}`);
+  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  return response.json();
+}
+
+// S7 run history (issue 159), newest first. Read-only; the API redacts every brief.
+export async function listRuns(): Promise<RunSummary[]> {
+  const response = await fetch("/runs");
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
   return response.json();
 }
