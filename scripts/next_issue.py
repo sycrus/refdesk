@@ -2,8 +2,9 @@
 
 Rules (docs/agents/issue-tracker.md): only open `ready-for-agent` issues without
 `needs-info`, skipping any whose `## Blocked by` section lists an issue that is still
-open; ordered by milestone (M0 before M1), then issue number. Issues without a milestone
-come last.
+open, and any referenced by an open pull request (the runner now opens a PR per issue
+with `closes #N`, so an issue stays open until Joe merges — issue #187); ordered by
+milestone (M0 before M1), then issue number. Issues without a milestone come last.
 
 Why this is separate from run-loop.ps1: the selection rules are the part most likely
 to be wrong, so they live in plain, tested Python. The PowerShell runner only calls it.
@@ -35,6 +36,15 @@ _REF = re.compile(r"#(\d+)")
 def parse_blockers(body: str) -> list[int]:
     match = _SECTION.search(body or "")
     return [int(n) for n in _REF.findall(match.group(1))] if match else []
+
+
+def issues_in_open_prs(prs: list[dict]) -> set[int]:
+    """Issues referenced anywhere in an open PR's title or body are awaiting review."""
+    refs = set()
+    for pr in prs:
+        for field in (pr.get("title") or "", pr.get("body") or ""):
+            refs.update(int(n) for n in _REF.findall(field))
+    return refs
 
 
 def _labels(issue: dict) -> set[str]:
@@ -88,11 +98,33 @@ def _open_issues() -> list[dict]:
     return json.loads(out)
 
 
+def _open_prs() -> list[dict]:
+    out = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "list",
+            "-R",
+            REPO,
+            "--state",
+            "open",
+            "--limit",
+            "100",
+            "--json",
+            "number,title,body",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return json.loads(out)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--skip", default="", help="comma-separated issue numbers to skip")
     args = parser.parse_args(argv)
-    skip = {int(n) for n in args.skip.split(",") if n.strip()}
+    skip = {int(n) for n in args.skip.split(",") if n.strip()} | issues_in_open_prs(_open_prs())
 
     picked, reason = pick_next(_open_issues(), skip)
     if picked is None:
