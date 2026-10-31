@@ -49,7 +49,7 @@ while ($done.Count -lt $MaxTasks) {
 
   # Only the issue number goes into the prompt: Claude reads the body with gh. This avoids
   # Windows PowerShell 5.1 mangling quotes from issue text when calling a native program.
-  $prompt = "/goal Work on GitHub issue $n in sycrus/refdesk. Read it first with: gh issue view $n. Done when every acceptance criterion in that issue is met and you have printed the evidence for each one. Constraints: read CLAUDE.md and docs/prd.md first. Use the mock LLM server. Make no paid API calls. Do not modify frozen golden-set files. Do not commit, push or open a PR, the runner commits. If the task needs a judgement reserved for the user, comment on the issue, add the needs-info label, and stop. Stop after $MaxTurns turns."
+  $prompt = "/goal Work on GitHub issue $n in sycrus/refdesk. Read it first with: gh issue view $n. Done when every acceptance criterion in that issue is met and you have printed the evidence for each one. Constraints: read CLAUDE.md and docs/prd.md first. Use the mock LLM server. Make no paid API calls. Do not modify frozen golden-set files. Do not commit, push or open a PR, the runner commits. Before you stop, run: uv run python scripts/verify.py --run-tests, and fix every FAIL it prints; the runner runs the same command and will not commit while it fails. If the task needs a judgement reserved for the user, comment on the issue, add the needs-info label, and stop. Stop after $MaxTurns turns."
 
   # One branch and PR per issue (CLAUDE.md), always from an up-to-date origin/main.
   # PR titles get the same quoting treatment as the prompt: double quotes in an issue

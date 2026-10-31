@@ -9,13 +9,14 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 - **Outer runner** (`scripts/run-loop.ps1`): asks `scripts/next_issue.py` for the first open `ready-for-agent` issue with no open blockers and no open PR (by milestone, then number), runs Claude Code on it, verifies the result, then commits to a fresh `build/loop-<date>-issue<N>` branch made from `origin/main`, pushes it, and opens a PR whose body ends in `closes #N`. It never merges and never pushes to `main`. `-Skip 2,6` skips issues by hand. Issues labelled `needs-info` are skipped until Joe removes the label. (Joe decided on 2026-10-31 that the loop follows the CLAUDE.md Git-hygiene rule — one branch and PR per issue — and that merging the PR closes the issue, so the queue clears itself.)
 - **Staging rules** (`scripts/loop_git.py`, issue #182): the runner starts only on a clean tree, so everything changed afterwards is the agent's work. It stages those paths by name (never `git add -A`) and refuses any path under `data/` or `runs/`.
 - **Inner loop** (`/goal`): Claude Code's built-in completion-condition command. It keeps working across turns until a separate model judges the condition met. The condition must be provable from what Claude prints, and it must include a turn cap.
-- **Deterministic verifier** (`scripts/verify.py`, also run in CI): tests, frozen golden files (edits, deletions and renames), staged `.env`, secrets. A script, not a judgement.
+- **Deterministic verifier** (`scripts/verify.py`, also run in CI): frozen golden files (edits, deletions and renames), staged `.env`, secrets, and with `--run-tests` the same check steps as CI: `ruff check .`, pytest, and in `ui/` `npm run typecheck`, `npm test`, `npm run build` (issue #191). Every check runs even after one fails. A missing tool or `ui/node_modules` is a FAIL, not a skip. The browser tests (`npm run test:e2e`) stay CI-only. A test keeps the list in step with `ci.yml`. The agent's `/goal` prompt tells it to run the same command before it stops. A script, not a judgement.
 - **Human gates**: issues labelled `ready-for-human`. The runner never picks them, and stops with exit code 3 when the remaining agent work is blocked by one.
 
 ## Prerequisites
 
 - Claude Code v2.1.139 or later (`claude --version`). Check the current `/goal` documentation: https://code.claude.com/docs/en/goal
 - Git, a Python environment with pytest, PowerShell 7 or WSL2.
+- Node and npm, with `npm ci` run once in `ui/` (the verifier runs the UI checks).
 - A clean working tree: no changes and no untracked files. The runner refuses otherwise (exit 5) and makes its own branch from `origin/main`.
 - Read `CLAUDE.md` and `docs/prd.md` once yourself before running anything.
 
