@@ -70,3 +70,22 @@ class TestPickNext:
         waiting["labels"].append({"name": "needs-info"})
         issues = [waiting, issue(6, "ready-for-agent")]
         assert next_issue.pick_next(issues, skip=set())[0]["number"] == 6
+
+
+class TestIssuesInOpenPrs:
+    # The runner opens a PR per issue with `closes #N`; until Joe merges it, the issue is
+    # open but its work is done, so picking it again would rebuild it (issue #187).
+    def test_reads_refs_from_title_and_body(self):
+        prs = [{"title": "build(#6): issue 6", "body": "Closes #7.\n\nAlso refs #8."}]
+        assert next_issue.issues_in_open_prs(prs) == {6, 7, 8}
+
+    def test_no_open_prs_means_no_skips(self):
+        assert next_issue.issues_in_open_prs([]) == set()
+
+    def test_missing_fields_are_tolerated(self):
+        assert next_issue.issues_in_open_prs([{"title": None, "body": None}]) == set()
+
+    def test_pick_next_skips_an_issue_with_an_open_pr(self):
+        issues = [issue(6, "ready-for-agent"), issue(9, "ready-for-agent")]
+        skip = next_issue.issues_in_open_prs([{"title": "build(#6)", "body": "Closes #6."}])
+        assert next_issue.pick_next(issues, skip=skip)[0]["number"] == 9

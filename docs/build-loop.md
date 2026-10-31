@@ -6,7 +6,7 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 
 > The queue is GitHub Issues (see `docs/agents/issue-tracker.md`). Permissions for unattended runs are in `.claude/settings.json`.
 
-- **Outer runner** (`scripts/run-loop.ps1`): asks `scripts/next_issue.py` for the first open `ready-for-agent` issue with no open blockers (by milestone, then number), runs Claude Code on it, verifies the result, commits to a `build/loop-<date>` branch made from `origin/main`, and moves on. It never pushes or merges. `-Skip 2,6` skips issues by hand. Issues labelled `needs-info` are skipped until Joe removes the label.
+- **Outer runner** (`scripts/run-loop.ps1`): asks `scripts/next_issue.py` for the first open `ready-for-agent` issue with no open blockers and no open PR (by milestone, then number), runs Claude Code on it, verifies the result, then commits to a fresh `build/loop-<date>-issue<N>` branch made from `origin/main`, pushes it, and opens a PR whose body ends in `closes #N`. It never merges and never pushes to `main`. `-Skip 2,6` skips issues by hand. Issues labelled `needs-info` are skipped until Joe removes the label. (Joe decided on 2026-10-31 that the loop follows the CLAUDE.md Git-hygiene rule — one branch and PR per issue — and that merging the PR closes the issue, so the queue clears itself.)
 - **Staging rules** (`scripts/loop_git.py`, issue #182): the runner starts only on a clean tree, so everything changed afterwards is the agent's work. It stages those paths by name (never `git add -A`) and refuses any path under `data/` or `runs/`.
 - **Inner loop** (`/goal`): Claude Code's built-in completion-condition command. It keeps working across turns until a separate model judges the condition met. The condition must be provable from what Claude prints, and it must include a turn cap.
 - **Deterministic verifier** (`scripts/verify.py`, also run in CI): tests, frozen golden files (edits, deletions and renames), staged `.env`, secrets. A script, not a judgement.
@@ -22,9 +22,10 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 ## Running it
 
 1. **Dry run:** `./scripts/run-loop.ps1 -DryRun`. It prints the prompt for the next task and exits. Read it.
-2. **One task:** `./scripts/run-loop.ps1 -MaxTasks 1`. Review the commit and the log (`runs/build-loop.log`, `runs/loop-<ID>.txt`).
+2. **One task:** `./scripts/run-loop.ps1 -MaxTasks 1`. Review the PR it opens and the log (`runs/build-loop.log`, `runs/loop-issue-<n>.txt`).
 3. **A few tasks:** raise `-MaxTasks` only after one clean pilot. Keep `-TimeoutMinutes` and `-MaxTurns` small.
-4. **Review before merging.** The runner never merges. It commits to a `build/loop-<date>` branch. Read every diff the way you would read a colleague's.
+4. **Review before merging.** The runner never merges. Each task lands as its own PR from a `build/loop-<date>-issue<N>` branch. Read every diff on GitHub the way you would read a colleague's, then merge: `closes #N` in the PR body closes the issue on merge.
+5. **Run again.** Merging clears the queue — closed issues and issues with open PRs are both skipped — so the next `-MaxTasks` picks fresh work.
 
 ## Stop conditions
 
@@ -38,6 +39,7 @@ How to let Claude Code build refdesk in a loop without giving up control. This i
 | Judgement needed | The agent added `needs-info` to its issue. The runner logs `needs-info`, leaves the draft uncommitted and exits with code 4 |
 | Dirty tree at start | Exit code 5, before anything runs |
 | Staging refused | A changed path is under `data/` or `runs/`. Nothing is committed; exit code 1 |
+| Push or PR failed | The commit exists on its branch (pushed if push succeeded). Log `fail-push` or `fail-pr`, exit code 1; open the PR by hand |
 | Task count | `-MaxTasks` |
 | Queue empty | Nothing unchecked |
 

@@ -1,14 +1,17 @@
 # Build loop runner (PowerShell, Windows). One GitHub issue per iteration.
-# Picks the first open ready-for-agent issue with no open blockers (scripts/next_issue.py),
-# runs Claude Code on it, verifies (scripts/verify.py), and commits to a build/loop-<date>
-# branch made from origin/main. It never pushes or merges: open the PR yourself after
-# reviewing the commits. It starts only on a clean tree and stages only the agent's changes,
-# by name (scripts/loop_git.py, issue #182).
+# Picks the first open ready-for-agent issue with no open blockers and no open PR
+# (scripts/next_issue.py), runs Claude Code on it, verifies (scripts/verify.py), commits
+# to a fresh build/loop-<date>-issue<N> branch made from origin/main, pushes it, and
+# opens a PR ending in `closes #N`. Merging the PR closes the issue. The runner never
+# merges and never pushes to main (one branch and PR per issue, CLAUDE.md; issue #187).
+# It starts only on a clean tree and stages only the agent's changes, by name
+# (scripts/loop_git.py, issue #182).
 #
 # Stops on: queue empty (0), agent work waiting on a ready-for-human issue (3), a failed
-# check, staging refusal or timeout (1), a picker error (2), the agent adding needs-info
-# for Joe (4, work left uncommitted), a dirty tree at start (5), or -MaxTasks.
-# Run with -DryRun first, then -MaxTasks 1, and review the diff before continuing.
+# check, staging refusal, push/PR failure or timeout (1), a picker error (2), the agent
+# adding needs-info for Joe (4, work left uncommitted), a dirty tree at start (5), or
+# -MaxTasks.
+# Run with -DryRun first, then -MaxTasks 1, and review each PR before merging it.
 param(
   [int]$MaxTasks = 3,
   [int]$TimeoutMinutes = 30,
@@ -24,12 +27,10 @@ if (-not (Test-Path $log)) { 'timestamp,issue,status,minutes,branch' | Out-File 
 # A clean start means everything changed after the agent runs is the agent's own work.
 uv run python scripts/loop_git.py start
 if ($LASTEXITCODE -ne 0) { Write-Host 'Refused: commit, stash or remove the changes above first.'; exit 5 }
-git fetch -q origin
-if ($LASTEXITCODE -ne 0) { Write-Host 'git fetch failed.'; exit 2 }
 
-$branch = "build/loop-$(Get-Date -Format 'yyyyMMdd-HHmm')"
-if ($DryRun) { Write-Host "DRY RUN: would create $branch from origin/main" }
-else { git switch -q -c $branch origin/main; if ($LASTEXITCODE -ne 0) { exit 2 } }
+# Built from a code point because PowerShell 5.1 reads .ps1 files as ANSI: a literal
+# emoji in this file would be mangled on the way into the PR body.
+$robot = [char]::ConvertFromUtf32(0x1F916)
 
 $done = @()
 $skipList = @($Skip)
@@ -50,7 +51,24 @@ while ($done.Count -lt $MaxTasks) {
   # Windows PowerShell 5.1 mangling quotes from issue text when calling a native program.
   $prompt = "/goal Work on GitHub issue $n in sycrus/refdesk. Read it first with: gh issue view $n. Done when every acceptance criterion in that issue is met and you have printed the evidence for each one. Constraints: read CLAUDE.md and docs/prd.md first. Use the mock LLM server. Make no paid API calls. Do not modify frozen golden-set files. Do not commit, push or open a PR, the runner commits. If the task needs a judgement reserved for the user, comment on the issue, add the needs-info label, and stop. Stop after $MaxTurns turns."
 
-  if ($DryRun) { Write-Host "DRY RUN: #$n $($issue.title)"; Write-Host $prompt; exit 0 }
+  # One branch and PR per issue (CLAUDE.md), always from an up-to-date origin/main.
+  # PR titles get the same quoting treatment as the prompt: double quotes in an issue
+  # title are replaced, because PowerShell 5.1 mangles them on the way to a native program.
+  git fetch -q origin
+  if ($LASTEXITCODE -ne 0) { Write-Host 'git fetch failed.'; exit 2 }
+  $branch = "build/loop-$(Get-Date -Format 'yyyyMMdd-HHmm')-issue$n"
+  $prTitle = "build(#$n): " + ($issue.title -replace '"', "'")
+  $prBody = "Closes #$n.`n`nBuilt by the build loop (docs/build-loop.md); verify.py --run-tests passed. Review against the issue's acceptance criteria before merging.`n`n$robot Generated with [Claude Code](https://claude.com/claude-code)"
+
+  if ($DryRun) {
+    Write-Host "DRY RUN: #$n $($issue.title)"
+    Write-Host "DRY RUN: would create $branch from origin/main, then push it and open PR '$prTitle' with body:"
+    Write-Host $prBody
+    Write-Host $prompt
+    exit 0
+  }
+  git switch -q -c $branch origin/main
+  if ($LASTEXITCODE -ne 0) { exit 2 }
 
   $start = Get-Date
   $job = Start-Job -ScriptBlock { param($dir, $p) Set-Location $dir; & claude -p $p 2>&1 } -ArgumentList (Get-Location).Path, $prompt
@@ -82,9 +100,25 @@ while ($done.Count -lt $MaxTasks) {
   if ($status -eq 'finished' -and $verified) {
     $msgFile = New-TemporaryFile
     # WriteAllText writes UTF-8 without a BOM; Out-File on PowerShell 5.1 would add one.
-    [IO.File]::WriteAllText($msgFile, "build(#$n): $($issue.title)`n`nrefs #$n`n")
+    [IO.File]::WriteAllText($msgFile, "build(#$n): $($issue.title)`n`nrefs #$n`n`nCo-Authored-By: Claude Code <noreply@anthropic.com>`n")
     git commit -q -F $msgFile
     Remove-Item $msgFile
+
+    git push -q -u origin $branch
+    if ($LASTEXITCODE -ne 0) {
+      "$(Get-Date -Format s),$n,fail-push,$minutes,$branch" | Out-File $log -Append -Encoding utf8
+      Write-Host "Stopped at #${n}: committed on $branch but the push failed. Push and open the PR by hand."
+      exit 1
+    }
+    $prBodyFile = New-TemporaryFile
+    [IO.File]::WriteAllText($prBodyFile, $prBody)
+    gh pr create --head $branch --title $prTitle --body-file $prBodyFile
+    Remove-Item $prBodyFile
+    if ($LASTEXITCODE -ne 0) {
+      "$(Get-Date -Format s),$n,fail-pr,$minutes,$branch" | Out-File $log -Append -Encoding utf8
+      Write-Host "Stopped at #${n}: pushed $branch but 'gh pr create' failed. Open the PR by hand."
+      exit 1
+    }
     "$(Get-Date -Format s),$n,pass,$minutes,$branch" | Out-File $log -Append -Encoding utf8
     $done += $n
   } else {
@@ -93,6 +127,6 @@ while ($done.Count -lt $MaxTasks) {
     exit 1
   }
 }
-if (-not $DryRun) { Write-Host "Done: $($done.Count) issue(s) on $branch. Review the commits, then push and open a PR." }
+if (-not $DryRun) { Write-Host "Done: $($done.Count) PR(s) opened ($($done -join ', ')). Review and merge each one; merging closes its issue." }
 # Explicit: otherwise the script exits with the picker's last code (10 for an empty queue).
 exit 0
