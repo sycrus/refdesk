@@ -61,6 +61,7 @@ from refdesk.api.models import (
     LoopState,
     QueuedReport,
     ReviewRequest,
+    RunSummary,
     RunView,
 )
 from refdesk.checkpoints import (
@@ -76,7 +77,7 @@ from refdesk.retrieval import Hit, Query, Retriever
 from refdesk.retrieval.combined import ConditionNotUnderstood
 from refdesk.retrieval.metadata import _phrase
 from refdesk.runlog import FILENAME as EVENTS_FILE
-from refdesk.runlog import RunLog, args_hash, read_events
+from refdesk.runlog import REDACTED, RunLog, args_hash, read_events
 from refdesk.schema import ArtworkRecord, RightsStatus
 from refdesk.verifier import _norm, item_status
 from refdesk.wording import (
@@ -250,6 +251,14 @@ class RunStore:
                 "SELECT count(*) FROM checkpoints WHERE run_id = ?", (run_id,)
             ).fetchone()  # fmt: skip
         return int(count)
+
+    def history(self) -> list[tuple[str, RunView]]:
+        """Every run as (created_at, view), newest first (S7, issue #159)."""
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT created_at, view FROM runs ORDER BY created_at DESC, rowid DESC"
+            ).fetchall()
+        return [(created, RunView.model_validate_json(view)) for created, view in rows]
 
     def interrupted_ids(self) -> list[str]:
         """Runs whose stored view is not terminal — the runs a restarted process should
@@ -979,6 +988,26 @@ class BoardService:
             e.model_copy(update={"recorded": None}) for e in read_events(self.events_path(run_id))
         ]
         return view.model_copy(update={"events": events})
+
+    def history(self) -> list[RunSummary]:
+        """The S7 runs list (issue #159), newest first. Read-only. The brief is never
+        returned here, the way the run log never writes it (PRD 10.2)."""
+        return [
+            RunSummary(
+                run_id=view.run_id,
+                created_at=datetime.fromisoformat(created),
+                brief=REDACTED,
+                state=view.state,
+                stop_reason=view.stop_reason,
+                stop_banner=view.stop_banner,
+                cost=view.cost,
+                keep_local=view.keep_local,
+                sent_to=view.sent_to,
+                approver=view.approval.approver if view.approval else None,
+                read_only=view.read_only,
+            )
+            for created, view in self.runs.history()
+        ]
 
     def review(self, run_id: str, request: ReviewRequest) -> RunView:
         """G3: record keep (with a note) or drop for flagged items, with who and when."""

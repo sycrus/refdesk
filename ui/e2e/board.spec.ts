@@ -137,6 +137,47 @@ test.describe("S5 review", () => {
   });
 });
 
+// S7 Run history and audit (issue 159): the runs list with a redacted brief and where it
+// was sent, then one run's events. Read-only.
+test("S7 lists past runs, opens one run's events, and passes axe", async ({ page }) => {
+  await newBoard(page, "cypresses in a landscape");
+  const runId = new URL(page.url()).searchParams.get("run")!;
+  // Wait for the run to finish, so the history shows its final sent_to.
+  await expect(page.getByText("mock, mock-judge")).toBeVisible();
+  await page.getByRole("link", { name: "Run history" }).click();
+  await expect(page).toHaveURL(/\?history=1/);
+  await expect(page.getByRole("heading", { level: 1, name: "Run history" })).toBeVisible();
+  const row = page.getByRole("row").filter({ hasText: runId });
+  await expect(row).toBeVisible();
+  await expect(row.getByText("[brief redacted]")).toBeVisible();
+  await expect(row.getByText("mock, mock-judge")).toBeVisible();
+  await expect(page.getByText("cypresses in a landscape")).toHaveCount(0);
+  await expect(page.getByRole("button")).toHaveCount(0);
+
+  const axe = async () => {
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      expect(
+        result.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
+      ).toEqual([]);
+    }
+  };
+  await axe();
+
+  await row.getByRole("link", { name: `Events for ${runId}` }).click();
+  await expect(page).toHaveURL(new RegExp(`\\?audit=${runId}`));
+  const log = page.getByRole("region", { name: "Run audit log" });
+  await expect(log.getByRole("listitem").first()).toBeVisible();
+  await expect(page.getByText("mock, mock-judge")).toBeVisible();
+  await axe();
+
+  await page.getByRole("link", { name: "Open the board" }).click();
+  await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
+});
+
 // S6 Approve and export (issue 101): the ConfirmDialog, the irreversible export, the receipt.
 test("approve and export a verified board, then it is read-only", async ({ page }) => {
   await newBoard(page, "cypresses in a landscape");

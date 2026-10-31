@@ -58,6 +58,32 @@
         }
       }
     },
+    "/runs": {
+      "get": {
+        "tags": [
+          "read"
+        ],
+        "summary": "List Runs",
+        "description": "S7 run history (issue #159), newest first: state, stop reason, cost, where each\nbrief was sent and who approved. The brief is redacted; one run's events are on\nGET /runs/{run_id}. Read-only.",
+        "operationId": "list_runs_runs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Runs Runs Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}": {
       "get": {
         "tags": [
@@ -1937,6 +1963,94 @@
         ],
         "title": "RunEvent",
         "description": "One line of a run's events.jsonl (PRD 10.2 run log, issue #156). The brief is\nredacted before the line is written."
+      },
+      "RunSummary": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "brief": {
+            "type": "string",
+            "title": "Brief",
+            "description": "Always redacted; open the run for its request"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LoopState"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_banner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Banner",
+            "description": "Fixed wording; never hidden"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Cost"
+          },
+          "keep_local": {
+            "type": "boolean",
+            "title": "Keep Local"
+          },
+          "sent_to": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sent To",
+            "description": "Providers this brief was sent to"
+          },
+          "approver": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approver",
+            "description": "Who approved (G4), once approved"
+          },
+          "read_only": {
+            "type": "boolean",
+            "title": "Read Only",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "created_at",
+          "brief",
+          "state",
+          "cost",
+          "keep_local",
+          "sent_to"
+        ],
+        "title": "RunSummary",
+        "description": "One row of the S7 run history (issue #159). The brief is redacted, as in the run\nlog (PRD 10.2): the history is a list of what ran, not of what clients asked."
       },
       "RunView": {
         "properties": {

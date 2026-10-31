@@ -35,6 +35,7 @@ from refdesk.api.models import (
     ReportAccepted,
     ReviewRequest,
     RunCreated,
+    RunSummary,
     RunView,
 )
 from refdesk.boards import (
@@ -138,6 +139,14 @@ def create_board(
         return JSONResponse(status_code=400, content=problem.model_dump())
     background.add_task(service.execute, view.run_id, request)
     return RunCreated(run_id=view.run_id, state=view.state)
+
+
+@app.get("/runs", response_model=list[RunSummary], tags=["read"])
+def list_runs(service: Service):
+    """S7 run history (issue #159), newest first: state, stop reason, cost, where each
+    brief was sent and who approved. The brief is redacted; one run's events are on
+    GET /runs/{run_id}. Read-only."""
+    return service.history()
 
 
 @app.get(
