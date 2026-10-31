@@ -110,7 +110,9 @@ class TestRaiseService:
             svc.raise_cap("run-unknown", CapRaise(new_cap_usd=1.0, raised_by="Joe"))
 
         finished = svc.create(BoardRequest(brief="boats", target_items=1, budget_cap_usd=5.0))
-        view = svc.execute(finished.run_id, BoardRequest(brief="boats", target_items=1, budget_cap_usd=5.0))
+        view = svc.execute(
+            finished.run_id, BoardRequest(brief="boats", target_items=1, budget_cap_usd=5.0)
+        )
         assert view.state is S.DONE
         with pytest.raises(GateRefused, match="budget cap"):
             svc.raise_cap(finished.run_id, CapRaise(new_cap_usd=9.0, raised_by="Joe"))
@@ -146,7 +148,9 @@ class TestRaiseEndpoint:
             client = TestClient(app)
             assert client.post(f"/runs/{run_id}/cap", json={"new_cap_usd": 2.0}).status_code == 422
             assert (
-                client.post(f"/runs/{run_id}/cap", json={"new_cap_usd": 2.0, "raised_by": "   "}).status_code
+                client.post(
+                    f"/runs/{run_id}/cap", json={"new_cap_usd": 2.0, "raised_by": "   "}
+                ).status_code
                 == 422
             )
         finally:
@@ -158,7 +162,9 @@ class TestRaiseEndpoint:
         app.dependency_overrides[get_service] = lambda: svc
         try:
             client = TestClient(app)
-            response = client.post(f"/runs/{run_id}/cap", json={"new_cap_usd": 2.0, "raised_by": "Joe"})
+            response = client.post(
+                f"/runs/{run_id}/cap", json={"new_cap_usd": 2.0, "raised_by": "Joe"}
+            )
         finally:
             app.dependency_overrides.clear()
         assert response.status_code == 200
@@ -180,7 +186,9 @@ class TestRaiseEndpoint:
         app.dependency_overrides[get_service] = lambda: svc
         try:
             client = TestClient(app)
-            response = client.post(f"/runs/{working}/cap", json={"new_cap_usd": 1.0, "raised_by": "Joe"})
+            response = client.post(
+                f"/runs/{working}/cap", json={"new_cap_usd": 1.0, "raised_by": "Joe"}
+            )
         finally:
             app.dependency_overrides.clear()
         assert response.status_code == 409
