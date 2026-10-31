@@ -302,7 +302,15 @@ def main(argv: list[str] | None = None) -> int:
     p_label.add_argument("--n", type=int, help="number of briefs (default: config)")
     p_label.add_argument("--settings", default="config/labelling.yaml")
     p_label.add_argument("--db", default=DEFAULT_DB)
+    p_signals = commands.add_parser("signals", help="golden signals from run logs (#172)")
+    p_signals.add_argument("--runs", default="runs", help="directory of <run_id>/events.jsonl")
     args = parser.parse_args(argv)
+
+    if args.command == "signals":  # reads run logs only; no store needed
+        from refdesk.signals import format_signals, golden_signals, read_runs
+
+        print(format_signals(golden_signals(read_runs(args.runs))))
+        return 0
 
     with Store(args.db) as store:
         if args.command == "stats":
