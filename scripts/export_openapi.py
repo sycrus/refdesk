@@ -13,5 +13,10 @@ OUT = Path(__file__).resolve().parent.parent / "docs" / "api" / "openapi.json"
 
 if __name__ == "__main__":
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(app.openapi(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    # newline="\n": the committed file has LF endings; without this, Windows writes CRLF
+    # and every regeneration shows a whole-file diff.
+    OUT.write_text(
+        json.dumps(app.openapi(), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8", newline="\n",
+    )
     print(f"wrote {OUT.relative_to(Path.cwd()) if OUT.is_relative_to(Path.cwd()) else OUT}")
