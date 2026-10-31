@@ -5,8 +5,9 @@ evals/reports/golden-v1-trust-<date>-<inputs hash>.md, never overwriting one. Ru
 any stage: missing pass 2 or an unfinished review shows as pending.
 
 `--freeze` also writes evals/golden/golden-v1.jsonl, only when every case is built, pass 2
-is done, the review is done and both trust rules pass. Freezing is Joe's call: he runs it,
-or approves the run (golden-set edits are on the ask list).
+is done, the review is done and both trust rules pass. It first makes sure the corpus
+snapshot the labels were made on exists in evals/golden/corpus/ (ADR-023). Freezing is
+Joe's call: he runs it, or approves the run (golden-set edits are on the ask list).
 
 Usage (PowerShell or WSL2):
     uv run python scripts/golden_v1_report.py [--caveat "Pass 2 on the same day"] [--freeze]
@@ -21,7 +22,9 @@ import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from refdesk.evals.corpus import CorpusMismatch, ensure_snapshot
 from refdesk.evals.golden_v1 import assemble, report
+from refdesk.store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
 V1 = ROOT / "evals" / "labelling" / "v1"
@@ -83,6 +86,17 @@ def main() -> None:
                              "and both trust rules must pass")  # fmt: skip
         if GOLDEN.exists():
             raise SystemExit("golden-v1.jsonl exists; frozen sets are never edited")
+        # Pin the corpus the labels were made on (ADR-023), before anything is frozen.
+        with Store(ROOT / "data" / "refdesk.sqlite") as store:
+            try:
+                snapshot = ensure_snapshot(
+                    blind["corpus_version"],
+                    list(store.iter_records()),
+                    ROOT / "evals" / "golden" / "corpus",
+                )
+            except CorpusMismatch as error:
+                raise SystemExit(f"not frozen: {error}") from error
+        print(f"corpus snapshot {snapshot.relative_to(ROOT).as_posix()}")
         GOLDEN.write_text(
             "".join(c.model_dump_json(exclude_none=True) + "\n" for c in assembly.cases),
             encoding="utf-8",

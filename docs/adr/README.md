@@ -28,3 +28,4 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [020](ADR-020-routing-tiers-config.md) | Routing tiers as a config list (local qwen3.5:9b, cloud deepseek-flash) | accepted (reasoning [Joe]) |
 | [021](ADR-021-routing-labels-cross-family-judge.md) | Synthetic routing labels with a cross-family judge (judge: phi4 per claim; Granite dropped 2026-10-27) | accepted (reasoning [Joe]) |
 | [022](ADR-022-rationale-verification-structured-claims.md) | Rationale verification by structured claims (code checks, then phi4 per claim) | accepted |
+| [023](ADR-023-eval-corpus-snapshots.md) | Eval corpus snapshots: golden sets pin an ID list; the store keeps growing | proposed (reasoning [Joe]) |

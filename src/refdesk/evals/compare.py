@@ -20,7 +20,10 @@ from typing import Any
 from refdesk.evals.harness import METRIC_NAMES, METRICS
 from refdesk.evals.scorers import bootstrap_ci
 
-MUST_MATCH = ("golden_version", "golden_sha256", "corpus_version", "scorers_version")
+# corpus_drift: a manifest from before snapshots (ADR-023) has none, which means no drift.
+MUST_MATCH = (
+    "golden_version", "golden_sha256", "corpus_version", "corpus_drift", "scorers_version",
+)  # fmt: skip
 
 
 class NotComparable(ValueError):
@@ -61,10 +64,9 @@ def compare_runs(
     config_a, rows_a = _load(root, run_a)
     config_b, rows_b = _load(root, run_b)
     for field in MUST_MATCH:
-        if config_a.get(field) != config_b.get(field):
-            raise NotComparable(
-                f"{field} differs: {config_a.get(field)!r} vs {config_b.get(field)!r}"
-            )
+        a, b = config_a.get(field, ""), config_b.get(field, "")
+        if a != b:
+            raise NotComparable(f"{field} differs: {a!r} vs {b!r}")
 
     shared = sorted(set(rows_a) & set(rows_b))
     metrics = {}

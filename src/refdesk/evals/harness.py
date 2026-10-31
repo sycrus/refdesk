@@ -56,9 +56,16 @@ class EvalConfig:
     scorers_version: str = SCORERS_VERSION
     model: str = "none (retrieval only)"
     prompt_hashes: dict[str, str] = field(default_factory=dict)
+    corpus_drift: str = ""  # hash of pinned records changed since the snapshot (ADR-023)
+
+    def hash_fields(self) -> dict[str, Any]:
+        fields = asdict(self)
+        if not fields["corpus_drift"]:
+            del fields["corpus_drift"]  # no drift: the same hash as before snapshots existed
+        return fields
 
     def config_hash(self) -> str:
-        canonical = json.dumps(asdict(self), sort_keys=True)
+        canonical = json.dumps(self.hash_fields(), sort_keys=True)
         return hashlib.sha256(canonical.encode()).hexdigest()[:12]
 
 
@@ -72,6 +79,7 @@ class EvalResult:
     deterministic: bool
     wall_clock_s: float
     cost_usd: float = 0.0
+    corpus_notes: list[str] = field(default_factory=list)  # from the corpus pin (ADR-023)
 
 
 def case_query(case: GoldenCase, k: int) -> Query:
@@ -229,6 +237,7 @@ def _report(result: EvalResult, date: str, gates: str) -> str:
         f"- Golden set: `{c.golden_path}`, version `{c.golden_version}`, "
         f"sha256 `{c.golden_sha256[:12]}`",
         f"- Corpus version: `{c.corpus_version}`",
+        *[f"- {note}" for note in result.corpus_notes],
         f"- Retriever: `{c.retriever}` {json.dumps(c.retriever_params)}; k = {c.k}",
         f"- Git: `{c.git_sha[:12]}`{' (uncommitted changes)' if c.git_dirty else ''}",
         f"- Model: {c.model}. Scorers: `{c.scorers_version}`. "

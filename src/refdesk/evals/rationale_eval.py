@@ -176,6 +176,7 @@ def _report(result: EvalResult, date: str) -> str:
         f"`{params.get('judge_tier')}` (model `{params.get('judge_model')}`).",
         f"- Retriever `{c.retriever}`, top {c.k} per case. Golden `{c.golden_version}` "
         f"(sha256 `{c.golden_sha256[:12]}`), corpus `{c.corpus_version}`.",
+        *[f"- {note}" for note in result.corpus_notes],
         "- Prompts: " + ", ".join(f"`{n}` `{s[:12]}`" for n, s in sorted(c.prompt_hashes.items())),
         f"- Git `{c.git_sha[:12]}`{' (dirty)' if c.git_dirty else ''}; config hash `{h}`; "
         f"bootstrap {c.n_boot} resamples, seed {c.seed}. Determinism not checked "
