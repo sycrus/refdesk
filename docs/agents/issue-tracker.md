@@ -33,6 +33,21 @@ Each issue has one milestone (M0 to M5) and one triage label (see `triage-labels
 - `ready-for-human` issues are learning-critical (golden labels, ADR reasoning, decision-contract meanings, threat-model judgements, postmortem lessons, interviews). Claude Code may draft scaffolding when asked, never the judgement.
 - If an agent finds a judgement call mid-task, it comments on the issue, adds `needs-info`, and stops.
 
+## Recording Joe's judgements
+
+Joe gives a judgement in the issue thread. The thread is not versioned and is not next to the code, so the agent then copies the judgement into the repo file below, citing it as "(Joe, YYYY-MM-DD, #n)", and Joe checks the wording in the PR. Short answers are written up by the agent; reasoning (such as an ADR's `[Joe]` sections) is copied word for word, never paraphrased or extended. If the thread is ambiguous, the agent asks in the thread before writing anything.
+
+| Kind of judgement | Where it is recorded |
+|---|---|
+| Architecture or process choice | The ADR: an amendment line plus Joe's reasoning (`docs/adr/`) |
+| Q1 option meanings, error costs, abstention | `docs/decision-contract.md` |
+| Loop values (caps, timeout, stuck rule, K) | `config/loop.yaml`, with the reason as a comment, and PRD 10.2 |
+| Eval gates and thresholds | `docs/eval-gate-policy.md` |
+| Golden labels and reviews | The labelling files under `evals/labelling/` |
+| Postmortem hindsight | That postmortem in `postmortems/` |
+| Threat-model attacker paths and residual risk | The threat-model doc |
+| Anything else that changes the spec | `docs/prd.md` (on the ask list: Joe edits or approves) |
+
 ## Blocking
 
 Use a `Blocked by` list in the body. An issue is unblocked when every listed issue is closed. (GitHub's native dependencies need `gh api`, which is on the ask list in `.claude/settings.json`.)
