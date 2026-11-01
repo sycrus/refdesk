@@ -9,6 +9,15 @@ Demonstration goal D9 includes MCP tools on top of the API (PRD 3). Approval (G4
 ## Decision
 Build the MCP server after the API, as a separate process that calls the API over HTTP, with no business logic of its own (FR-12). It exposes read-only tools only (draft: `search_references`, `get_record`, `get_rights_record`, `get_run`). Approval and export are never exposed through MCP.
 
+### Decisions for the build (Joe, 2026-10-31, #160)
+- **Dependency:** the official `mcp` SDK, pinned `>=1,<2`, as an optional extra (`uv sync --extra mcp`). CI installs the extra so the contract tests run. Joe's reasons: learning, demos, and integration with other projects (it covers both stdio and streamable HTTP). Rejected: `mcp` as a core dependency (every install pulls it in), and a hand-written stdio JSON-RPC server (no dependency, but refdesk would have to keep up with the protocol).
+- **No `start_board` tool.** Starting a board runs the LLM loop and spends budget. MCP tools are read-only and never spend. Rejected: an allowlist exception for `POST /boards`, and retagging it `read`.
+- **Record endpoints first**, in their own issue (#200), so the server stays logic-free.
+- **Tool set**, one API call each: `list_runs` (`GET /runs`), `get_run` (`GET /runs/{id}`), `get_record` (`GET /records/{id}`), `get_rights_record` (`GET /records/{id}/rights`), `search_references` (`POST /search`, retrieval only; image URLs stay on the museum's host), `get_image` (`GET /records/{id}/image`, cached image as MCP image content, Open works only), `get_provenance` (`POST /provenance`, record-level rights rows marked as not an approved export).
+- **Downloads** are allowed for CC0 or public-domain works. Saving files is the client's own action; `get_provenance` keeps the rights evidence with any download made outside refdesk.
+- **Transports:** stdio, and streamable HTTP bound to `127.0.0.1` until #201 (auth and scopes) lands.
+- Museum text is wrapped as untrusted data; rights wording comes from `refdesk.wording`.
+
 ## Options considered
 | Option | Why not chosen |
 |---|---|
@@ -22,7 +31,7 @@ Build the MCP server after the API, as a separate process that calls the API ove
 - **[Joe]**
 
 ## Evidence
-Built so far: the API tags operations (`src/refdesk/api/app.py`); approve and export are tagged `gates`. The MCP server is not built (M4, PRD 17); its contract tests will supply evidence.
+Built (#160): `src/refdesk/mcp_server.py`. The API tags operations (`src/refdesk/api/app.py`); approve and export are tagged `gates`, reports `reports`, starting a board `runs`. `tests/test_mcp_server.py` checks that every tool maps to an operation tagged `read`, that every `read` operation has a tool, that gated, report and board operations are absent, that each tool makes exactly one HTTP call against a stub API and passes the answer through inside an untrusted-data envelope, that an ID cannot add or walk up a path segment, and that the server imports nothing from refdesk except the fixed wording.
 
 ## Revisit trigger
 **[Joe]**

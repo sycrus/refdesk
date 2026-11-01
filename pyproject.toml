@@ -14,6 +14,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The read-only MCP server (issue #160, ADR-015; Joe, 2026-10-31): uv sync --extra mcp.
+# Brings httpx, which the server uses to call the API.
+mcp = [
+    "mcp>=1,<2",
+]
 embed = [
     "open-clip-torch>=3.3,<4",
     "torch==2.11.0",

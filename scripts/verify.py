@@ -60,6 +60,7 @@ CHECKS = [
 
 NOT_RUN_LOCALLY = {
     "uv sync --locked": "setup, not a check",
+    "uv sync --locked --extra mcp": "setup, not a check",
     "npm ci": "setup; a missing ui/node_modules is reported instead",
     "npx playwright install --with-deps chromium": "setup for the browser tests",
     "npm run test:e2e": "needs a browser and the live API; CI only",
