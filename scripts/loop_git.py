@@ -11,7 +11,8 @@ it swept leftover eval reports and an unrelated trust report into the agent's co
 Why this is separate from run-loop.ps1: like the picker, the rules are the part most
 likely to be wrong, so they live in plain, tested Python. The PowerShell runner only calls it.
 
-Exit codes: 0 ok, 1 refused (reasons on stderr).
+Exit codes: 0 ok, 1 refused (reasons on stderr), 3 nothing to stage (`stage` only: the
+agent changed nothing, for example it only commented and added needs-info; #204).
 
 Usage: uv run python scripts/loop_git.py start | stage
 """
@@ -23,6 +24,7 @@ import subprocess
 import sys
 
 DERIVED = ("data/", "runs/")
+EXIT_NO_CHANGES = 3
 
 
 def _unquote(path: str) -> str:
@@ -65,6 +67,9 @@ def main(argv: list[str] | None = None) -> int:
         errors = start_errors(porcelain)
     else:
         paths = paths_to_stage(porcelain)
+        if not paths:
+            print("nothing to stage: the agent changed no files", file=sys.stderr)
+            return EXIT_NO_CHANGES
         errors = commit_errors(paths)
         if not errors and paths:
             subprocess.run(["git", "add", "--", *paths], check=True)

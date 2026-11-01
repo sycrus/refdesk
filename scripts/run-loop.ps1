@@ -9,8 +9,8 @@
 #
 # Stops on: queue empty (0), agent work waiting on a ready-for-human issue (3), a failed
 # check, staging refusal, push/PR failure or timeout (1), a picker error (2), the agent
-# adding needs-info for Joe (4, work left uncommitted), a dirty tree at start (5), or
-# -MaxTasks.
+# adding needs-info for Joe (4, work left uncommitted), a dirty tree at start (5), the
+# agent changing no files (6, nothing committed or pushed), or -MaxTasks.
 # Run with -DryRun first, then -MaxTasks 1, and review each PR before merging it.
 param(
   [int]$MaxTasks = 3,
@@ -87,8 +87,15 @@ while ($done.Count -lt $MaxTasks) {
   if ($session) { Write-Host "Session: $session (reopen with: claude --resume $session)" }
 
   # The agent stopped for a judgement reserved for Joe: leave its draft for review.
-  $labels = gh issue view $n -R sycrus/refdesk --json labels --jq '[.labels[].name] | join(",")'
-  if ($labels -split ',' -contains 'needs-info') {
+  # One label per line, so no double quotes inside the jq argument: Windows PowerShell 5.1
+  # strips them when calling native programs, and this check silently never fired (#204).
+  $labels = @(gh issue view $n -R sycrus/refdesk --json labels --jq '.labels[].name')
+  if ($LASTEXITCODE -ne 0) {
+    "$(Get-Date -Format s),$n,fail-labels,0,$branch,$session" | Out-File $log -Append -Encoding utf8
+    Write-Host "Stopped at #${n}: could not read the issue's labels. Nothing was committed."
+    exit 1
+  }
+  if ($labels -contains 'needs-info') {
     $minutes = [math]::Round(((Get-Date) - $start).TotalMinutes, 1)
     "$(Get-Date -Format s),$n,needs-info,$minutes,$branch,$session" | Out-File $log -Append -Encoding utf8
     Write-Host "Stopped at #${n}: the agent asked for your judgement (needs-info). Its draft is uncommitted on $branch."
@@ -96,6 +103,11 @@ while ($done.Count -lt $MaxTasks) {
   }
 
   uv run python scripts/loop_git.py stage
+  if ($LASTEXITCODE -eq 3) {
+    "$(Get-Date -Format s),$n,no-changes,0,$branch,$session" | Out-File $log -Append -Encoding utf8
+    Write-Host "Stopped at #${n}: the agent changed no files (see its comment on the issue). Nothing was committed or pushed."
+    exit 6
+  }
   if ($LASTEXITCODE -ne 0) {
     "$(Get-Date -Format s),$n,fail-staging,0,$branch,$session" | Out-File $log -Append -Encoding utf8
     Write-Host "Stopped at #${n}: refused to stage (see above). Nothing was committed."
@@ -110,7 +122,13 @@ while ($done.Count -lt $MaxTasks) {
     # WriteAllText writes UTF-8 without a BOM; Out-File on PowerShell 5.1 would add one.
     [IO.File]::WriteAllText($msgFile, "build(#$n): $($issue.title)`n`nrefs #$n`n`nCo-Authored-By: Claude Code <noreply@anthropic.com>`n")
     git commit -q -F $msgFile
+    $committed = ($LASTEXITCODE -eq 0)
     Remove-Item $msgFile
+    if (-not $committed) {
+      "$(Get-Date -Format s),$n,fail-commit,$minutes,$branch,$session" | Out-File $log -Append -Encoding utf8
+      Write-Host "Stopped at #${n}: git commit failed on $branch. Nothing was pushed."
+      exit 1
+    }
 
     git push -q -u origin $branch
     if ($LASTEXITCODE -ne 0) {
