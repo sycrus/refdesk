@@ -137,6 +137,286 @@
         }
       }
     },
+    "/records/{record_id}": {
+      "get": {
+        "tags": [
+          "read"
+        ],
+        "summary": "Get Record",
+        "description": "One record as the source gave it. `image_url` is present only for Open works.",
+        "operationId": "get_record_records__record_id__get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/records/{record_id}/rights": {
+      "get": {
+        "tags": [
+          "read"
+        ],
+        "summary": "Get Rights",
+        "description": "The rights record: status, the source field and value it was read from, licence,\ncredit line and when it was checked. Unverified stays unverified. Not legal advice.",
+        "operationId": "get_rights_records__record_id__rights_get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RightsView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/records/{record_id}/image": {
+      "get": {
+        "tags": [
+          "read"
+        ],
+        "summary": "Get Image",
+        "description": "The cached image bytes, from refdesk's own cache, for Open works only. Never\nfetches from the museum at request time.",
+        "operationId": "get_image_records__record_id__image_get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Record Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cached image",
+            "content": {
+              "image/jpeg": {},
+              "image/png": {}
+            }
+          },
+          "403": {
+            "description": "Not an Open work",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown record, or no cached image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "post": {
+        "tags": [
+          "read"
+        ],
+        "summary": "Search",
+        "description": "Retrieval only: ranked hits with their rights status, credit line and (Open works\nonly) image URL. Names the retriever used; never switches to another one.",
+        "operationId": "search_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown anchor or unusable condition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The retriever cannot load",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrieverUnavailable"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/provenance": {
+      "post": {
+        "tags": [
+          "read"
+        ],
+        "summary": "Get Provenance",
+        "description": "The record-level rights columns of the provenance pack, for each ID. Each row is a\nrights record, not an approved export: no approver, no exported_at.",
+        "operationId": "get_provenance_provenance_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvenanceRecords"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}/review": {
       "post": {
         "tags": [
@@ -1523,6 +1803,134 @@
         ],
         "title": "Problem"
       },
+      "ProvenanceRecords": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ProvenanceRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rows"
+        ],
+        "title": "ProvenanceRecords"
+      },
+      "ProvenanceRequest": {
+        "properties": {
+          "record_ids": {
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Record Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_ids"
+        ],
+        "title": "ProvenanceRequest"
+      },
+      "ProvenanceRow": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "rights_record",
+            "title": "Kind",
+            "default": "rights_record"
+          },
+          "notice": {
+            "type": "string",
+            "title": "Notice",
+            "description": "Always 'Rights record, not an approved export'"
+          },
+          "item_id": {
+            "type": "string",
+            "title": "Item Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "artist": {
+            "type": "string",
+            "title": "Artist"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "object_id": {
+            "type": "string",
+            "title": "Object Id"
+          },
+          "record_url": {
+            "type": "string",
+            "title": "Record Url"
+          },
+          "rights_status": {
+            "$ref": "#/components/schemas/RightsStatus"
+          },
+          "flag_field": {
+            "type": "string",
+            "title": "Flag Field"
+          },
+          "flag_value": {
+            "type": "string",
+            "title": "Flag Value"
+          },
+          "licence_string": {
+            "type": "string",
+            "title": "Licence String"
+          },
+          "credit_line": {
+            "type": "string",
+            "title": "Credit Line"
+          },
+          "checked_at": {
+            "type": "string",
+            "title": "Checked At"
+          },
+          "not_legal_advice": {
+            "type": "string",
+            "title": "Not Legal Advice"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "notice",
+          "item_id",
+          "title",
+          "artist",
+          "date",
+          "source",
+          "object_id",
+          "record_url",
+          "rights_status",
+          "flag_field",
+          "flag_value",
+          "licence_string",
+          "credit_line",
+          "checked_at",
+          "not_legal_advice"
+        ],
+        "title": "ProvenanceRow",
+        "description": "The rights-related columns of the provenance pack (one builder, refdesk.provenance),\nfor one record. Not an approved export: there is no approver and no exported_at."
+      },
       "QueuedReport": {
         "properties": {
           "report_id": {
@@ -1597,6 +2005,96 @@
         ],
         "title": "Readiness"
       },
+      "RecordView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "The source's display date, verbatim"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "object_id": {
+            "type": "string",
+            "title": "Object Id"
+          },
+          "record_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Url"
+          },
+          "rights_status": {
+            "$ref": "#/components/schemas/RightsStatus"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url",
+            "description": "Present only when the rights status is Open"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "artist",
+          "date",
+          "source",
+          "object_id",
+          "record_url",
+          "rights_status",
+          "image_url"
+        ],
+        "title": "RecordView"
+      },
       "ReportAccepted": {
         "properties": {
           "report_id": {
@@ -1616,6 +2114,31 @@
           "report_id"
         ],
         "title": "ReportAccepted"
+      },
+      "RetrieverUnavailable": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "retriever_unavailable",
+            "title": "Code",
+            "default": "retriever_unavailable"
+          },
+          "retriever": {
+            "type": "string",
+            "title": "Retriever"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "retriever",
+          "message"
+        ],
+        "title": "RetrieverUnavailable"
       },
       "ReviewDecision": {
         "properties": {
@@ -1756,6 +2279,88 @@
           "Permission required"
         ],
         "title": "RightsStatus"
+      },
+      "RightsView": {
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "title": "Record Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RightsStatus"
+          },
+          "flag_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flag Field",
+            "description": "The structured source field read; None if none"
+          },
+          "flag_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flag Value",
+            "description": "Its raw value, as the source returned it"
+          },
+          "licence_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence String"
+          },
+          "credit_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Line"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At"
+          },
+          "not_legal_advice": {
+            "type": "string",
+            "title": "Not Legal Advice"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_id",
+          "status",
+          "flag_field",
+          "flag_value",
+          "licence_string",
+          "credit_line",
+          "checked_at",
+          "not_legal_advice"
+        ],
+        "title": "RightsView"
       },
       "RunCreated": {
         "properties": {
@@ -2193,6 +2798,151 @@
           "keep_local"
         ],
         "title": "RunView"
+      },
+      "SearchHit": {
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "title": "Record Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "rights_status": {
+            "$ref": "#/components/schemas/RightsStatus"
+          },
+          "credit_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Line"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url",
+            "description": "Present only when the rights status is Open"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Retrieval score; higher ranks first"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_id",
+          "title",
+          "artist",
+          "date",
+          "rights_status",
+          "credit_line",
+          "image_url",
+          "score"
+        ],
+        "title": "SearchHit"
+      },
+      "SearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Query",
+            "default": ""
+          },
+          "anchor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Id",
+            "description": "'<source>:<object_id>' of an anchor work"
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/Conditions",
+            "default": {}
+          },
+          "k": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "K",
+            "default": 12
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SearchRequest",
+        "description": "Retrieval only: ranks records, calls no model and spends nothing."
+      },
+      "SearchResults": {
+        "properties": {
+          "retriever": {
+            "type": "string",
+            "title": "Retriever",
+            "description": "The retriever that ranked these hits"
+          },
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "type": "array",
+            "title": "Hits"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "retriever",
+          "hits"
+        ],
+        "title": "SearchResults"
       },
       "StopReason": {
         "type": "string",

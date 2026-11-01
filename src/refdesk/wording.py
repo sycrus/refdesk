@@ -54,4 +54,7 @@ EXPORTED = "Exported. This board is now read-only"
 # Shown on the fit sentence when the judge flags it. It never changes the attribution
 # status: that rests on the claims (ADR-022, amended 2026-10-27, issue #135).
 OPINION_FLAGGED = "Opinion flagged: may state a fact the record does not give"
-NOT_LEGAL_ADVICE = "Rights are recorded as stated by each source. This is not legal advice."
+# On every POST /provenance row (issue #200): a rights trail read on demand, with no
+# approver and no export time, so it can never pass for an approved provenance pack.
+RIGHTS_RECORD_NOT_EXPORT = "Rights record, not an approved export"
+NOT_LEGAL_ADVICE ="Rights are recorded as stated by each source. This is not legal advice."

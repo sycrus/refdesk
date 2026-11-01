@@ -71,6 +71,7 @@ from refdesk.checkpoints import (
     checkpointed_search,
 )
 from refdesk.loop import LoopConfig, LoopController, LoopResult
+from refdesk.provenance import rights_columns
 from refdesk.rationale import field_value
 from refdesk.reasoning import ItemReasoning, Reasoner, ReasoningOutcome
 from refdesk.retrieval import Hit, Query, Retriever
@@ -632,8 +633,14 @@ class BoardService:
         reasoner: Reasoner | None = None,
         loop: LoopConfig | None = None,
         runs_dir: str | Path | None = None,
+        images_dir: str | Path = "data/images",
+        metadata_path: str | Path | None = None,
     ):
         self.runs = runs
+        # GET /records/{id}/image (issue #200) serves files from this cache, located
+        # through the metadata store's `images` table (by default the runs' SQLite file).
+        self.images_dir = Path(images_dir)
+        self.metadata_path = Path(metadata_path) if metadata_path is not None else runs.path
         # <runs_dir>/<run_id>/events.jsonl. The API uses runs/ (gitignored); by default it
         # sits beside the run store, so a test's store and logs share its temp directory.
         self.runs_dir = Path(runs_dir) if runs_dir is not None else runs.path.parent / "runs"
@@ -1158,23 +1165,12 @@ class BoardService:
         return receipt
 
     def _pack_row(self, view: RunView, item: BoardItem, versions: dict, exported_at) -> dict:
-        record, rights, review = item.record, item.record.rights, item.review
+        review = item.review
         return {
             "run_id": view.run_id,
-            "item_id": record.id,
-            "title": record.title or "",
-            "artist": record.artist or "",
-            "date": record.date or "",
-            "source": record.source,
-            "object_id": record.object_id,
-            "record_url": record.record_url or "",
+            # The record-level rights columns: the same builder POST /provenance uses.
+            **rights_columns(item.record),
             "usage_mode": view.request.usage_mode.value if view.request else "",
-            "rights_status": rights.status.value,
-            "flag_field": rights.flag_field or "",
-            "flag_value": "" if rights.flag_value is None else str(rights.flag_value),
-            "licence_string": rights.licence_string or "",
-            "credit_line": record.credit_line or "",
-            "checked_at": rights.checked_at.isoformat(),
             "attribution_status": item.attribution_status.value,
             "review_decision": review.decision if review else "",
             "review_note": (review.note or "") if review else "",
@@ -1187,7 +1183,6 @@ class BoardService:
             "approver": view.approval.approver,
             "approved_at": view.approval.approved_at.isoformat(),
             "exported_at": exported_at.isoformat(),
-            "not_legal_advice": NOT_LEGAL_ADVICE,
         }
 
     def report(self, request: ErrorReport) -> QueuedReport:
@@ -1260,6 +1255,7 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
         check,
         reasoner=default_reasoner(config.get("api", {}).get("reasoning") or {}),
         runs_dir="runs",
+        images_dir=os.environ.get("REFDESK_IMAGES_DIR", "data/images"),
     )
 
 

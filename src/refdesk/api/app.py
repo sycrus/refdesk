@@ -8,6 +8,7 @@ Tags matter for the MCP server (FR-12, ADR-015): it may expose only `read` opera
 
 from __future__ import annotations
 
+import mimetypes
 import os
 import threading
 from contextlib import asynccontextmanager
@@ -16,10 +17,10 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from refdesk import __version__
+from refdesk import __version__, reads
 from refdesk.api.models import (
     ApprovalRequest,
     BoardRequest,
@@ -30,14 +31,21 @@ from refdesk.api.models import (
     GateBlocked,
     Health,
     Problem,
+    ProvenanceRecords,
+    ProvenanceRequest,
     QueuedReport,
     Readiness,
+    RecordView,
     ReportAccepted,
     ReviewRequest,
+    RightsView,
     RunCreated,
     RunSummary,
     RunView,
+    SearchRequest,
+    SearchResults,
 )
+from refdesk.api.models import RetrieverUnavailable as RetrieverUnavailableBody
 from refdesk.boards import (
     BoardService,
     ExportFailed,
@@ -162,6 +170,99 @@ def get_run(run_id: str, service: Service):
         problem = Problem(code="unknown_run", message=f"No run {run_id!r}.")
         return JSONResponse(status_code=404, content=problem.model_dump())
     return view
+
+
+# Records, search, images and provenance (issue #200), all `read`: no model call, no
+# budget, no run created, no museum fetch. Logic lives in refdesk.reads.
+NO_RECORD = {404: {"model": Problem, "description": "Unknown record"}}
+
+
+def _unknown_record(error: reads.UnknownRecord) -> JSONResponse:
+    ids = error.args[0] if isinstance(error.args[0], list) else [error.args[0]]
+    problem = Problem(code="unknown_record", message=f"No record {', '.join(map(repr, ids))}.")
+    return JSONResponse(status_code=404, content=problem.model_dump())
+
+
+@app.get("/records/{record_id}", response_model=RecordView, tags=["read"], responses=NO_RECORD)
+def get_record(record_id: str, service: Service):
+    """One record as the source gave it. `image_url` is present only for Open works."""
+    try:
+        return reads.get_record(service, record_id)
+    except reads.UnknownRecord as error:
+        return _unknown_record(error)
+
+
+@app.get(
+    "/records/{record_id}/rights", response_model=RightsView, tags=["read"], responses=NO_RECORD
+)
+def get_rights(record_id: str, service: Service):
+    """The rights record: status, the source field and value it was read from, licence,
+    credit line and when it was checked. Unverified stays unverified. Not legal advice."""
+    try:
+        return reads.get_rights(service, record_id)
+    except reads.UnknownRecord as error:
+        return _unknown_record(error)
+
+
+@app.get(
+    "/records/{record_id}/image",
+    response_class=FileResponse,
+    tags=["read"],
+    responses={
+        200: {"content": {"image/jpeg": {}, "image/png": {}}, "description": "Cached image"},
+        403: {"model": Problem, "description": "Not an Open work"},
+        404: {"model": Problem, "description": "Unknown record, or no cached image"},
+    },
+)
+def get_image(record_id: str, service: Service):
+    """The cached image bytes, from refdesk's own cache, for Open works only. Never
+    fetches from the museum at request time."""
+    try:
+        path = reads.cached_image(service, record_id)
+    except reads.UnknownRecord as error:
+        return _unknown_record(error)
+    except reads.ImageRefused as error:
+        problem = Problem(code=error.code, message=error.reason)
+        return JSONResponse(status_code=error.status, content=problem.model_dump())
+    media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, headers={"X-Content-Type-Options": "nosniff"})
+
+
+@app.post(
+    "/search",
+    response_model=SearchResults,
+    tags=["read"],
+    responses={
+        400: {"model": Problem, "description": "Unknown anchor or unusable condition"},
+        503: {"model": RetrieverUnavailableBody, "description": "The retriever cannot load"},
+    },
+)
+def search(request: SearchRequest, service: Service):
+    """Retrieval only: ranked hits with their rights status, credit line and (Open works
+    only) image URL. Names the retriever used; never switches to another one."""
+    try:
+        return reads.search(service, request)
+    except UnknownAnchor:
+        problem = Problem(code="unknown_anchor", message=f"No record {request.anchor_id!r}.")
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    except ConditionNotUnderstood as error:
+        problem = Problem(code="condition_not_understood", message=str(error))
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    except reads.RetrieverUnavailable as error:
+        body = RetrieverUnavailableBody(retriever=error.retriever, message=str(error))
+        return JSONResponse(status_code=503, content=body.model_dump())
+
+
+@app.post(
+    "/provenance", response_model=ProvenanceRecords, tags=["read"], responses=NO_RECORD
+)
+def get_provenance(request: ProvenanceRequest, service: Service):
+    """The record-level rights columns of the provenance pack, for each ID. Each row is a
+    rights record, not an approved export: no approver, no exported_at."""
+    try:
+        return ProvenanceRecords(rows=reads.provenance(service, request.record_ids))
+    except reads.UnknownRecord as error:
+        return _unknown_record(error)
 
 
 @app.post(
