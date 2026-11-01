@@ -14,7 +14,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from refdesk.schema import ArtworkRecord
-from refdesk.wording import AttributionStatus, StopReason
+from refdesk.wording import AttributionStatus, RightsStatus, StopReason
 
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -316,6 +316,101 @@ class QueuedReport(_Model):
     reported_by: str
     reported_at: datetime
     status: Literal["queued for review"] = "queued for review"
+
+
+# Read API for records, search, images and provenance (issue #200). All `read`: no model
+# call, no budget. Museum text in these responses (titles, artists, credit lines) is
+# untrusted data, returned as JSON strings; nothing here renders or executes it.
+
+
+class SearchRequest(_Model):
+    """Retrieval only: ranks records, calls no model and spends nothing."""
+
+    query: Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)] = ""
+    anchor_id: str | None = Field(None, description="'<source>:<object_id>' of an anchor work")
+    conditions: Conditions = Conditions()
+    k: int = Field(12, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def _query_or_anchor(self) -> SearchRequest:
+        if not self.query and self.anchor_id is None:
+            raise ValueError("give a query, an anchor_id, or both")
+        return self
+
+
+class RecordView(_Model):
+    id: str
+    title: str | None
+    artist: str | None
+    date: str | None = Field(description="The source's display date, verbatim")
+    source: str
+    object_id: str
+    record_url: str | None
+    rights_status: RightsStatus
+    image_url: str | None = Field(description="Present only when the rights status is Open")
+
+
+class RightsView(_Model):
+    record_id: str
+    status: RightsStatus
+    flag_field: str | None = Field(description="The structured source field read; None if none")
+    flag_value: str | bool | None = Field(description="Its raw value, as the source returned it")
+    licence_string: str | None
+    credit_line: str | None
+    checked_at: datetime
+    not_legal_advice: str
+
+
+class SearchHit(_Model):
+    record_id: str
+    title: str | None
+    artist: str | None
+    date: str | None
+    rights_status: RightsStatus
+    credit_line: str | None
+    image_url: str | None = Field(description="Present only when the rights status is Open")
+    score: float = Field(description="Retrieval score; higher ranks first")
+
+
+class SearchResults(_Model):
+    retriever: str = Field(description="The retriever that ranked these hits")
+    hits: list[SearchHit]
+
+
+class RetrieverUnavailable(_Model):
+    code: Literal["retriever_unavailable"] = "retriever_unavailable"
+    retriever: str
+    message: str
+
+
+class ProvenanceRequest(_Model):
+    record_ids: list[NonEmpty] = Field(min_length=1, max_length=100)
+
+
+class ProvenanceRow(_Model):
+    """The rights-related columns of the provenance pack (one builder, refdesk.provenance),
+    for one record. Not an approved export: there is no approver and no exported_at."""
+
+    kind: Literal["rights_record"] = "rights_record"
+    notice: str = Field(description="Always 'Rights record, not an approved export'")
+    item_id: str
+    title: str
+    artist: str
+    date: str
+    source: str
+    object_id: str
+    record_url: str
+    rights_status: RightsStatus
+    flag_field: str
+    flag_value: str
+    licence_string: str
+    credit_line: str
+    checked_at: str
+    not_legal_advice: str
+
+
+class ProvenanceRecords(_Model):
+    rows: list[ProvenanceRow]
 
 
 class GateBlocked(_Model):

@@ -28,6 +28,12 @@ PRD_13A = {
     ("post", "/runs/{run_id}/export"),
     ("post", "/reports"),
     ("get", "/reports"),
+    # The read API for MCP (#160), added with #200; tested in test_reads.py.
+    ("get", "/records/{record_id}"),
+    ("get", "/records/{record_id}/rights"),
+    ("get", "/records/{record_id}/image"),
+    ("post", "/search"),
+    ("post", "/provenance"),
     ("get", "/healthz"),
     ("get", "/readyz"),
 }
