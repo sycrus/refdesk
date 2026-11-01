@@ -71,6 +71,17 @@ Run the steps in order. Each one builds on the one before. Run `uv run python -m
    uv run uvicorn refdesk.api.app:app --port 8000
    ```
    With Ollama instead of the mocks (step 8): `uv run --env-file .env uvicorn refdesk.api.app:app --port 8000`.
+10. **MCP server (optional, read-only).** Runs as a separate process that calls the API from step 9 over HTTP (ADR-015). It has seven read tools: `list_runs`, `get_run`, `get_record`, `get_rights_record`, `search_references`, `get_image` and `get_provenance`. Nothing through MCP can approve, export, file a report or start a board. Results are marked as untrusted museum data. Point it at another API with `REFDESK_API_URL` (default `http://127.0.0.1:8000`). PowerShell:
+   ```
+   uv sync --extra mcp
+   uv run python -m refdesk.mcp_server                              # stdio
+   uv run python -m refdesk.mcp_server --transport http --port 8765 # http://127.0.0.1:8765/mcp
+   ```
+   The HTTP transport binds to `127.0.0.1` only until auth and scopes land (#201). Claude Code: `claude mcp add refdesk -- uv run --extra mcp --directory C:\path\to\refdesk-kit python -m refdesk.mcp_server`. Claude Desktop (`claude_desktop_config.json`):
+   ```json
+   {"mcpServers": {"refdesk": {"command": "uv", "args": ["run", "--extra", "mcp", "--directory", "C:\\path\\to\\refdesk-kit", "python", "-m", "refdesk.mcp_server"], "env": {"REFDESK_API_URL": "http://127.0.0.1:8000"}}}}
+   ```
+   `uv sync --extra mcp` removes the `embed` extra; to keep both, run `uv sync --extra embed --extra mcp`.
 
 Copy `.env.example` to `.env` for API keys (DeepSeek). Paid calls also need a budget in `config/budgets.yaml` and an explicit `--approve`. Before committing: `uv run python scripts/verify.py` (frozen golden files, `.env`, secrets). Kev runs in WSL2 through `scripts/kev.ps1`.
 
