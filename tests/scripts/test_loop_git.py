@@ -42,3 +42,35 @@ class TestCommitErrors:
 
     def test_ordinary_paths_pass(self):
         assert loop_git.commit_errors(["src/refdesk/boards.py", "docs/runs-explained.md"]) == []
+
+
+class TestNothingToStage:
+    """#204: an agent that only commented (needs-info) leaves no change. The runner must stop
+    before it commits or pushes, not push an empty branch."""
+
+    def test_stage_with_no_changes_exits_3(self, monkeypatch, capsys):
+        monkeypatch.setattr(loop_git, "_porcelain", lambda: [])
+        assert loop_git.main(["stage"]) == loop_git.EXIT_NO_CHANGES == 3
+        assert "nothing to stage" in capsys.readouterr().err
+
+    def test_refused_paths_still_exit_1(self, monkeypatch):
+        monkeypatch.setattr(loop_git, "_porcelain", lambda: ["?? data/x.jpg"])
+        assert loop_git.main(["stage"]) == 1
+
+
+class TestRunnerQuoting:
+    """#204: Windows PowerShell 5.1 strips `"` inside arguments passed to native programs, so
+    `--jq '... join(",")'` reached jq as `join(,)` and the needs-info stop never fired."""
+
+    def test_no_single_quoted_native_argument_contains_a_double_quote(self):
+        import re
+        from pathlib import Path
+
+        runner = Path(__file__).resolve().parents[2] / "scripts" / "run-loop.ps1"
+        native = re.compile(r"^\s*(?:\$\w+\s*=\s*)?(gh|git|uv|claude|npm)\b(.*)$")
+        offenders = []
+        for number, line in enumerate(runner.read_text(encoding="utf-8").splitlines(), 1):
+            match = native.match(line)
+            if match and any('"' in arg for arg in re.findall(r"'([^']*)'", match.group(2))):
+                offenders.append(f"run-loop.ps1:{number}: {line.strip()}")
+        assert offenders == []

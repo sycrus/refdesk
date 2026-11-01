@@ -66,9 +66,11 @@ To reopen a run interactively, take the session ID from the log (or from the `Se
 | Wall-clock | After `-TimeoutMinutes`, `loop_stream.py` kills the Claude Code process tree (`taskkill /T /F` on Windows) and exits 124. The runner logs `fail-timeout` and exits 1 without committing |
 | Verifier fails | The runner stops on the first failure and leaves the tree for you to inspect |
 | Human gate | Remaining agent work is blocked by a `ready-for-human` issue. The runner exits with code 3 |
-| Judgement needed | The agent added `needs-info` to its issue. The runner logs `needs-info`, leaves the draft uncommitted and exits with code 4 |
+| Judgement needed | The agent added `needs-info` to its issue. The runner logs `needs-info`, leaves the draft uncommitted and exits with code 4. (Before #204 this check never fired on Windows PowerShell 5.1: PS 5.1 strips `"` from native-program arguments, so the jq filter broke. A test now refuses `"` inside single-quoted native arguments in the runner.) If the labels cannot be read, it logs `fail-labels` and exits 1 |
 | Dirty tree at start | Exit code 5, before anything runs |
+| No changes | The agent changed no files (for example it only commented). The runner logs `no-changes`, commits and pushes nothing, and exits with code 6 |
 | Staging refused | A changed path is under `data/` or `runs/`. Nothing is committed; exit code 1 |
+| Commit failed | Log `fail-commit`, exit code 1, nothing pushed |
 | Push or PR failed | The commit exists on its branch (pushed if push succeeded). Log `fail-push` or `fail-pr`, exit code 1; open the PR by hand |
 | Task count | `-MaxTasks` |
 | Queue empty | Nothing unchecked |
