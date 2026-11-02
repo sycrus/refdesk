@@ -8,7 +8,7 @@ description: Prepare blind rating sheets that compare the system against baselin
 ## Setup
 
 1. Take the briefs (about 20) from the golden set. Never use briefs that were used to tune the system.
-2. Run each automated system on every brief: the full system, the metadata-only baseline, the off-the-shelf similarity baseline, and a well-prompted general assistant with search. For third-party tools (for example Cosmos Public.Work or Rawpixel), the user collects results manually. Do not scrape them. Record links or screenshots.
+2. Run each automated system on every brief: the full system, the metadata-only baseline, the off-the-shelf similarity baseline, and a well-prompted general assistant with search. For third-party tools (for example Cosmos Public.Work), the user collects results manually. Do not scrape them. Record links or screenshots.
 3. Strip identifiers, randomise order, and assign each board a code. Save the key to a separate file that raters never see.
 
 ## Rating sheet
