@@ -1,6 +1,6 @@
 # ADR-024: Re-scope the demonstration goals toward applied AI work
 
-- **Status:** proposed (draft by Claude, 2026-10-31; facts and options updated 2026-11-02). The direction is Joe's (target roles: applied AI and forward-deployed engineering, less MLOps). The reasoning sections are his to write.
+- **Status:** proposed (draft by Claude, 2026-10-31; facts and options updated 2026-11-02). The direction is Joe's (target roles: applied AI and forward-deployed engineering, less MLOps). 
 - **Date:** 2026-10-31
 
 ## Context
@@ -17,12 +17,11 @@ Facts as of 2026-10-31:
 - About 23 working days in total (PRD 17).
 
 ## Decision
-**[Joe]**, to confirm or change. Draft:
 1. **Core:** golden-v1 and a real rationale eval (#15, #102); a customer-zero log of Joe's own briefs; the public proof (#178), which ships without waiting for outside raters; owner-written reasoning (#12, #153, #176). The MCP server (#160) and the audit view (#159) are built.
    **Opportunistic:** the bake-off (#177) and usability test (#147) run when outreach (LinkedIn) finds willing raters, at whatever n is available, reported with n and intervals. The kits stay ready so a session can start at short notice. Interviews (#5) are asked of raters who are willing.
 2. **Lighter:** a plain Docker image, no scan gate (#167), which is also the demo image (ADR-025); the LangGraph port and comparison (#174, #175) only if time allows. Trajectory evals (#173) and tracing (#172) were drafted as lighter, but are already built in full and stay as they are.
 3. **Parked** (label `future`, with a revisit trigger): kind, CD and drills (#169 to #171); nightly self-hosted CI (#166); the Kev-4B fine-tune (#164). Routing (#162, #163, #165) is cut to a cost-and-quality comparison of baselines on the existing tiers.
-4. **Added:** a hosted, read-only demo, or a screen recording, that makes no paid calls. The hosting choice is a separate ADR ([ADR-025](ADR-025-hosted-demo-container.md)).
+4. **Added:** a two-level demo: a hosted, read-only demo on recorded runs that makes no paid calls, and live sessions on Joe's machine for raters and clients. Details in [ADR-025](ADR-025-hosted-demo-container.md).
 
 Effect on the demonstration goals: D4 drops to "containerised" (no deploy and operate). D5 is parked. D6 is reduced to baselines. D1, D7, D8 and D9 stay in full. D10 becomes optional.
 
