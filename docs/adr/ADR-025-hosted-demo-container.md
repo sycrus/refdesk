@@ -1,6 +1,6 @@
 # ADR-025: Two-level demo: hosted recorded runs, live sessions on the owner's machine
 
-- **Status:** proposed (draft by Claude, 2026-10-31; two-level decision and Joe's reasoning added 2026-11-02). Joe chose a container host over Vercel, and Render as the host (2026-10-31). The remaining reasoning cells are his.
+- **Status:** accepted (two-level decision and Joe's reasoning added 2026-11-02). Joe chose a container host over Vercel, and Render as the host (2026-10-31).
 - **Date:** 2026-10-31
 
 ## Context
@@ -19,13 +19,13 @@ Joe's reasoning: the generator and judge chosen earlier (ADR-020, ADR-022) are b
 ## Options considered
 | Option | Why not chosen |
 |---|---|
-| Vercel: static UI plus FastAPI as a serverless function | Joe chose a container host on 2026-10-31. Joe's words, 2026-11-02, to confirm or rewrite: a container host so that clients can access a working demo, not a recorded one. **[Joe]** confirm |
+| Vercel: static UI plus FastAPI as a serverless function | Joe chose a container host on 2026-10-31. Joe's words, 2026-11-02: a container host so that clients can access a working demo, not a recorded one. Each board runs as a background task, writing to SQLite; Vercel's serverless functions don't support this. |
 | Static showcase only (pre-baked boards, no API) | Joe's words, 2026-11-02: I want an actual working prototype, partly also to collect more usage data, so the API is necessary. |
 | Screen recording only | Joe's words, 2026-11-02: recordings can be faked and are not good proof of technical ability. |
 | Render free web service | Chosen. Joe: "I don't want any surprise charges, and more generous free tiers"; a cold start of about a minute is acceptable. Facts: no card needed; when the free hours run out, Render suspends free services until next month instead of billing; spins down after 15 min idle, up to about a minute to wake; ephemeral filesystem |
-| Fly.io |  Facts: per third-party sources, no lasting free allowance for new accounts, trial only |
+| Fly.io | Facts: per third-party sources, no lasting free allowance for new accounts, trial only |
 | Railway | Facts: per third-party sources, a one-time trial credit, then a $5/month Hobby plan |
-| Partly live public demo: live metadata-only search, recorded rationales | **[Joe]** |
+| Partly live public demo: live metadata-only search, recorded rationales | Joe's words, 2026-11-02: the strongest features are only evident when the search is live. Metadata search is what this project is trying to improve upon, the differentiator only shows up in live demos.  |
 | Fully live public demo: paid host with more memory and a paid model behind a spend cap and rate limit | Joe, 2026-11-02: the chosen generator and judge are local by design (ADR-020, ADR-022); a public live demo would need a paid model and reopen the no-card decision. |
 | Google Cloud Run | Joe: not just the card on file; he does not want any chance of a surprise charge, and a budget alert only notifies, it does not stop spending. Facts: the largest monthly free allowance; scales to zero; wakes in seconds; needs a billing account with a card |
 

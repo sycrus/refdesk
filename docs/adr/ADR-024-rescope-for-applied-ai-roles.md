@@ -1,6 +1,6 @@
 # ADR-024: Re-scope the demonstration goals toward applied AI work
 
-- **Status:** proposed (draft by Claude, 2026-10-31; facts and options updated 2026-11-02). The direction is Joe's (target roles: applied AI and forward-deployed engineering, less MLOps). 
+- **Status:** accepted (facts and options updated 2026-11-02). The direction is Joe's (target roles: applied AI and forward-deployed engineering, less MLOps). 
 - **Date:** 2026-10-31
 
 ## Context
