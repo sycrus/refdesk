@@ -1,107 +1,248 @@
 # refdesk
 
-Given a creative brief, refdesk finds public-domain paintings from open museum collections, explains why each fits in the brief's own terms, and records for each one where it came from, what rights flag the museum gives it, and when that was checked. It runs local-first, and uses a cloud model only under a spend cap.
+**Art references you can actually use, with the reasons and the paperwork attached.**
 
-The project has two goals, judged separately (PRD Section 3): a **product hypothesis** (this workflow beats the alternatives for small studios) and a **demonstration** of designing, evaluating, governing and running an AI system. It is also a learning project, so judgement calls (golden labels, ADR reasoning, decision costs) stay with the owner.
+Designers and art directors often want paintings from museum collections for a pitch, a campaign or a brand. Finding them means searching museum sites one by one, guessing which works are free to use, and copying credit lines by hand. Search results come back on keyword matches, with no reason given for why a work fits.
 
-**Status (28 October 2026):** M1 and M2 are done (except named periods, #64). M3 is built end to end: rationales as checked claims, review, approval, export with a provenance pack, and "This is wrong" reports. Only the rationale eval on `golden-v1` (#102) is left, and that waits for golden-v1 itself (#15). Its two blind passes are done; the review pass is parked while the usability test (#147) runs first. Nothing here is a product claim yet: every eval so far uses a synthetic golden set.
+refdesk takes a creative brief ("quiet interiors, soft north light, muted greens") and returns a board of public-domain paintings from open museum collections. Each result comes with:
 
-## What works today
+- **a short explanation** of why it fits, in the brief's own terms, with every factual claim checked against the museum's record;
+- **a rights trail**: where the work came from, the rights flag the museum gives it, and when that was checked;
+- **a clear flag** when something could not be verified, so a person looks at it before anything is used.
 
-- **Data:** the Met's European Paintings slice, **2,588 records** (2,308 open, 280 permission required; 0 unverified), each with a rights record read from the museum's own `isPublicDomain` flag, the raw API response, and resumable, idempotent ingest. Images cached for **open works only** (2,308).
-- **Retrieval:** a metadata-only baseline (Jaccard over field-named attributes) and a CLIP similarity baseline (OpenCLIP + exact FAISS), behind one interface. In reproduction mode every retriever returns open works only.
-- **Evaluation:** a golden-set validator, capped recall@k, MRR and an open-rights share, seeded bootstrap intervals, run manifests with a config hash, paired comparison of two runs, and a gate policy (a tripwire only, so far).
-- **Models:** one LLM client for every provider (keep-local, budget, approval and price checks before any request; no silent fallback), a mock LLM server with scripted failures, and a GPU `ModelManager` that keeps one model loaded at a time.
-- **Rationales:** for each item, the generator (local `qwen3.5:9b`) writes claims that each name a record field, plus one sentence on fit. Plain code checks every claim against the record, then `phi4` checks each one; any failure makes the item "Needs human check" and names the claim. A fit sentence that may state a fact gets an opinion flag (ADR-022).
-- **API and UI:** a board runs from a brief (S1 to S3), with item detail (S4), review of flagged items (S5), approval and export of a provenance pack CSV (S6), and "This is wrong" reports (S8). The API enforces every gate; the UI only shows them. Only raising the budget cap is still a 501. A `/design` page shows every component, checked with axe in CI.
-- **Evaluation:** besides retrieval, a rationale eval (verifier pass rates, `eval-rationales`) and probes that screened the judge. For `golden-v1`, a local labelling page, phi4's check of Claude's proposals, and a trust report that must pass before the set is frozen (ADR-018).
+It runs on your own machine by default, and uses a cloud model only under a spend cap you set.
 
-## Decisions so far
+> **Screenshot placeholder:** a board for a sample brief, showing results, rights badges and one item flagged "Needs human check".
 
-| Area | Decision | ADR |
-|---|---|---|
-| Decision model | Kev-4B behind one decision contract: serve the base model first, fine-tune only if it wins by a significant margin | 001 |
-| Golden sets | Synthetic v0 for the harness; v1 proposed by Claude, checked by phi4, every label reviewed by the owner after a blind subset | 018 |
-| CI | GitHub Actions PR tier now; self-hosted nightly later, while private | 019 |
-| Generators | Local `qwen3.5:9b`; cloud `deepseek-flash`; reserve `deepseek-v4-pro` | 020 |
-| Judge | Local `phi4`, one claim at a time; never the generator's family (Granite Guardian dropped after a harder probe) | 021, 022 |
+## How you use it
 
-The owner has still to write the reasoning sections of the ADRs (#12).
+```mermaid
+flowchart LR
+  A[Write a brief] --> B[Review the board]
+  B --> C[Check flagged items]
+  C --> D[Approve the selection]
+  D --> E[Export a provenance pack]
+```
 
-## Quick start (PowerShell or WSL2)
+1. **Write a brief.** Describe the mood, subject or style you want. You can add conditions (a period, material or motif) and choose whether the brief may leave your machine.
+2. **Review the board.** Each result shows the image, why it fits, and a rights badge such as *Open (as stated by source)*.
+3. **Check flagged items.** Anything refdesk could not verify is marked *Needs human check*, with the exact claim that failed. Keep it with a note, or drop it.
+4. **Approve.** An approver signs off on the selection. refdesk does not let anything be exported before that.
+5. **Export.** Download a provenance pack (CSV): every work with its source, rights basis, credit line and the date it was checked.
 
-Run the steps in order. Each one builds on the one before. Run `uv run python -m refdesk --help` to see every command.
+If a result looks wrong, use **This is wrong** on the item to report it. The report is queued for review; the board itself is not changed.
 
-1. **Install.** Installs the Python dependencies. Add `--extra embed` to get PyTorch and OpenCLIP as well (GPU, about 3 GB). Only step 5 needs them.
-   ```
-   uv sync
-   ```
-2. **Test.** Runs the test suite offline. It needs no data or keys.
-   ```
-   uv run pytest -q
-   ```
-3. **Ingest.** Fetches the Met's European Paintings records into the SQLite store under `data/`. Each record keeps its raw response and a rights record read from the Met's `isPublicDomain` flag. This takes about 45 minutes at 1 request/s. It is resumable, so you can stop and re-run it. Use `--limit N` for a quick partial run, and `stats` to see the counts.
-   ```
-   uv run python -m refdesk ingest met
-   uv run python -m refdesk stats
-   ```
-4. **Cache images.** Downloads images from the Met's own image host into `data/images/`, for open works only.
-   ```
-   uv run python -m refdesk images met
-   ```
-5. **Embed.** Builds the CLIP + FAISS similarity index from the cached images, in `data/index/met-clip`. It needs `--extra embed` and the GPU. Skip this step if you only use the `jaccard` retriever.
-   ```
-   uv run python -m refdesk embed met
-   ```
-6. **Evaluate.** Scores a retriever against the golden set (synthetic `golden-v0` by default). It writes a report named with the config hash and prints that hash.
-   ```
-   uv run python -m refdesk eval --retriever jaccard
-   ```
-7. **Compare.** Gives a paired comparison of two or more eval runs, by the hashes from step 6. Add `--write` to save the comparison as a report.
-   ```
-   uv run python -m refdesk compare <hashA> <hashB>
-   ```
-8. **Mock LLM.** Starts the local mock LLM server, the default generator and judge for boards (`config/retrieval.yaml`, `api.reasoning`). Keep it running for step 9. Its answers are deterministic, and it can script failures (`--script ok,429`). For real models (Ollama, `qwen3.5:9b` and `phi4`), set `REFDESK_GENERATOR_TIER=local-small` and `REFDESK_JUDGE_TIER=auto` rather than editing the config; set both, or the judge stays the mock. You do not need the mock server then. `REFDESK_GENERATOR_TIER=none` gives retrieval-only boards. The variables can live in `.env` (see `.env.example`), loaded per command with `uv run --env-file .env ...`; refdesk itself never reads `.env`. Don't set `UV_ENV_FILE` globally: `pytest` would then use the real models.
-   ```
-   uv run python -m refdesk.llm.mock_server --port 8100
-   ```
-9. **UI and API.** Builds the static UI once, then starts the API, which serves both the UI and the endpoints at http://localhost:8000. Restart the API after the first build. Set `REFDESK_RETRIEVER=jaccard` if you skipped step 5.
-   ```
-   cd ui; npm install; npm run build; cd ..
-   uv run uvicorn refdesk.api.app:app --port 8000
-   ```
-   With Ollama instead of the mocks (step 8): `uv run --env-file .env uvicorn refdesk.api.app:app --port 8000`.
-10. **MCP server (optional, read-only).** Runs as a separate process that calls the API from step 9 over HTTP (ADR-015). It has seven read tools: `list_runs`, `get_run`, `get_record`, `get_rights_record`, `search_references`, `get_image` and `get_provenance`. Nothing through MCP can approve, export, file a report or start a board. Results are marked as untrusted museum data. Point it at another API with `REFDESK_API_URL` (default `http://127.0.0.1:8000`). PowerShell:
-   ```
-   uv sync --extra mcp
-   uv run python -m refdesk.mcp_server                              # stdio
-   uv run python -m refdesk.mcp_server --transport http --port 8765 # http://127.0.0.1:8765/mcp
-   ```
-   The HTTP transport binds to `127.0.0.1` only until auth and scopes land (#201). Claude Code: `claude mcp add refdesk -- uv run --extra mcp --directory C:\path\to\refdesk-kit python -m refdesk.mcp_server`. Claude Desktop (`claude_desktop_config.json`):
-   ```json
-   {"mcpServers": {"refdesk": {"command": "uv", "args": ["run", "--extra", "mcp", "--directory", "C:\\path\\to\\refdesk-kit", "python", "-m", "refdesk.mcp_server"], "env": {"REFDESK_API_URL": "http://127.0.0.1:8000"}}}}
-   ```
-   `uv sync --extra mcp` removes the `embed` extra; to keep both, run `uv sync --extra embed --extra mcp`.
+## How it works
 
-Copy `.env.example` to `.env` for API keys (DeepSeek). Paid calls also need a budget in `config/budgets.yaml` and an explicit `--approve`. Before committing: `uv run python scripts/verify.py` (frozen golden files, `.env`, secrets). Kev runs in WSL2 through `scripts/kev.ps1`.
+### The pipeline
+
+```mermaid
+flowchart TD
+  M[Museum open-access API] -->|rights flag read from the museum's record| S[(Local store:<br/>records, raw responses,<br/>rights records)]
+  S -->|open works only| I[Image cache]
+  I --> X[Similarity index]
+  B[Brief] --> R[Retrieve candidates]
+  S --> R
+  X --> R
+  R --> G[Generate: factual claims<br/>+ one sentence on fit]
+  G --> V1[Check 1: plain code checks<br/>each claim against the record]
+  V1 --> V2[Check 2: a judge model from a<br/>different family checks each claim]
+  V2 --> OK[Attribution verified from record]
+  V2 --> NHC[Needs human check]
+  OK --> AP[Approve]
+  NHC --> RV[Human review] --> AP
+  AP --> EX[Export provenance pack]
+```
+
+Three ideas carry the design:
+
+- **Facts come from records, not from the model.** The model writes claims that each point at a field in the museum's record (artist, date, medium). Code checks every claim against that field. A model never makes up an attribution, date or rights status: if it can't be read from the source, it is marked *Unverified*.
+- **Nothing marks its own homework.** The judge that checks claims always comes from a different model family than the one that wrote them.
+- **The gates live in the API.** Review, approval and export are enforced on the server. The UI only shows their state, so it can't skip a step.
+
+### Where a brief is sent
+
+```mermaid
+flowchart LR
+  B[Brief] --> C{keep local?}
+  C -->|yes| L[Local models only<br/>Ollama on your GPU]
+  C -->|no| P{key, budget and<br/>--approve all present?}
+  P -->|yes| CL[Cloud model,<br/>under the spend cap]
+  P -->|no| ERR[Hard error:<br/>never a silent fallback]
+```
+
+By default everything runs locally, or against a mock model server for tests. Every board records where its brief was sent.
+
+## Quick start
+
+Commands work in PowerShell or WSL2. Run the stages in order; each builds on the one before. `uv run python -m refdesk --help` lists every command.
+
+**You need:** [uv](https://docs.astral.sh/uv/), Node.js with npm (for the UI), and optionally [Ollama](https://ollama.com/) and an NVIDIA GPU for real models and image similarity.
+
+### Stage 1: Install and test
+
+Installs the Python dependencies and runs the test suite. The tests run offline and need no data or keys.
+
+```
+uv sync
+uv run pytest -q
+```
+
+Add `--extra embed` to `uv sync` if you want image similarity (Stage 2c). It adds PyTorch and OpenCLIP, about 3 GB, and needs the GPU.
+
+**You now have:** a working install, verified by the tests.
+
+### Stage 2: Get the data
+
+**2a. Ingest records.** Fetches the Met's European Paintings records into a local SQLite store under `data/`. This takes about 45 minutes at one request per second. It is resumable, so you can stop and re-run it. Use `--limit N` for a quick partial run.
+
+```
+uv run python -m refdesk ingest met
+uv run python -m refdesk stats
+```
+
+**2b. Cache images.** Downloads images from the Met's own image host, for open works only.
+
+```
+uv run python -m refdesk images met
+```
+
+**2c. Build the similarity index (optional).** Builds the CLIP index from the cached images. It needs `--extra embed` and the GPU. Skip it if you only use the metadata retriever (`jaccard`).
+
+```
+uv run python -m refdesk embed met
+```
+
+**You now have:** about 2,600 records with rights records, and images for the open ones.
+
+### Stage 3: Run the app
+
+**3a. Start the mock model server.** It gives deterministic answers, so you can try the whole flow without a GPU or keys. Leave it running.
+
+```
+uv run python -m refdesk.llm.mock_server --port 8100
+```
+
+**3b. Build the UI and start the API.** The API serves both the UI and the endpoints. Set `REFDESK_RETRIEVER=jaccard` first if you skipped 2c.
+
+```
+cd ui; npm install; npm run build; cd ..
+uv run uvicorn refdesk.api.app:app --port 8000
+```
+
+**You now have:** refdesk at http://localhost:8000. Write a brief and follow the flow in [How you use it](#how-you-use-it).
+
+### Stage 4: Go further (optional)
+
+**Use real local models.** Pull `qwen3.5:9b` and `phi4` in Ollama. Copy `.env.example` to `.env` and set both `REFDESK_GENERATOR_TIER=local-small` and `REFDESK_JUDGE_TIER=auto` (set both, or the judge stays the mock). Then start the API with the env file. You no longer need the mock server.
+
+```
+uv run --env-file .env uvicorn refdesk.api.app:app --port 8000
+```
+
+refdesk never reads `.env` itself; it is loaded per command. Don't set `UV_ENV_FILE` globally, or `pytest` will use the real models. `REFDESK_GENERATOR_TIER=none` gives retrieval-only boards.
+
+**Run an evaluation.** Scores a retriever against the golden set and writes a report named with its config hash. Compare two runs by their hashes (`--write` saves the comparison).
+
+```
+uv run python -m refdesk eval --retriever jaccard
+uv run python -m refdesk compare <hashA> <hashB>
+```
+
+**Connect an AI assistant (MCP).** A read-only MCP server that calls the API over HTTP. See [MCP server](#mcp-server) for the tools and client setup.
+
+```
+uv sync --extra mcp
+uv run python -m refdesk.mcp_server
+```
+
+**Before committing:** `uv run python scripts/verify.py` checks frozen golden files, `.env` and secrets.
+
+## Project status
+
+Built end to end: ingest with rights records, two retrievers, checked rationales, review, approval, export with a provenance pack, "This is wrong" reports, a read-only MCP server and an evaluation harness.
+
+Not yet a product claim: every evaluation so far uses a **synthetic** golden set, built only to test the harness. The next step is a hand-reviewed golden set ([#15](https://github.com/sycrus/refdesk/issues/15)), then a quality bar for rationales ([#102](https://github.com/sycrus/refdesk/issues/102)) and public results ([#178](https://github.com/sycrus/refdesk/issues/178)). Work is tracked in [GitHub Issues](https://github.com/sycrus/refdesk/issues).
+
+## Technical details
+
+### Data
+
+The Met's European Paintings slice: **2,588 records** (2,308 open, 280 permission required, 0 unverified). Each record keeps its raw API response and a rights record read from the Met's own `isPublicDomain` flag. Ingest is resumable and idempotent, and `rebuild` re-derives records from stored responses with no network. Images are cached for open works only, from the Met's image host only.
+
+### Retrieval
+
+Two baselines behind one interface: a metadata baseline (Jaccard over field-named attributes) and a CLIP similarity baseline (OpenCLIP with an exact FAISS index), plus a weighted combination of the two. In reproduction mode every retriever returns open works only, through one shared rights filter.
+
+### Rationales and verification
+
+The generator (local `qwen3.5:9b`) writes claims that each name a record field, plus one sentence on fit. Plain code checks every claim against the record, then `phi4` checks each claim on its own. Any failure makes the item *Needs human check* and names the claim. A fit sentence that may state a fact gets an opinion flag (ADR-022). Fixed status wording lives in one file (`src/refdesk/wording.py`), so labels never drift between API, UI and reports.
+
+### Models and spend control
+
+One LLM client for every provider. Before any request it checks keep-local, key, budget, approval and the worst-case cost against what is left of the budget; every failure is a hard error with no fallback. Paid calls need a key in `.env`, a budget in `config/budgets.yaml`, and a run with `--approve` after a dry-run estimate. A GPU `ModelManager` keeps one model loaded at a time, using measured VRAM needs from `config/models.yaml`.
+
+### Evaluation
+
+A golden-set validator, capped recall@k, MRR, an open-rights share, seeded bootstrap intervals, run manifests with a config hash, paired comparison of runs, and a gate policy. Corpus snapshots pin each golden set to the records it was labelled on. A rationale eval reports verifier pass rates. For `golden-v1`, a local labelling page, an independent check by `phi4`, and a trust report that must pass before the set is frozen (ADR-018).
+
+### API and UI
+
+FastAPI with a small static React UI (Vite + TypeScript) served by the API. A `/design` page shows every component, checked with axe in CI. The OpenAPI spec is in [`docs/api/openapi.json`](docs/api/openapi.json).
+
+### MCP server
+
+A separate process that calls the API over HTTP and never duplicates its logic (ADR-015). Seven read tools: `list_runs`, `get_run`, `get_record`, `get_rights_record`, `search_references`, `get_image` and `get_provenance`. Nothing through MCP can approve, export, file a report or start a board, and results are marked as untrusted museum data. Point it at another API with `REFDESK_API_URL` (default `http://127.0.0.1:8000`).
+
+```
+uv run python -m refdesk.mcp_server                              # stdio
+uv run python -m refdesk.mcp_server --transport http --port 8765 # http://127.0.0.1:8765/mcp
+```
+
+The HTTP transport binds to `127.0.0.1` only until auth and scopes land (#201). `uv sync --extra mcp` removes the `embed` extra; to keep both, run `uv sync --extra embed --extra mcp`.
+
+Claude Code:
+
+```
+claude mcp add refdesk -- uv run --extra mcp --directory C:\path\to\refdesk-kit python -m refdesk.mcp_server
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{"mcpServers": {"refdesk": {"command": "uv", "args": ["run", "--extra", "mcp", "--directory", "C:\\path\\to\\refdesk-kit", "python", "-m", "refdesk.mcp_server"], "env": {"REFDESK_API_URL": "http://127.0.0.1:8000"}}}}
+```
+
+## Design decisions
+
+refdesk has two goals, judged separately (PRD Section 3): a **product hypothesis** (this workflow beats the alternatives for small studios) and a **demonstration** of designing, evaluating, governing and running an AI system. Each significant choice is recorded as an ADR in [`docs/adr/`](docs/adr/).
+
+| Area | Decision | Why, in short | ADR |
+|---|---|---|---|
+| Decision model | Kev-4B behind one decision contract; fine-tune only if it wins by a significant margin | Don't pay for training until a baseline proves it isn't enough | 001 |
+| Golden sets | Synthetic v0 for the harness only; v1 proposed by Claude, checked by phi4, every label reviewed by the owner | Synthetic data tests the plumbing, never the product | 018 |
+| CI | GitHub Actions on every PR | Cheap, standard, enough for now | 019 |
+| Generators | Local `qwen3.5:9b`; cloud `deepseek-flash` | Local first; cloud only under a cap | 020 |
+| Judge | Local `phi4`, one claim at a time, never the generator's family | A model shouldn't grade its own family's work | 021, 022 |
+| Scope | Focus on evals, a public proof and the demo; MLOps work parked | Spend the time where the evidence is | 024 |
+| Demo | Hosted demo on recorded runs; live sessions on the owner's machine | The chosen models are local, so a live public demo would need paid ones | 025 |
 
 ## Where things are
 
 | Path | What |
 |---|---|
-| [`docs/prd.md`](docs/prd.md) | The working spec (v0.3) |
-| [`docs/architecture.md`](docs/architecture.md) | What is built and how it connects |
+| [`docs/prd.md`](docs/prd.md) | The working spec |
+| [`docs/problem-statement.md`](docs/problem-statement.md) | The decision refdesk improves, and how we'll know |
+| [`docs/architecture.md`](docs/architecture.md) | What is built and how it connects, module by module |
 | [`docs/adr/`](docs/adr/) | Decisions |
 | [`docs/data-sources.md`](docs/data-sources.md) | Licences, rights flags, rate limits, drift |
 | [`docs/eval-gate-policy.md`](docs/eval-gate-policy.md) | Metric definitions, noise, gates |
 | [`evals/`](evals/README.md) | Golden sets, labelling files and reports |
-| [`docs/usability/`](docs/usability/README.md) | Usability test protocol, observation sheet and report template |
+| [`docs/usability/`](docs/usability/README.md) | Usability test protocol and templates |
 | [`docs/ai-assist-log.md`](docs/ai-assist-log.md) | Defects introduced by AI assistance, and how they were caught |
-| [`design/`](design/) | Design tokens, brand book and component specs for the UI |
+| [`design/`](design/) | Design tokens, brand book and component specs |
 | `config/` | Providers and tiers, budgets, measured model VRAM |
 | `src/refdesk/` | The code |
-
-Work items are GitHub Issues; see [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
 
 ## Rights
 
