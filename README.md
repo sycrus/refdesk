@@ -37,21 +37,27 @@ If a result looks wrong, use **This is wrong** on the item to report it. The rep
 ### The pipeline
 
 ```mermaid
-flowchart TD
-  M[Museum open-access API] -->|rights flag read from the museum's record| S[(Local store:<br/>records, raw responses,<br/>rights records)]
-  S -->|open works only| I[Image cache]
-  I --> X[Similarity index]
-  B[Brief] --> R[Retrieve candidates]
-  S --> R
-  X --> R
-  R --> G[Generate: factual claims<br/>+ one sentence on fit]
-  G --> V1[Check 1: plain code checks<br/>each claim against the record]
-  V1 --> V2[Check 2: a judge model from a<br/>different family checks each claim]
-  V2 --> OK[Attribution verified from record]
-  V2 --> NHC[Needs human check]
-  OK --> AP[Approve]
-  NHC --> RV[Human review] --> AP
-  AP --> EX[Export provenance pack]
+flowchart LR
+  subgraph S1 [1. Build the library, once]
+    direction TB
+    M[Museum open-access API] --> ST[(Records with rights flags)]
+    ST --> IX[Images + similarity index,<br/>open works only]
+  end
+  subgraph S2 [2. Answer a brief]
+    direction TB
+    BR[Brief] --> R[Retrieve candidates]
+    R --> G[Write claims + fit sentence]
+  end
+  subgraph S3 [3. Check every claim]
+    direction TB
+    V1[Code checks each claim<br/>against the record] --> V2[Judge from another<br/>model family]
+    V2 --> F[Verified, or<br/>Needs human check]
+  end
+  subgraph S4 [4. Sign off]
+    direction TB
+    RV[Review flagged items] --> AP[Approve] --> EX[Export provenance pack]
+  end
+  S1 --> S2 --> S3 --> S4
 ```
 
 Three ideas carry the design:
