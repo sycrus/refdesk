@@ -73,6 +73,16 @@ class LabelError(ValueError):
     pass
 
 
+def blind_sheets(batch: str | None) -> tuple[Path, Path]:
+    """Pass-1 and pass-2 sheets: round 1's, or a round-2 batch's (`-b2` and so on)."""
+    if batch is None:
+        return SHEET, PASS2
+    if not batch.isalnum():
+        raise ValueError(f"batch name must be letters and digits, not {batch!r}")
+    sheet = SHEET.with_name(f"blind-sheet-{batch}.csv")
+    return sheet, sheet.with_name(f"blind-sheet-{batch}-pass2.csv")
+
+
 def read_sheet(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     with path.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
@@ -232,6 +242,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="refdesk golden-v1 blind labelling page")
     parser.add_argument("--pass2", action="store_true", help="label blind-sheet-pass2.csv")
     parser.add_argument("--review", action="store_true", help="review-sheet.csv (non-blind cases)")
+    parser.add_argument("--batch", help="a round-2 batch, e.g. b2: blind-sheet-b2.csv, and "
+                        "with --pass2 blind-sheet-b2-pass2.csv")  # fmt: skip
     parser.add_argument("--relabel", action="store_true", help="blind relabel of the reviewed "
                         "cases: review-relabel.csv, no proposals shown")  # fmt: skip
     parser.add_argument("--sheet", help="another sheet (e.g. a scratch copy for trying the page)")
@@ -242,12 +254,13 @@ def main() -> None:
     parser.add_argument("--db", default=str(ROOT / "data" / "refdesk.sqlite"))
     parser.add_argument("--images", default=str(ROOT / "data" / "images"))
     args = parser.parse_args()
-    sheet = Path(args.sheet) if args.sheet else REVIEW if args.review else SHEET
+    pass1, pass2 = blind_sheets(args.batch)
+    sheet = Path(args.sheet) if args.sheet else REVIEW if args.review else pass1
     if args.pass2 and not args.sheet:
-        if not PASS2.exists():
-            start_pass2(SHEET, PASS2)
-            print(f"created {PASS2.name} with the label columns cleared")
-        sheet = PASS2
+        if not pass2.exists():
+            start_pass2(pass1, pass2)
+            print(f"created {pass2.name} with the label columns cleared")
+        sheet = pass2
     if args.relabel and not args.sheet:
         if not RELABEL.exists():
             start_relabel(REVIEW, RELABEL)

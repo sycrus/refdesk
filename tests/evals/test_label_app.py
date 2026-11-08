@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from refdesk.evals.label_app import (
     LabelError,
     apply_label,
+    blind_sheets,
     create_app,
     read_sheet,
     start_pass2,
@@ -301,3 +302,20 @@ class TestReview:
         c.put("/api/rows/0", json={"candidate": "met:1", "relevant": "y", "grade": "2"})
         saved = read_sheet(sheet)[1][0]
         assert (saved["relevant"], saved["grade"], saved["claude_grade"]) == ("y", "2", "1")
+
+
+class TestBatchSheets:
+    """Round-2 batches (ADR-018 amendment 2026-11-08) label their own sheets."""
+
+    def test_round_one_keeps_its_sheets(self):
+        sheet, pass2 = blind_sheets(None)
+        assert (sheet.name, pass2.name) == ("blind-sheet.csv", "blind-sheet-pass2.csv")
+
+    def test_a_batch_has_its_own_pass1_and_pass2(self):
+        sheet, pass2 = blind_sheets("b2")
+        assert (sheet.name, pass2.name) == ("blind-sheet-b2.csv", "blind-sheet-b2-pass2.csv")
+
+    @pytest.mark.parametrize("batch", ["../x", "b 2", ""])
+    def test_rejects_a_batch_name_that_could_leave_the_folder(self, batch):
+        with pytest.raises(ValueError):
+            blind_sheets(batch)
