@@ -21,7 +21,8 @@ jobs:
       - name: build
         run: docker build -t refdesk-api:ci .
       - name: size
-        run: docker image inspect refdesk-api:ci --format '{{.Size}}' | awk '{printf "image size: %.0f MB\n", $1/1e6}' | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          docker image inspect refdesk-api:ci --format '{{.Size}}' | awk '{printf "image size: %.0f MB\n", $1/1e6}' | tee -a "$GITHUB_STEP_SUMMARY"
       - name: smoke test (serves /healthz as a non-root user)
         run: |
           docker run -d --name api -p 8000:8000 --memory 512m refdesk-api:ci
