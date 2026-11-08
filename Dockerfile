@@ -31,6 +31,12 @@ RUN uv sync --locked --no-dev --no-editable
 
 # --- 3. Runtime ----------------------------------------------------------------------
 FROM python:3.12.12-slim-bookworm AS runtime
+# Debian security updates on top of the pinned base (scan triage, docs/ops/container-scan.md):
+# the base image's OS packages lag their fixes. Trade-off: two builds a week apart may
+# differ in OS patch level; the scan report records what each build contained.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 10001 refdesk \
     && useradd --system --uid 10001 --gid 10001 --no-create-home refdesk
 WORKDIR /app
