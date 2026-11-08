@@ -5,7 +5,7 @@ name: container
 
 on:
   pull_request:
-    paths: ["Dockerfile", ".dockerignore", "pyproject.toml", "uv.lock", "src/**", "config/**", "ui/**", ".github/workflows/container.yml"]
+    paths: ["Dockerfile", ".dockerignore", "demo/**", "pyproject.toml", "uv.lock", "src/**", "config/**", "ui/**", ".github/workflows/container.yml"]
   push:
     branches: [main]
   workflow_dispatch:
@@ -40,3 +40,28 @@ jobs:
             aquasec/trivy:0.58.1 image --severity HIGH,CRITICAL \
             --format table --exit-code 0 refdesk-api:ci | tee trivy.txt
           { echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  # The public demo image (ADR-025): the same Dockerfile with REFDESK_IMAGE=demo, as Render
+  # builds it. Images come from the Met's host during the build, checked against demo/.
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: build
+        run: docker build --build-arg REFDESK_IMAGE=demo -t refdesk-demo:ci .
+      - name: smoke test (recorded runs served, writes refused)
+        run: |
+          docker run -d --name demo -p 8000:8000 --memory 512m refdesk-demo:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 1; done
+          runs=$(curl -fsS http://127.0.0.1:8000/runs | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')
+          expected=$(python3 -c 'import json; print(len(json.load(open("demo/manifest.json"))["runs"]))')
+          test "$runs" = "$expected"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"brief":"x"}' http://127.0.0.1:8000/boards)" = "403"
+          id=$(head -1 demo/images.jsonl | python3 -c 'import json,sys; print(json.load(sys.stdin)["record_id"])')
+          test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8000/records/$id/image")" = "200"
+          test "$(docker exec demo id -u)" = "10001"
+          docker stats --no-stream --format 'demo memory after start: {{.MemUsage}}' demo | tee -a "$GITHUB_STEP_SUMMARY"
+          docker image inspect refdesk-demo:ci --format '{{.Size}}' | awk '{printf "demo image size: %.0f MB\n", $1/1e6}' | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: logs on failure
+        if: failure()
+        run: docker logs demo || true

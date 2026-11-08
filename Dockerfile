@@ -9,6 +9,13 @@
 # Build and scan run in CI (.github/workflows/container.yml). Locally, with Docker:
 #   docker build -t refdesk-api:dev .
 #   docker run --rm -p 8000:8000 refdesk-api:dev      then  http://127.0.0.1:8000/healthz
+#
+# Two images from one file. REFDESK_IMAGE picks the last stage, because Render cannot
+# choose a build target but passes each environment variable as a build argument:
+#   runtime (default)  the full profile, empty store
+#   demo               the public demo: read-only profile, the recorded runs from demo/
+#   docker build --build-arg REFDESK_IMAGE=demo -t refdesk-demo:dev .
+ARG REFDESK_IMAGE=runtime
 
 # --- 1. UI ---------------------------------------------------------------------------
 FROM node:24.14.0-bookworm-slim AS ui
@@ -59,3 +66,21 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.environ['PORT']}/healthz\", timeout=4)"]
 # Render sets PORT; the shell form lets the port follow it.
 CMD ["sh", "-c", "exec uvicorn refdesk.api.app:app --host 0.0.0.0 --port ${PORT}"]
+
+# --- 4. Demo store (ADR-025, option A) -------------------------------------------------
+# Rebuilds the SQLite store from the committed bundle and fetches each image from the
+# Met's own image host, checking it against the hash recorded with the run. A changed
+# image fails the build. Only Open works; refdesk.demo refuses anything else.
+FROM python AS demo-store
+COPY demo/ demo/
+RUN /app/.venv/bin/python -m refdesk.demo build --bundle demo     --db /out/data/refdesk.sqlite --runs-dir /out/runs --images /out/data/images
+
+# --- 5. Demo image ---------------------------------------------------------------------
+FROM runtime AS demo
+COPY --from=demo-store --chown=10001:10001 /out/data /app/data
+COPY --from=demo-store --chown=10001:10001 /out/runs /app/runs
+# Read-only by tag (refdesk/api/profile.py): only read and ops operations answer.
+ENV REFDESK_PROFILE=demo     REFDESK_IMAGES_DIR=/app/data/images     REFDESK_AUTO_RESUME=0
+
+# --- Final: runtime or demo ------------------------------------------------------------
+FROM ${REFDESK_IMAGE} AS final

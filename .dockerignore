@@ -8,6 +8,7 @@
 !src/
 !config/
 !ui/
+!demo/
 # Re-excluded inside the allowed folders.
 ui/node_modules
 ui/dist
