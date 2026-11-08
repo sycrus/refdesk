@@ -1,0 +1,16 @@
+*
+# Allowlist (issue #167): everything above is excluded; only these come back. A new file
+# the build needs must be added here, which keeps .env, data/, runs/ and model weights
+# out of the build context by construction.
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!config/
+!ui/
+# Re-excluded inside the allowed folders.
+ui/node_modules
+ui/dist
+ui/test-results
+**/__pycache__
+**/*.pyc

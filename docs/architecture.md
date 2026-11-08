@@ -198,6 +198,10 @@ A top nav (New board, Run history) is on every screen.
 
 `/design/` (issue #44) is a second Vite page that shows every component in every documented state, using sample data marked as invented. `npm run test:e2e` runs axe on it in headless Chromium (Playwright), in both themes and with the approval dialog open; CI fails on any serious or critical violation. The browser tests (`ui/e2e/`) also start the real API with uvicorn over a store built offline from the Met fixtures (`scripts/make_e2e_store.py`), with `REFDESK_RETRIEVER=jaccard` because CI cannot load CLIP, and block museum image requests so they stay offline.
 
+## Container (issue #167, ADR-025)
+
+`Dockerfile`: three stages (UI build on Node, Python environment with `uv sync --locked --no-dev`, slim runtime). The runtime holds only `.venv`, `config/` and `ui/dist`, runs as UID 10001, and listens on `$PORT` (Render sets it; default 8000). The build context is an allowlist (`.dockerignore`), so `.env`, `data/`, `runs/` and weights cannot enter it. No torch: `REFDESK_RETRIEVER=jaccard` and `REFDESK_GENERATOR_TIER=none` until the demo profile (read-only store, recorded runs, mock model, gates disabled) is added. The store starts empty in `/app/data` and is lost on restart. `tests/test_container.py` checks these rules statically; `.github/workflows/container.yml` builds the image, checks `/healthz`, the UI and the non-root user under a 512 MB limit, records size and memory, and runs a Trivy scan (report only; triage in `docs/ops/container-scan.md`). Without it, the demo and the "a customer can run it" path would depend on the dev machine.
+
 ## golden-v1 labelling (ADR-018, issue #15)
 
 ```mermaid
@@ -253,4 +257,4 @@ Also:
 - Named period conditions (#64); `novelty` is accepted but not applied; raising the cap and resuming (`POST /runs/{id}/cap`, G1); S7 run history and S9 settings.
 - golden-v1 frozen (#15) and the rationale eval on it with the local-tier decision (#102).
 - M4: routing labels and judge calibration (#16), Kev-4B fine-tune, the router in Decide (#165), checkpoint and resume (#157); MCP auth and scopes (#201) and an Inspector transcript.
-- M5: Docker, kind, drills, LangGraph port, bake-off, usability test (kit in `docs/usability/`, #147).
+- M5: the demo profile for the container, kind, drills, LangGraph port, bake-off, usability test (kit in `docs/usability/`, #147).
