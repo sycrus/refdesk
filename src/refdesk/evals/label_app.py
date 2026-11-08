@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import random
 import secrets
 import threading
 from pathlib import Path
@@ -53,6 +54,7 @@ ROOT = Path(__file__).resolve().parents[3]
 SHEET = ROOT / "evals" / "labelling" / "v1" / "blind-sheet.csv"
 PASS2 = SHEET.with_name("blind-sheet-pass2.csv")
 REVIEW = SHEET.with_name("review-sheet.csv")
+RELABEL = SHEET.with_name("review-relabel.csv")
 PAGE = Path(__file__).with_name("label_page.html")
 LABELS = ("relevant", "grade", "note")
 # What the page may see. Not image_url (images come from /image/<index>) and nothing
@@ -109,6 +111,36 @@ def start_pass2(sheet: Path, out: Path) -> None:
         raise FileExistsError(f"{out.name} exists; pass 2 is never restarted over itself")
     fields, rows = read_sheet(sheet)
     write_sheet(out, fields, [r | dict.fromkeys(LABELS, "") for r in rows])
+
+
+def start_relabel(review: Path, out: Path, *, seed: int = 0) -> None:
+    """A blind relabel of the reviewed cases (ADR-018 amendment, #15): the same rows
+    without Claude's proposals, phi4's verdicts or Joe's review labels, in a new order.
+
+    Cases come in a new order and candidates are reshuffled within each case, so the
+    sequence Joe saw in review does not cue his earlier answers; each case stays in one
+    block so its brief stays in view. Same seed, same sheet. What breaks without it: the
+    anchoring rerun would need a hand-edited copy of the review sheet, where one leftover
+    proposal column would quietly un-blind it.
+    """
+    if out.exists():
+        raise FileExistsError(f"{out.name} exists; the relabel is never restarted over itself")
+    fields, rows = read_sheet(review)
+    kept = [f for f in fields if f not in PROPOSAL]
+    rng = random.Random(seed)
+    cases: dict[str, list[dict[str, str]]] = {}
+    for r in rows:
+        cases.setdefault(r["draft_id"], []).append(
+            {k: r[k] for k in kept} | dict.fromkeys(LABELS, "")
+        )
+    order = sorted(cases)
+    rng.shuffle(order)
+    shuffled = []
+    for draft_id in order:
+        block = cases[draft_id]
+        rng.shuffle(block)
+        shuffled += block
+    write_sheet(out, kept, shuffled)
 
 
 class Label(BaseModel):
@@ -200,6 +232,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="refdesk golden-v1 blind labelling page")
     parser.add_argument("--pass2", action="store_true", help="label blind-sheet-pass2.csv")
     parser.add_argument("--review", action="store_true", help="review-sheet.csv (non-blind cases)")
+    parser.add_argument("--relabel", action="store_true", help="blind relabel of the reviewed "
+                        "cases: review-relabel.csv, no proposals shown")  # fmt: skip
     parser.add_argument("--sheet", help="another sheet (e.g. a scratch copy for trying the page)")
     parser.add_argument("--host", default="127.0.0.1", help="e.g. this PC's Tailscale address")
     parser.add_argument("--port", type=int, default=8200)
@@ -214,6 +248,11 @@ def main() -> None:
             start_pass2(SHEET, PASS2)
             print(f"created {PASS2.name} with the label columns cleared")
         sheet = PASS2
+    if args.relabel and not args.sheet:
+        if not RELABEL.exists():
+            start_relabel(REVIEW, RELABEL)
+            print(f"created {RELABEL.name}: proposals, verdicts and review labels removed")
+        sheet = RELABEL
     remote = args.token or args.host != "127.0.0.1"
     token = secrets.token_urlsafe(16) if remote else None
     query = f"/?t={token}" if token else ""

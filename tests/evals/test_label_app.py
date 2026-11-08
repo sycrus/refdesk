@@ -18,6 +18,7 @@ from refdesk.evals.label_app import (
     create_app,
     read_sheet,
     start_pass2,
+    start_relabel,
     write_sheet,
 )
 from refdesk.schema import ArtworkRecord, RightsRecord, RightsStatus
@@ -124,6 +125,79 @@ class TestSheet:
         start_pass2(sheet, out)
         with pytest.raises(FileExistsError):
             start_pass2(sheet, out)
+
+
+REVIEW_FIELDS = FIELDS[:-3] + ["claude_grade", "claude_reason", "judge_verdict"] + FIELDS[-3:]
+
+
+@pytest.fixture
+def review_sheet(tmp_path):
+    """Three cases of four candidates, labelled, with Claude's proposals and phi4's verdicts."""
+    path = tmp_path / "review-sheet.csv"
+    rows = [
+        row(f"met:{d}{i}", draft=d, relevant="y", grade="2", note="seen it")
+        | {"claude_grade": "2", "claude_reason": "fits", "judge_verdict": "supported"}
+        for d in ("d01", "d02", "d03")
+        for i in range(4)
+    ]
+    write_sheet(path, REVIEW_FIELDS, rows)
+    return path
+
+
+class TestRelabel:
+    """Blind relabel of the reviewed cases (ADR-018 amendment, #15): the same pools, with
+    nothing Joe saw in review that could anchor him again."""
+
+    def test_drops_the_proposal_and_verdict_columns(self, review_sheet, tmp_path):
+        out = tmp_path / "review-relabel.csv"
+        start_relabel(review_sheet, out)
+        fields, _ = read_sheet(out)
+        assert fields == FIELDS
+
+    def test_clears_the_labels(self, review_sheet, tmp_path):
+        out = tmp_path / "review-relabel.csv"
+        start_relabel(review_sheet, out)
+        _, rows = read_sheet(out)
+        assert all(r["relevant"] == r["grade"] == r["note"] == "" for r in rows)
+
+    def test_keeps_every_candidate_once(self, review_sheet, tmp_path):
+        out = tmp_path / "review-relabel.csv"
+        start_relabel(review_sheet, out)
+        _, before = read_sheet(review_sheet)
+        _, after = read_sheet(out)
+        key = lambda r: (r["draft_id"], r["candidate"])  # noqa: E731
+        assert sorted(map(key, after)) == sorted(map(key, before))
+
+    def test_changes_the_order_but_keeps_each_case_together(self, review_sheet, tmp_path):
+        out = tmp_path / "review-relabel.csv"
+        start_relabel(review_sheet, out, seed=1)
+        _, before = read_sheet(review_sheet)
+        _, after = read_sheet(out)
+        assert [r["candidate"] for r in after] != [r["candidate"] for r in before]
+        drafts = [r["draft_id"] for r in after]
+        runs = [d for i, d in enumerate(drafts) if i == 0 or drafts[i - 1] != d]
+        assert len(runs) == 3  # one block per case, so the brief stays in view
+
+    def test_same_seed_same_order(self, review_sheet, tmp_path):
+        a, b = tmp_path / "a.csv", tmp_path / "b.csv"
+        start_relabel(review_sheet, a, seed=1)
+        start_relabel(review_sheet, b, seed=1)
+        assert a.read_bytes() == b.read_bytes()
+
+    def test_never_overwrites(self, review_sheet, tmp_path):
+        out = tmp_path / "review-relabel.csv"
+        start_relabel(review_sheet, out)
+        with pytest.raises(FileExistsError):
+            start_relabel(review_sheet, out)
+
+    def test_page_shows_no_proposal(self, review_sheet, tmp_path):
+        out = tmp_path / "review-relabel.csv"
+        start_relabel(review_sheet, out)
+        app = TestClient(create_app(out, tmp_path / "db.sqlite", tmp_path / "images"))
+        shown = app.get("/api/rows").json()
+        text = str(shown["rows"])
+        assert shown["review"] is False
+        assert "claude" not in text and "judge" not in text and "seen it" not in text
 
 
 class TestApp:
