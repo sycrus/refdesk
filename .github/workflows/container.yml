@@ -1,0 +1,42 @@
+# Container image (issue #167, PRD 13A, ADR-025): build, smoke test and vulnerability scan.
+# Runs on GitHub's hosted runner, which has Docker; the dev machine does not need it.
+# No secrets, no push to a registry: Render builds its own copy from the Dockerfile.
+name: container
+
+on:
+  pull_request:
+    paths: ["Dockerfile", ".dockerignore", "pyproject.toml", "uv.lock", "src/**", "config/**", "ui/**", ".github/workflows/container.yml"]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: build
+        run: docker build -t refdesk-api:ci .
+      - name: size
+        run: |
+          docker image inspect refdesk-api:ci --format '{{.Size}}' | awk '{printf "image size: %.0f MB\n", $1/1e6}' | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: smoke test (serves /healthz as a non-root user)
+        run: |
+          docker run -d --name api -p 8000:8000 --memory 512m refdesk-api:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8000/healthz
+          test "$(docker exec api id -u)" = "10001"
+          curl -fsS http://127.0.0.1:8000/ | grep -q '<div id="root"'
+          docker stats --no-stream --format 'memory after start: {{.MemUsage}}' api | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: logs on failure
+        if: failure()
+        run: docker logs api || true
+      - name: scan (HIGH and CRITICAL, report only; triage in docs/ops/container-scan.md)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.58.1 image --severity HIGH,CRITICAL \
+            --format table --exit-code 0 refdesk-api:ci | tee trivy.txt
+          { echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
