@@ -44,6 +44,8 @@ flowchart LR
   D --> E[Export a provenance pack]
 ```
 
+![A recorded board: the brief, models, approval gates and the first results](docs/images/demo-board.png)
+
 1. **Write a brief.** Describe the mood, subject or style you want. You can add conditions (a period, material or motif) and choose whether the brief may leave your machine.
 2. **Review the board.** Each result shows the image, why it fits, and a rights badge such as *Open (as stated by source)*.
 3. **Check flagged items.** Anything refdesk could not verify is marked *Needs human check*, with the exact claim that failed. Keep it with a note, or drop it.
