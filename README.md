@@ -12,7 +12,27 @@ refdesk takes a creative brief ("quiet interiors, soft north light, muted greens
 
 It runs on your own machine by default, and uses a cloud model only under a spend cap you set.
 
-> **Screenshot placeholder:** a board for a sample brief, showing results, rights badges and one item flagged "Needs human check".
+**Live demo: [refdesk-demo.onrender.com](https://refdesk-demo.onrender.com)** (recorded example boards, read-only; the free host can take up to two minutes to wake). Every board shows its run ID, models, gates and full step log, so it can be checked, not just viewed.
+
+[![The demo's example boards](docs/images/demo-home.png)](https://refdesk-demo.onrender.com)
+
+## The project in brief
+
+**The problem.** A designer's brief is vague ("boats at night for a whisky label"), and the hard part is not finding pictures but finding ones they can *use*: the right rights status, a correct credit line, and a reason it fits that holds up when a client asks. Keyword search gives none of that, and a language model on its own will happily invent attributions.
+
+**The requirements I turned that into.**
+- Every factual claim on a board traces to a field in the museum's record, or is flagged for a person.
+- Rights come only from the museum's own flag, shown as stated, never inferred.
+- Nothing is exported until a named person approves it, and the server, not the UI, enforces that.
+- Local models by default; any paid call needs a key, a budget and an explicit `--approve`, with no silent fallback.
+
+**What I built.** A FastAPI service and React UI over 2,588 Met paintings: retrieval (metadata, CLIP and a combination), a generator that writes claims tied to record fields, code that checks each claim, a judge from a different model family (`phi4`) that checks each one again, approval gates, a provenance-pack export, a read-only MCP server, and an evaluation harness. Deployed as a non-root, scanned container on Render, with a read-only demo profile enforced by the API and proved by a test.
+
+**How I know whether it works.** Evaluation came before claims. The first golden set was synthetic and is used only to test the harness. For the hand-labelled set (`golden-v1`), Claude proposes labels and phi4 checks them, and I review every one. Two trust rules decide whether that set can be frozen: my own blind labels measure how far the proposals agree with me, and an anchoring check measures whether seeing a proposal biased my review. Round 1 failed the anchoring check: in review I changed far fewer labels than I disagreed with when labelling blind. So round 2 adds blind cases and a relabel, instead of publishing a number I couldn't defend. See [`docs/adr/ADR-018-golden-set-synthetic-v0.md`](docs/adr/ADR-018-golden-set-synthetic-v0.md).
+
+**What broke, and what I did.** Recording the demo boards exposed three gaps, now tracked: style requests for in-copyright artists are not declined yet ([#217](https://github.com/sycrus/refdesk/issues/217), decision contract written); a period stated in the brief ("twentieth-century") is ignored unless set as a condition; and the opinion flag fires on most items, which is noise. Building the demo image also caught my own design mistake (baking images the UI never used) when 12 of 65 Met images had changed within a month; it is in the [AI-assist log](docs/ai-assist-log.md).
+
+**What's next.** Freeze `golden-v1` and publish retrieval and rationale results with intervals; fix the period gap with a before-and-after eval; build the intake decline; compare a Mistral model (Ministral 3 14B) against the current generator on the same eval.
 
 ## How you use it
 
@@ -166,9 +186,19 @@ uv run python -m refdesk.mcp_server
 
 ## Project status
 
-Built end to end: ingest with rights records, two retrievers, checked rationales, review, approval, export with a provenance pack, "This is wrong" reports, a read-only MCP server and an evaluation harness.
+Built end to end: ingest with rights records, two retrievers, checked rationales, review, approval, export with a provenance pack, "This is wrong" reports, a read-only MCP server, an evaluation harness, and a hosted demo ([refdesk-demo.onrender.com](https://refdesk-demo.onrender.com)) built from the same container image anyone can run.
 
-Not yet a product claim: every evaluation so far uses a **synthetic** golden set, built only to test the harness. The next step is a hand-reviewed golden set ([#15](https://github.com/sycrus/refdesk/issues/15)), then a quality bar for rationales ([#102](https://github.com/sycrus/refdesk/issues/102)) and public results ([#178](https://github.com/sycrus/refdesk/issues/178)). Work is tracked in [GitHub Issues](https://github.com/sycrus/refdesk/issues).
+Not yet a product claim: every evaluation so far uses a **synthetic** golden set, built only to test the harness. The hand-labelled set is in its second round ([#15](https://github.com/sycrus/refdesk/issues/15)); then come a quality bar for rationales ([#102](https://github.com/sycrus/refdesk/issues/102)) and public results ([#178](https://github.com/sycrus/refdesk/issues/178)). Work is tracked in [GitHub Issues](https://github.com/sycrus/refdesk/issues).
+
+## How it was built: with a coding agent, under rules
+
+Most of the code was written with Claude Code, as an agent working through GitHub Issues: 263 commits, 106 merged PRs and 83 closed issues since 11 October 2026. The point was not speed alone, so the agent works under rules that keep the system explainable and the decisions mine:
+
+- **Permissions.** Pushing, merging, new dependencies, `gh api`, Docker, pulling models and any `--approve` (paid) run all wait for me ([`.claude/settings.json`](.claude/settings.json)). The agent may not widen its own permissions.
+- **Decisions stay human.** Golden-set labels, ADR reasoning, decision-contract costs and residual-risk calls are mine; the agent drafts scaffolding and asks ([`CLAUDE.md`](CLAUDE.md), "Learning mode").
+- **Tests first** for scorers, adapters, loop controls and rights logic; CI runs the Python suite, the UI tests, browser tests with an accessibility check, and a container build, smoke test and scan on every PR.
+- **Every AI-introduced defect is logged** with how it was caught and fixed: 32 so far, in [`docs/ai-assist-log.md`](docs/ai-assist-log.md). They include a broken workflow file, a test that only passed locally, and a design mistake caught by CI.
+- **Decisions are written down**: 25 ADRs in [`docs/adr/`](docs/adr/), each with the options rejected and why.
 
 ## Technical details
 
