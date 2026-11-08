@@ -126,6 +126,15 @@ class TestBuild:
         with pytest.raises(BundleError, match="met:1"):
             self.build(source, fetch=lambda url: b"something else")
 
+    def test_lists_every_failed_image_not_just_the_first(self, source):
+        from refdesk.sources.met import MetNotFound
+
+        def gone(url):
+            raise MetNotFound(url)
+
+        with pytest.raises(BundleError, match=r"(?s)1 of 1 images failed:\n.*met:1.*MetNotFound"):
+            self.build(source, fetch=gone)
+
     def test_refuses_an_image_for_a_work_that_is_not_open(self, source):
         bundle = export(source)
         with (bundle / "images.jsonl").open("a", encoding="utf-8") as f:

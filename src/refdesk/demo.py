@@ -143,6 +143,7 @@ def build_store(
 
         root = images_dir.resolve()
         images = _read_jsonl(bundle / "images.jsonl")
+        failures: list[str] = []
         for image in images:
             record_id = image["record_id"]
             record = records.get(record_id)
@@ -151,16 +152,25 @@ def build_store(
             target = (root / image["path"]).resolve()
             if not target.is_relative_to(root):
                 raise BundleError(f"{record_id}: image path {image['path']!r} leaves {root}.")
-            data = fetch(image["url"])
+            try:
+                data = fetch(image["url"])
+            except Exception as error:  # noqa: BLE001 - every failure is listed, then raised
+                failures.append(f"{record_id}: {image['url']}: {type(error).__name__}")
+                continue
             digest = hashlib.sha256(data).hexdigest()
             if digest != image["sha256"]:
-                raise BundleError(
+                failures.append(
                     f"{record_id}: the image at {image['url']} has changed since the run was "
-                    f"recorded (sha256 {digest[:12]}, expected {image['sha256'][:12]})."
+                    f"recorded (sha256 {digest[:12]}, expected {image['sha256'][:12]})"
                 )
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
             store.save_image(record_id, image["url"], image["path"], digest, len(data))
+    if failures:
+        # All of them at once: one build shows how many images need attention.
+        listed = "\n".join(failures)
+        raise BundleError(f"{len(failures)} of {len(images)} images failed:\n{listed}")
     return {"records": len(records), "runs": len(_read_jsonl(bundle / "runs.jsonl")),
             "images": len(images)}  # fmt: skip
 
