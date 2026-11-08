@@ -42,7 +42,7 @@ jobs:
           { echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
   # The public demo image (ADR-025): the same Dockerfile with REFDESK_IMAGE=demo, as Render
-  # builds it. Images come from the Met's host during the build, checked against demo/.
+  # builds it. The store is rebuilt from demo/; no images (the UI loads them from the Met).
   demo:
     runs-on: ubuntu-latest
     steps:
@@ -57,8 +57,9 @@ jobs:
           expected=$(python3 -c 'import json; print(len(json.load(open("demo/manifest.json"))["runs"]))')
           test "$runs" = "$expected"
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"brief":"x"}' http://127.0.0.1:8000/boards)" = "403"
-          id=$(head -1 demo/images.jsonl | python3 -c 'import json,sys; print(json.load(sys.stdin)["record_id"])')
-          test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8000/records/$id/image")" = "200"
+          run=$(python3 -c 'import json; print(json.load(open("demo/manifest.json"))["runs"][0])')
+          curl -fsS "http://127.0.0.1:8000/runs/$run" | python3 -c 'import json,sys; v=json.load(sys.stdin); assert v["items"] and v["events"], "empty run"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"approver":"x","acknowledged":true}' "http://127.0.0.1:8000/runs/$run/approve")" = "403"
           test "$(docker exec demo id -u)" = "10001"
           docker stats --no-stream --format 'demo memory after start: {{.MemUsage}}' demo | tee -a "$GITHUB_STEP_SUMMARY"
           docker image inspect refdesk-demo:ci --format '{{.Size}}' | awk '{printf "demo image size: %.0f MB\n", $1/1e6}' | tee -a "$GITHUB_STEP_SUMMARY"

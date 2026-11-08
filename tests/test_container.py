@@ -81,8 +81,8 @@ def test_the_demo_stage_sets_the_read_only_profile():
     assert "REFDESK_AUTO_RESUME=0" in demo
 
 
-def test_demo_images_are_fetched_at_build_not_copied_from_the_repo():
-    # The bundle holds URLs and hashes; images never enter git or the build context.
+def test_no_images_enter_the_demo_build():
+    # The UI loads images from the museum's host; none enter git or the build context.
     assert "!demo/" in IGNORE
     allowed = [line for line in IGNORE if line.startswith("!")]
     assert not any(line.startswith("!data") or "images" in line for line in allowed)
