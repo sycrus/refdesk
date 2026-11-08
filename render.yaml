@@ -1,0 +1,22 @@
+# Render Blueprint for the public demo (issue #167, ADR-025). Joe creates the Render
+# account (free plan, no card) and connects the repo; nothing here holds a secret.
+#
+# Render passes environment variables to the Docker build as build arguments
+# (render.com/docs/docker, "Environment variable translation", checked 2026-11-08), so
+# REFDESK_IMAGE=demo selects the demo stage of the Dockerfile: the read-only profile and
+# the recorded runs from demo/. REFDESK_PROFILE is set in that stage too; it is repeated
+# here so the running service is read-only even if the build argument were ignored.
+services:
+  - type: web
+    name: refdesk-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    # Deploy a commit on main only after its GitHub checks pass.
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: REFDESK_IMAGE
+        value: demo
+      - key: REFDESK_PROFILE
+        value: demo

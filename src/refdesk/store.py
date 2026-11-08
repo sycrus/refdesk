@@ -102,6 +102,19 @@ class Store:
             )
             self._mark(record.source, record.object_id, "done", now)
 
+    def save_record(self, record: ArtworkRecord) -> None:
+        """Metadata only, for a store rebuilt from a snapshot (the demo bundle, issue
+        #167): no raw response and no ingest progress, so it is never mistaken for an
+        ingest. `save` is the ingest path."""
+        with self.db:
+            self.db.execute(
+                "INSERT OR REPLACE INTO records "
+                "(id, source, object_id, rights_status, data, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (record.id, record.source, record.object_id, record.rights.status.value,
+                 record.model_dump_json(), _now()),
+            )  # fmt: skip
+
     def mark_skipped(self, source: str, object_id: str, reason: str) -> None:
         with self.db:
             self._mark(source, object_id, f"skipped:{reason}", _now())
