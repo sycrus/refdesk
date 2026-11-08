@@ -2,7 +2,8 @@
 // and item ID live in the URL (?run=<id>&item=<record id>), so a reload or a shared link
 // reopens the same screen; no router library. S5 review is ?run=<id>&review=1 and
 // S6 approve and export is ?run=<id>&approve=1. S7 run history is ?history=1 and one
-// run's events are ?audit=<id> (issue 159).
+// run's events are ?audit=<id> (issue 159). The disclaimer and terms are ?terms=1, linked
+// from the footer on every screen (issue 219).
 import { useEffect, useState } from "react";
 import { ApiError, createBoard } from "./api/client";
 import type { BoardItem, RunView } from "./api/types";
@@ -12,6 +13,8 @@ import { HistoryScreen, RunAudit } from "./screens/HistoryScreen";
 import { ItemDetail } from "./screens/ItemDetail";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { RunScreen } from "./screens/RunScreen";
+import { TermsScreen } from "./screens/TermsScreen";
+import { FOOTER_LINE, TERMS_TITLE } from "./content/terms";
 
 function param(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
@@ -23,6 +26,7 @@ const currentReview = () => param("review") === "1";
 const currentApprove = () => param("approve") === "1";
 const currentHistory = () => param("history") === "1";
 const currentAudit = () => param("audit");
+const currentTerms = () => param("terms") === "1";
 
 export function App() {
   const [runId, setRunId] = useState<string | null>(currentRun);
@@ -31,6 +35,7 @@ export function App() {
   const [approving, setApproving] = useState<boolean>(currentApprove);
   const [history, setHistory] = useState<boolean>(currentHistory);
   const [auditId, setAuditId] = useState<string | null>(currentAudit);
+  const [terms, setTerms] = useState<boolean>(currentTerms);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,6 +46,7 @@ export function App() {
       setApproving(currentApprove());
       setHistory(currentHistory());
       setAuditId(currentAudit());
+      setTerms(currentTerms());
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -49,6 +55,12 @@ export function App() {
   function show(query: string) {
     window.history.pushState(null, "", query);
     setError(null);
+    setTerms(false);
+  }
+
+  function openTerms() {
+    show("?terms=1");
+    setTerms(true);
   }
 
   function open(id: string | null, item: string | null = null, screen: "" | "review" | "approve" = "") {
@@ -100,8 +112,8 @@ export function App() {
   return (
     <>
       <nav className="rd-app-nav" aria-label="refdesk">
-        {navLink(window.location.pathname, "New board", () => open(null), !runId && !history && !auditId)}
-        {navLink("?history=1", "Run history", () => openHistory(), history || auditId !== null)}
+        {navLink(window.location.pathname, "New board", () => open(null), !runId && !history && !auditId && !terms)}
+        {navLink("?history=1", "Run history", () => openHistory(), !terms && (history || auditId !== null))}
       </nav>
       <main>
         {error && (
@@ -109,7 +121,9 @@ export function App() {
             {error}
           </p>
         )}
-        {auditId ? (
+        {terms ? (
+          <TermsScreen />
+        ) : auditId ? (
           <RunAudit runId={auditId} onBack={() => openHistory()} onOpenBoard={(id) => open(id)} />
         ) : history ? (
           <HistoryScreen onOpenAudit={(id) => openHistory(id)} />
@@ -132,6 +146,9 @@ export function App() {
           <NewBoard onCreated={open} />
         )}
       </main>
+      <footer className="rd-app-footer">
+        <span>{FOOTER_LINE}</span> {navLink("?terms=1", TERMS_TITLE, openTerms, terms)}
+      </footer>
     </>
   );
 }

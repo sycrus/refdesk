@@ -98,6 +98,13 @@ class TestDemoServesReads:
         view = client.get(f"/runs/{run_id}")
         assert view.status_code == 200 and view.json()["run_id"] == run_id
 
+    def test_the_ui_and_its_terms_page_are_not_refused(self, demo):
+        # The terms page (#219) is static UI at /?terms=1; the read-only rule covers API
+        # operations only. Without a built UI, / answers 503 ui_not_built, not 403.
+        response = TestClient(app).get("/", params={"terms": "1"})
+        assert response.status_code in (200, 503), response.text
+        assert response.status_code != 403
+
     def test_healthz_answers(self, demo):
         assert TestClient(app).get("/healthz").json()["status"] == "ok"
 

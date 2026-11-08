@@ -275,6 +275,29 @@
   margin: var(--space-4) 0 var(--space-2);
 }
 
+/* Footer on every screen: the one-line disclaimer and the terms link (issue 219). */
+.rd-app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-muted);
+}
+
+.rd-terms {
+  max-width: 70ch;
+}
+
+.rd-terms h2 {
+  margin-top: var(--space-5);
+}
+
+.rd-terms-updated {
+  color: var(--color-ink-muted);
+}
+
 .rd-app-nav {
   display: flex;
   gap: var(--space-4);
