@@ -1,0 +1,40 @@
+{
+  "blind": [
+    "d46",
+    "d47",
+    "d48",
+    "d49",
+    "d50",
+    "d51",
+    "d52",
+    "d53",
+    "d54",
+    "d55",
+    "d56",
+    "d57",
+    "d58",
+    "d59",
+    "d60",
+    "d61",
+    "d62",
+    "d63",
+    "d64",
+    "d65",
+    "d66",
+    "d67",
+    "d68",
+    "d69",
+    "d70"
+  ],
+  "n": 25,
+  "seed": 0,
+  "retrievers": [
+    "jaccard",
+    "clip",
+    "combined"
+  ],
+  "top_k": 6,
+  "random_per_case": 2,
+  "corpus_version": "met:2588:d188937d8a53",
+  "drafts": "evals/labelling/v1/briefs-draft-b2.jsonl"
+}
