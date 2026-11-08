@@ -32,7 +32,7 @@ Joe's reasoning: the generator and judge chosen earlier (ADR-020, ADR-022) are b
 ## Consequences
 - Easier: one image for the demo and for local or customer runs; the demo runs the real code paths.
 - Harder: the demo's store and recorded runs are frozen at build time. A new demo means a new image.
-- Harder: a reviewer waits up to about a minute on the first visit after 15 idle minutes. The demo link says so, and a screen recording sits next to it.
+- Harder: a reviewer waits on the first visit after 15 idle minutes: about a minute assumed, over 90 seconds measured (Evidence). The demo link says so, and a screen recording sits next to it.
 - Harder: the free instance is small. Third-party sources say 512 MB and 0.1 CPU (not confirmed in Render's docs). The image must fit: no torch, no CLIP model at runtime; the demo serves recorded runs.
 - Easier: no card, so no bill. The worst case is suspension until the next month.
 - Locked in: approval and export are disabled in the demo profile by configuration and by a test, not by hiding buttons (PRD 8B: the API enforces gates).
@@ -45,7 +45,18 @@ Free-tier facts checked 2026-10-31 from provider docs and third-party comparison
 - Cloud Run pricing: https://cloud.google.com/run/pricing
 - Side-by-side free tiers (checked September 2026): https://flaviocopes.com/hosting-free-tiers/
 
-No measurement of refdesk's cold-start time or memory use on Render yet. #167's image build and a test deploy will supply both. If the demo does not fit in the free instance, this ADR is reopened, not paid around.
+If the demo does not fit in the free instance, this ADR is reopened, not paid around.
+
+Measured (2026-11-08, #167, PRs #215, #216; deployed by Joe from `render.yaml` at https://refdesk-demo.onrender.com):
+
+| Measure | Value | Where |
+|---|---|---|
+| Image size | runtime 111 MB, demo 112 MB | CI `container` workflow |
+| Memory after start | 51 MiB (runtime), 53 MiB (demo) of a 512 MiB limit | CI smoke test, `docker stats` |
+| Cold start on Render free | over 90 s: the first two requests timed out at 90 s, then `/healthz` answered in 0.25 s | `curl` from the dev machine; one sample, so not a distribution |
+| Read-only profile live | `POST /boards`, approve, export and both `/reports` operations answer 403 `disabled_in_demo`; 5 runs, search, UI and the terms page served; `/readyz` ready | `curl` against the deployed service |
+
+The memory fits with a wide margin. The cold start is longer than the "about a minute" assumed above, so the demo link must say "may take up to two minutes to wake" (revisit trigger: cold starts lose reviewers).
 
 ## Revisit trigger
 Render changes its free tier or asks for a card; the demo does not fit in the free instance; cold starts lose reviewers (they leave before the page loads); or the demo needs live model calls; or live sessions become frequent enough that hosting the full system is worth paying for.
