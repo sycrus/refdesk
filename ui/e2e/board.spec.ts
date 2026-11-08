@@ -207,3 +207,15 @@ test("approve and export a verified board, then it is read-only", async ({ page 
   await expect(page.getByRole("link", { name: "See the receipt" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve and export" })).toHaveCount(0);
 });
+
+test("the footer links to the disclaimer and terms, which pass axe (issue 219)", async ({ page }) => {
+  await page.goto("/");
+  const footer = page.getByRole("contentinfo");
+  await expect(footer.getByText("Not legal advice.")).toBeVisible();
+  await footer.getByRole("link", { name: "Disclaimer and terms" }).click();
+  await expect(page).toHaveURL(/\?terms=1/);
+  await expect(page.getByRole("heading", { name: "What refdesk does not do" })).toBeVisible();
+  await expect(page.getByText(/not been reviewed by a lawyer/)).toBeVisible();
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(result.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
+});
