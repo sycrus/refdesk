@@ -13,6 +13,8 @@ import { EvidenceCard } from "../components/EvidenceCard";
 import { GateStepper } from "../components/GateStepper";
 import { StopBanner } from "../components/StopBanner";
 import { AttributionStatus, USAGE_INSPIRATION, USAGE_PUBLISH } from "../generated/wording";
+import { DEMO_RUN_NOTE } from "../content/demo";
+import { useDemo } from "../demo";
 import { sentToText } from "./HistoryScreen";
 import "./screens.css";
 
@@ -32,7 +34,7 @@ const STATE_TEXT: Record<string, string> = {
 export interface RunScreenProps {
   runId: string;
   onNewBoard: () => void;
-  onMoreLikeThis: (run: RunView, item: BoardItem) => void;
+  onMoreLikeThis?: (run: RunView, item: BoardItem) => void; // absent in the demo
   onOpenItem?: (itemId: string) => void;
   onReview?: () => void;
   onApprove?: () => void;
@@ -46,6 +48,7 @@ export function RunScreen({
   onReview,
   onApprove,
 }: RunScreenProps) {
+  const demo = useDemo(); // the demo cannot start boards: no "New board" here
   const [run, setRun] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -79,7 +82,7 @@ export function RunScreen({
         <p className="rd-error" role="alert">
           {error}
         </p>
-        <Button onClick={onNewBoard}>New board</Button>
+        {!demo && <Button onClick={onNewBoard}>New board</Button>}
       </section>
     );
   }
@@ -158,7 +161,7 @@ export function RunScreen({
             The run was not cancelled: {cancelError}
           </p>
         )}
-        <Button onClick={onNewBoard}>New board</Button>
+        {!demo && <Button onClick={onNewBoard}>New board</Button>}
       </header>
 
       <GateStepper gates={run.gates} />
@@ -170,6 +173,8 @@ export function RunScreen({
             ? `Done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"}. ${doneText}`
             : STATE_TEXT[run.state] ?? run.state}
       </p>
+
+      {demo && !working && <p className="rd-demo-run-note">{DEMO_RUN_NOTE}</p>}
 
       {!working && onReview && run.items.some((i) => i.attribution_status !== AttributionStatus.VERIFIED) && (
         <Button variant="primary" onClick={onReview}>
@@ -194,7 +199,7 @@ export function RunScreen({
           accepted={run.items.length}
           target={request?.target_items ?? run.items.length}
           detail={run.stop_detail}
-          actions={<Button onClick={onNewBoard}>Change the brief</Button>}
+          actions={demo ? undefined : <Button onClick={onNewBoard}>Change the brief</Button>}
         />
       )}
 
@@ -204,7 +209,7 @@ export function RunScreen({
             <li key={item.record.id}>
               <EvidenceCard
                 item={item}
-                onMoreLikeThis={() => onMoreLikeThis(run, item)}
+                onMoreLikeThis={onMoreLikeThis ? () => onMoreLikeThis(run, item) : undefined}
                 detailsHref={`?run=${encodeURIComponent(run.run_id)}&item=${encodeURIComponent(item.record.id)}`}
                 onOpenDetails={onOpenItem ? () => onOpenItem(item.record.id) : undefined}
               />

@@ -97,3 +97,11 @@ export function exportRun(runId: string): Promise<ExportReceipt> {
 export function reportError(report: ErrorReport): Promise<ReportAccepted> {
   return post("/reports", report);
 }
+
+// Liveness and the deployment profile (ADR-025). The UI shows the demo home and banner
+// when the profile is `demo`; the API refuses every write there regardless.
+export async function getHealth(): Promise<{ status: "ok"; profile: "full" | "demo" }> {
+  const response = await fetch("/healthz");
+  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  return response.json();
+}

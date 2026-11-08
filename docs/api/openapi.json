@@ -884,7 +884,7 @@
           "ops"
         ],
         "summary": "Healthz",
-        "description": "Liveness: the process is up. Touches no dependency, so it answers even when\n/readyz fails.",
+        "description": "Liveness: the process is up. Touches no dependency, so it answers even when\n/readyz fails. Names the profile, so the UI can show the demo home and banner.",
         "operationId": "healthz_healthz_get",
         "responses": {
           "200": {
@@ -1719,6 +1719,16 @@
             "const": "ok",
             "title": "Status",
             "default": "ok"
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "full",
+              "demo"
+            ],
+            "title": "Profile",
+            "description": "Deployment profile (ADR-025); `demo` is read-only",
+            "default": "full"
           }
         },
         "additionalProperties": false,

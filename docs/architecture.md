@@ -206,6 +206,8 @@ A top nav (New board, Run history) is on every screen.
 
 **Demo image** (`demo.py`, `demo/`, `render.yaml`; option A, Joe 2026-11-08): `python -m refdesk.demo export` writes the recorded runs, their traces and the corpus metadata (no raw museum responses) as JSONL into `demo/`. `docker build --build-arg REFDESK_IMAGE=demo` runs `refdesk.demo build`, which rebuilds the SQLite store with no network. No images: the UI loads each Open work's image from the Met's host in the browser, so `/records/{id}/image` answers 404 `image_not_cached` in the demo. (A first version fetched and hash-checked images at build time; CI found 12 of 65 changed or gone at the Met within a month, and the UI never used them: `docs/ai-assist-log.md`.) Render cannot choose a build stage but passes environment variables as build arguments, so `render.yaml` sets `REFDESK_IMAGE=demo`. CI builds the demo image and checks that the runs and traces are served and that `POST /boards` and approval are refused. Without it, the demo would need the dev machine's store.
 
+**Demo front page** (`ui/src/screens/DemoHome.tsx`, copy in `ui/src/content/demo.ts`): `/healthz` names the profile, and in `demo` the UI opens on the recorded example boards (brief, use, counts, a mosaic of open works) with what to look at and how the boards were made; a banner sits on every screen; "New board", "More like this", review, approve and the report form are not offered, and a recorded board explains the gates the demo switches off. The API still enforces read-only; the UI only stops offering what it would refuse. Without it, a visitor's first action was refused.
+
 ## golden-v1 labelling (ADR-018, issue #15)
 
 ```mermaid

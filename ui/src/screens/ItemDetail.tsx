@@ -10,6 +10,8 @@ import { safeUrl } from "../components/safeUrl";
 import { StatusBadge } from "../components/StatusBadge";
 import { showsImage } from "../components/EvidenceCard";
 import { NOT_LEGAL_ADVICE } from "../generated/wording";
+import { DEMO_REPORT_INSTEAD } from "../content/demo";
+import { useDemo } from "../demo";
 import { ReportForm } from "./ReportForm";
 import "./screens.css";
 
@@ -24,6 +26,7 @@ function value(text: string | number | boolean | null | undefined, missing = "No
 }
 
 export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
+  const demo = useDemo(); // the demo API refuses reports
   const [run, setRun] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -183,7 +186,7 @@ export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
 
       <section aria-labelledby="report-title">
         <h2 id="report-title">Report an error</h2>
-        <ReportForm runId={run.run_id} itemId={record.id} />
+        {demo ? <p>{DEMO_REPORT_INSTEAD}</p> : <ReportForm runId={run.run_id} itemId={record.id} />}
       </section>
     </section>
   );

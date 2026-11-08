@@ -422,8 +422,8 @@ def list_reports(service: Service):
 @app.get("/healthz", response_model=Health, tags=["ops"])
 def healthz():
     """Liveness: the process is up. Touches no dependency, so it answers even when
-    /readyz fails."""
-    return Health()
+    /readyz fails. Names the profile, so the UI can show the demo home and banner."""
+    return Health(profile=get_profile())
 
 
 # Where the embedding index lives (refdesk.retrieval.registry.Resources.default reads
