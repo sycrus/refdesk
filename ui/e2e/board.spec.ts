@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 async function newBoard(page: Page, brief: string, options: { reproduction?: boolean } = {}) {
   await page.goto("/");
   await page.getByLabel("Brief", { exact: true }).fill(brief);
-  if (options.reproduction) await page.getByRole("radio", { name: /^Reproduction/ }).check();
+  if (options.reproduction) await page.getByRole("radio", { name: /^In something you'll publish/ }).check();
   await page.getByRole("button", { name: "Find references" }).click();
   await expect(page).toHaveURL(/\?run=run-/);
 }
