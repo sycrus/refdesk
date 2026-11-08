@@ -105,8 +105,14 @@ class TestDemoServesReads:
         assert response.status_code in (200, 503), response.text
         assert response.status_code != 403
 
-    def test_healthz_answers(self, demo):
-        assert TestClient(app).get("/healthz").json()["status"] == "ok"
+    def test_healthz_answers_and_names_the_profile(self, demo):
+        # The UI reads the profile here to show the demo home and banner (it hides
+        # nothing the API would allow: the API still refuses every write).
+        assert TestClient(app).get("/healthz").json() == {"status": "ok", "profile": "demo"}
+
+    def test_healthz_names_the_full_profile_by_default(self, monkeypatch):
+        monkeypatch.delenv("REFDESK_PROFILE", raising=False)
+        assert TestClient(app).get("/healthz").json()["profile"] == "full"
 
 
 class TestDemoStartup:

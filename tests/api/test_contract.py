@@ -82,7 +82,7 @@ class TestSpec:
 
 class TestLiveEndpoints:
     def test_healthz_is_live(self, client):
-        assert client.get("/healthz").json() == {"status": "ok"}
+        assert client.get("/healthz").json() == {"status": "ok", "profile": "full"}
 
     def test_readyz_reports_the_three_dependency_checks(self, tmp_path, monkeypatch, client):
         # Implemented (#168): with a healthy service over a temporary store it is ready.

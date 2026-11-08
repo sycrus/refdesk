@@ -3,9 +3,11 @@
 // reopens the same screen; no router library. S5 review is ?run=<id>&review=1 and
 // S6 approve and export is ?run=<id>&approve=1. S7 run history is ?history=1 and one
 // run's events are ?audit=<id> (issue 159). The disclaimer and terms are ?terms=1, linked
-// from the footer on every screen (issue 219).
+// from the footer on every screen (issue 219). In the demo profile (ADR-025, read from
+// /healthz) the first screen is the example boards, a banner sits on every screen, and
+// screens stop offering what the demo API refuses.
 import { useEffect, useState } from "react";
-import { ApiError, createBoard } from "./api/client";
+import { ApiError, createBoard, getHealth } from "./api/client";
 import type { BoardItem, RunView } from "./api/types";
 import { NewBoard } from "./screens/NewBoard";
 import { ApproveScreen } from "./screens/ApproveScreen";
@@ -15,6 +17,9 @@ import { ReviewScreen } from "./screens/ReviewScreen";
 import { RunScreen } from "./screens/RunScreen";
 import { TermsScreen } from "./screens/TermsScreen";
 import { FOOTER_LINE, TERMS_TITLE } from "./content/terms";
+import { DEMO_BANNER, DEMO_BANNER_MORE } from "./content/demo";
+import { DemoContext } from "./demo";
+import { DemoHome } from "./screens/DemoHome";
 
 function param(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
@@ -37,6 +42,15 @@ export function App() {
   const [auditId, setAuditId] = useState<string | null>(currentAudit);
   const [terms, setTerms] = useState<boolean>(currentTerms);
   const [error, setError] = useState<string | null>(null);
+  // null until /healthz answers; a failed check is treated as the full profile.
+  const [profile, setProfile] = useState<"full" | "demo" | null>(null);
+  const demo = profile === "demo";
+
+  useEffect(() => {
+    getHealth()
+      .then((health) => setProfile(health.profile === "demo" ? "demo" : "full"))
+      .catch(() => setProfile("full"));
+  }, []);
 
   useEffect(() => {
     const onPop = () => {
@@ -110,9 +124,20 @@ export function App() {
   }
 
   return (
-    <>
+    <DemoContext.Provider value={demo}>
+      {demo && (
+        <p className="rd-demo-banner" role="note">
+          <strong>{DEMO_BANNER}</strong> {DEMO_BANNER_MORE}
+        </p>
+      )}
       <nav className="rd-app-nav" aria-label="refdesk">
-        {navLink(window.location.pathname, "New board", () => open(null), !runId && !history && !auditId && !terms)}
+        <span className="rd-app-brand">refdesk</span>
+        {navLink(
+          window.location.pathname,
+          demo ? "Example boards" : "New board",
+          () => open(null),
+          !runId && !history && !auditId && !terms,
+        )}
         {navLink("?history=1", "Run history", () => openHistory(), !terms && (history || auditId !== null))}
       </nav>
       <main>
@@ -137,11 +162,15 @@ export function App() {
           <RunScreen
             runId={runId}
             onNewBoard={() => open(null)}
-            onMoreLikeThis={moreLikeThis}
+            onMoreLikeThis={demo ? undefined : moreLikeThis}
             onOpenItem={(item) => open(runId, item)}
-            onReview={() => open(runId, null, "review")}
-            onApprove={() => open(runId, null, "approve")}
+            onReview={demo ? undefined : () => open(runId, null, "review")}
+            onApprove={demo ? undefined : () => open(runId, null, "approve")}
           />
+        ) : profile === null ? (
+          <p role="status">Loading…</p>
+        ) : demo ? (
+          <DemoHome onOpenRun={(id) => open(id)} />
         ) : (
           <NewBoard onCreated={open} />
         )}
@@ -149,6 +178,6 @@ export function App() {
       <footer className="rd-app-footer">
         <span>{FOOTER_LINE}</span> {navLink("?terms=1", TERMS_TITLE, openTerms, terms)}
       </footer>
-    </>
+    </DemoContext.Provider>
   );
 }

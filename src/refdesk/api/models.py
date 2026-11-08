@@ -425,6 +425,9 @@ class Problem(_Model):
 
 class Health(_Model):
     status: Literal["ok"] = "ok"
+    profile: Literal["full", "demo"] = Field(
+        "full", description="Deployment profile (ADR-025); `demo` is read-only"
+    )
 
 
 class Readiness(_Model):
