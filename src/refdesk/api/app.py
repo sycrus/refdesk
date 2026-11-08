@@ -46,6 +46,7 @@ from refdesk.api.models import (
     SearchResults,
 )
 from refdesk.api.models import RetrieverUnavailable as RetrieverUnavailableBody
+from refdesk.api.profile import DEMO_MESSAGE, DisabledInDemo, demo_guard, get_profile
 from refdesk.boards import (
     BoardService,
     ExportFailed,
@@ -81,8 +82,12 @@ def resume_interrupted(service: BoardService) -> list[threading.Thread]:
 async def lifespan(_: FastAPI):
     """A run killed by a restart resumes here, before the first request (PRD 10.2,
     acceptance scenario 3). Off with REFDESK_AUTO_RESUME=0 (the tests set this; a
-    service can also be resumed by hand through `BoardService.resume`)."""
-    if os.environ.get("REFDESK_AUTO_RESUME", "1") == "1":
+    service can also be resumed by hand through `BoardService.resume`).
+
+    The profile is checked first, so an unknown REFDESK_PROFILE stops startup. The demo
+    profile never resumes: resuming writes, and its recorded runs are finished."""
+    profile = get_profile()
+    if profile == "full" and os.environ.get("REFDESK_AUTO_RESUME", "1") == "1":
         resume_interrupted(get_service())
     yield
 
@@ -95,7 +100,15 @@ app = FastAPI(
         "The API enforces approval gates; clients only reflect them (PRD 8B)."
     ),
     lifespan=lifespan,
+    # The demo profile's read-only rule (issue #167, ADR-025); a no-op in `full`.
+    dependencies=[Depends(demo_guard)],
 )
+
+
+@app.exception_handler(DisabledInDemo)
+def _disabled_in_demo(_request, _error: DisabledInDemo) -> JSONResponse:
+    problem = Problem(code="disabled_in_demo", message=DEMO_MESSAGE)
+    return JSONResponse(status_code=403, content=problem.model_dump())
 
 
 @lru_cache(maxsize=1)
@@ -455,7 +468,7 @@ def mount_ui(target: FastAPI, dist: Path) -> None:
         target.mount("/", StaticFiles(directory=dist, html=True), name="ui")
         return
 
-    @target.get("/", include_in_schema=False)
+    @target.get("/", include_in_schema=False, tags=["ops"])
     def ui_not_built():
         problem = Problem(
             code="ui_not_built",
