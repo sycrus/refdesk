@@ -1,0 +1,55 @@
+# golden-v1-trust-2026-11-02-9fdf3e476b89
+
+> golden-v1 trust check (ADR-018, issue #15). Labels by Joe; proposals by Claude Code, checked by phi4. Not frozen by this report.
+
+## Cases
+
+- Built: 24 (20 blind, 0 reviewed, 4 decline)
+- Not built: 21
+  - d01: review is not complete
+  - d04: review is not complete
+  - d06: review is not complete
+  - d07: review is not complete
+  - d08: review is not complete
+  - d11: review is not complete
+  - d12: review is not complete
+  - d13: review is not complete
+  - d17: review is not complete
+  - d18: review is not complete
+  - d19: review is not complete
+  - d21: review is not complete
+  - d25: review is not complete
+  - d26: review is not complete
+  - d27: review is not complete
+  - d31: review is not complete
+  - d32: review is not complete
+  - d33: review is not complete
+  - d39: review is not complete
+  - d40: review is not complete
+  - d42: review is not complete
+
+## Trust rules
+
+| Measure | Value |
+|---|---|
+| Claude's agreement with Joe's blind labels | 85.6% |
+| Joe's self-agreement (pass 1 vs pass 2) | 87.5% |
+| Gap (self minus Claude), points, 95% CI | 1.9 [-2.5, 6.8] |
+| **Gap verdict** (at most 5 points) | **add blind cases** |
+| Blind disagreement (Claude's proposals Joe did not pick at that grade) | 41.7% |
+| Correction rate in review (rejected or regraded) | 0.0% |
+| **Anchoring verdict** (corrections at most 5 points below blind disagreement) | **pending (no reviewed cases yet)** |
+
+## By detail level (blind cases)
+
+| Detail | Cases | Claude agreement | Self-agreement |
+|---|---|---|---|
+| sparse | 7 | 92.5% | 91.4% |
+| moderate | 7 | 78.7% | 78.8% |
+| rich | 6 | 85.6% | 93.2% |
+
+## Caveats
+
+- Pools come from the system's own retrievers plus 2 random records per case, so recall is recall within the pools.
+- phi4's relevance judgement is unmeasured (the judge probe screened false facts); its verdicts flagged proposals for Joe and decided nothing.
+- Claude proposed from the brief, the record and the cached image; phi4 saw text only.
