@@ -24,6 +24,21 @@ The eval harness, scorers and reports (M1) need cases before Joe has time to lab
 
 Every case carries a `corpus_version`; expected references come only from ingested records.
 
+**Amendment 2026-11-08: round 2 after the anchoring fail** (Joe, 2026-11-08, #15). The first trust check (`evals/reports/golden-v1-trust-2026-11-08-08a56219e537.md`) gave gap 1.9 points [-2.5, 6.8], so "add blind cases", and anchoring fail: corrections 18.2% against blind disagreement 41.7%.
+
+1. **More blind cases.** About 25 new briefs (`briefs-draft-b2.jsonl`), labelled blind twice, a day apart, as in step 2. The gap rule is rerun over all blind cases.
+2. **Blind relabel of the 21 reviewed cases**, a few days after the review, from `review-relabel.csv` (no proposals, verdicts or review labels; new order).
+3. **Rerun anchoring rule, option (iii):** relevance and grade are checked separately, on the same 21 cases, each on a paired bootstrap interval over cases:
+   - **Relevance:** per case, the share of Claude's proposals Joe's blind relabel marks not relevant, minus the share Joe rejected in review. Passes if the whole interval is at or below 5 points.
+   - **Grade:** among Claude's proposals Joe marked relevant in both relabel and review, the share where his blind grade differs from Claude's, minus the share he regraded in review. Tolerance: Joe's own grade inconsistency between his two blind passes, 17.0 points (same grade on 117 of 141 works both passes marked relevant). Passes if the whole interval is at or below that.
+   - *Proposed, for Joe to confirm:* an interval that straddles its limit counts as a fail.
+4. **Where review and blind relabel labels differ,** Joe settles each one with both shown, and both are recorded (D3).
+5. **If a rule still fails,** the blind relabel labels replace the review labels for those cases, with a caveat in every report that uses v1 (D5).
+
+Disclosure: option (iii) was chosen after seeing that a relevance-only comparison on round 1 would have been 4.8 points (7.2% blind vs 2.4% rejected), and that the gap was mostly grades. It was fixed before any relabel or new blind label existed.
+
+[Joe] Why (iii), and why grade tolerance comes from self-inconsistency: _to write_.
+
 ## Options considered
 | Option | Why not chosen |
 |---|---|
