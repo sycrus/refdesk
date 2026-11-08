@@ -5,6 +5,13 @@ import { type FormEvent, useState } from "react";
 import { ApiError, createBoard } from "../api/client";
 import type { BoardRequest, Conditions, UsageMode } from "../api/types";
 import { Button } from "../components/Button";
+import {
+  USAGE_INSPIRATION,
+  USAGE_INSPIRATION_HINT,
+  USAGE_PUBLISH,
+  USAGE_PUBLISH_HINT,
+  USAGE_QUESTION,
+} from "../generated/wording";
 import "./screens.css";
 
 const CONDITION_FIELDS: { key: keyof Conditions; label: string; hint: string }[] = [
@@ -63,14 +70,18 @@ export function NewBoard({ onCreated }: { onCreated: (runId: string) => void }) 
       </label>
 
       <fieldset className="rd-fieldset">
-        <legend>Usage</legend>
-        <label>
-          <input type="radio" name="usage_mode" value="reference_only" defaultChecked /> Reference only (every
-          rights status shown)
+        <legend>{USAGE_QUESTION}</legend>
+        <label className="rd-option">
+          <input type="radio" name="usage_mode" value="reference_only" defaultChecked />
+          <span>
+            <strong>{USAGE_INSPIRATION}</strong> <span className="rd-option-hint">{USAGE_INSPIRATION_HINT}</span>
+          </span>
         </label>
-        <label>
-          <input type="radio" name="usage_mode" value="reproduction" /> Reproduction (only works the source states
-          are open)
+        <label className="rd-option">
+          <input type="radio" name="usage_mode" value="reproduction" />
+          <span>
+            <strong>{USAGE_PUBLISH}</strong> <span className="rd-option-hint">{USAGE_PUBLISH_HINT}</span>
+          </span>
         </label>
       </fieldset>
 

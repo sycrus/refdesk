@@ -33,3 +33,30 @@ def test_mcp_untrusted_notice():
 
 def test_budget_cap_banner():
     assert StopReason.BUDGET_CAP.banner == "Stopped: budget cap reached"
+
+
+def test_usage_wording_asks_about_intent():
+    # Issue #218 (Joe, option A): the user says how they will use the images; the API
+    # values reference_only and reproduction are unchanged.
+    from refdesk.wording import (
+        STYLE_NOTE,
+        USAGE_INSPIRATION,
+        USAGE_INSPIRATION_HINT,
+        USAGE_PUBLISH,
+        USAGE_PUBLISH_HINT,
+        USAGE_QUESTION,
+    )
+
+    assert USAGE_QUESTION == "How will you use these images?"
+    assert USAGE_INSPIRATION == "For inspiration"
+    assert (
+        USAGE_INSPIRATION_HINT
+        == "Moodboards, palette, mood. Shows every work, whatever its rights."
+    )
+    assert USAGE_PUBLISH == "In something you'll publish"
+    assert USAGE_PUBLISH_HINT == (
+        "Packaging, print, web. Shows only works the museum marks as free to use."
+    )
+    assert STYLE_NOTE == (
+        "For inspiration only. Not cleared for publishing, or for copying {artist}'s style."
+    )

@@ -2,7 +2,18 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BoardItem, Gate, RunView } from "../api/types";
-import { AttributionStatus, NOT_LEGAL_ADVICE, RightsStatus, STOP_REASON_BANNER, StopReason } from "../generated/wording";
+import {
+  AttributionStatus,
+  NOT_LEGAL_ADVICE,
+  RightsStatus,
+  STOP_REASON_BANNER,
+  StopReason,
+  USAGE_INSPIRATION,
+  USAGE_INSPIRATION_HINT,
+  USAGE_PUBLISH,
+  USAGE_PUBLISH_HINT,
+  USAGE_QUESTION,
+} from "../generated/wording";
 import { ApproveScreen, packPreview } from "./ApproveScreen";
 import { ItemDetail } from "./ItemDetail";
 import { NewBoard } from "./NewBoard";
@@ -87,6 +98,22 @@ describe("S1 NewBoard", () => {
       usage_mode: "reference_only",
       anchor_id: null,
     });
+  });
+
+  it("asks how the images will be used, inspiration by default (issue 218)", async () => {
+    const fetchMock = respond({ status: 202, body: { run_id: "run-9", state: "retrieve" } });
+    render(<NewBoard onCreated={vi.fn()} />);
+    const group = screen.getByRole("group", { name: USAGE_QUESTION });
+    const inspiration = within(group).getByRole("radio", { name: new RegExp(`^${USAGE_INSPIRATION}`) });
+    const publish = within(group).getByRole("radio", { name: new RegExp(`^${USAGE_PUBLISH}`) });
+    expect((inspiration as HTMLInputElement).checked).toBe(true);
+    expect(group.textContent).toContain(USAGE_INSPIRATION_HINT);
+    expect(group.textContent).toContain(USAGE_PUBLISH_HINT);
+    await userEvent.click(publish);
+    await userEvent.type(screen.getByLabelText("Brief"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Find references" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).usage_mode).toBe("reproduction");
   });
 
   it("shows the API's own reason when it refuses the board", async () => {

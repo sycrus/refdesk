@@ -101,9 +101,9 @@ Buyer is unknown. The service (outcomes sold to clients) comes before software (
 3. Tell me what you are unsure about.
 4. Keep my costs predictable.
 
-Usage modes (the user chooses, and it changes which checks run):
-- **Reference only**: inspiration, no reproduction.
-- **Reproduction**: the image may be reused. Requires a rights basis, credit line and resolution check.
+Usage modes (the user chooses, and it changes which checks run). The UI asks "How will you use these images?" (issue #218; wording in `src/refdesk/wording.py`):
+- **Reference only** (`reference_only`), shown as **For inspiration**: moodboards, palette, mood; no reproduction. Every rights status is shown.
+- **Reproduction** (`reproduction`), shown as **In something you'll publish**: the image may be reused. Requires a rights basis, credit line and resolution check; only works the source marks as open are shown.
 
 Rights differ by country and by museum. The tool records what the museum states and never gives legal advice.
 
@@ -152,7 +152,7 @@ Keep labels in plain language. Do not expose model names, temperature, raw promp
 |---|---|
 | Brief | Text or upload, plus optional mood, palette, era, region, subject |
 | Avoid list | Clichés and overused works to exclude |
-| Usage mode | Reference only, or reproduction |
+| Usage mode | For inspiration (`reference_only`), or in something you'll publish (`reproduction`) |
 | Anchor plus conditions | Pick a work, add conditions such as period, material, motif, department |
 | "How far from the obvious?" | One slider, from familiar to unexpected |
 | Sources | Toggle collections, date range, result count (can wait until after v1) |

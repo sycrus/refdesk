@@ -12,7 +12,7 @@ import { CostMeter } from "../components/CostMeter";
 import { EvidenceCard } from "../components/EvidenceCard";
 import { GateStepper } from "../components/GateStepper";
 import { StopBanner } from "../components/StopBanner";
-import { AttributionStatus } from "../generated/wording";
+import { AttributionStatus, USAGE_INSPIRATION, USAGE_PUBLISH } from "../generated/wording";
 import { sentToText } from "./HistoryScreen";
 import "./screens.css";
 
@@ -114,8 +114,8 @@ export function RunScreen({
             <>
               <dt>Brief</dt>
               <dd>{request.brief}</dd>
-              <dt>Mode</dt>
-              <dd>{request.usage_mode === "reproduction" ? "Reproduction (open works only)" : "Reference only"}</dd>
+              <dt>Use</dt>
+              <dd>{request.usage_mode === "reproduction" ? USAGE_PUBLISH : USAGE_INSPIRATION}</dd>
             </>
           )}
           <dt>Stays on this machine</dt>
