@@ -172,3 +172,73 @@ def _js(text: str) -> str:
     import json
 
     return json.dumps(text, ensure_ascii=False)
+
+
+# --- Fonts and the type scale (issue #228) ---------------------------------------------
+
+SCALE = {s["name"] for g in TOKENS["type"]["groups"] for s in g["styles"]}
+
+
+def test_every_font_face_is_self_hosted_and_its_file_and_licence_are_committed():
+    """No font request to a third party: each src is a path under ui/public."""
+    css = render_tokens_css(TOKENS)
+    for font in TOKENS["type"]["fonts"]:
+        assert font["src"].startswith("/fonts/"), font["src"]
+        assert (ROOT / "ui" / "public" / font["src"].lstrip("/")).is_file()
+        licence = font["license"].split(", ")[-1]
+        assert (ROOT / licence).is_file(), licence
+        assert f"font-family: \"{font['family']}\";" in css
+        assert f"url(\"{font['src']}\") format(\"woff2\")" in css
+    assert "http" not in css
+
+
+def test_the_wordmark_has_its_own_style_and_nothing_else_uses_the_logo_family():
+    assert "logo" in SCALE
+    uses = [
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "ui" / "src").rglob("*.css")
+        if "generated" not in path.parts
+        and "--type-logo-family" in path.read_text(encoding="utf-8")
+    ]
+    assert uses and all("rd-app-brand" in (ROOT / u).read_text(encoding="utf-8") for u in uses)
+
+
+FONT_SIZE = re.compile(r"font-size\s*:\s*([^;}]+)")
+ALLOWED = re.compile(r"^var\(--type-([a-z0-9-]+)-size\)$")
+
+
+@pytest.mark.parametrize(
+    ("text", "ok"),
+    [
+        (".a { font-size: var(--type-body-size); }", True),
+        (".a { font-size: 13px; }", False),
+        (".a { font-size: var(--type-huge-size); }", False),
+        (".a { font: 400 16px/24px serif; }", False),
+        (".a { font-size: inherit; }", True),
+    ],
+)
+def test_the_type_scale_check_itself(text, ok):
+    assert (type_scale_offences(text) == []) is ok
+
+
+def type_scale_offences(text: str) -> list[str]:
+    """Font sizes outside the token scale: a size must be var(--type-<style>-size) for a
+    style in tokens.json (or inherit). The `font` shorthand with a size is refused too."""
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    bad = []
+    for value in FONT_SIZE.findall(text):
+        value = value.strip()
+        m = ALLOWED.match(value)
+        if value != "inherit" and not (m and m.group(1) in SCALE):
+            bad.append(value)
+    bad += re.findall(r"\bfont\s*:\s*[^;}]*\d+px[^;}]*", text)
+    return bad
+
+
+def test_ui_css_uses_only_the_type_scale():
+    offenders = {
+        path.relative_to(ROOT).as_posix(): type_scale_offences(path.read_text(encoding="utf-8"))
+        for path in (ROOT / "ui" / "src").rglob("*.css")
+        if "generated" not in path.parts
+    }
+    assert {k: v for k, v in offenders.items() if v} == {}

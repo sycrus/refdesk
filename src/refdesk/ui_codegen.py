@@ -55,7 +55,21 @@ def _theme_vars(tokens: dict[str, Any], theme: str, indent: str) -> list[str]:
 
 
 def render_tokens_css(tokens: dict[str, Any]) -> str:
-    out = [f"/* {HEADER.format(source='design/tokens.json')} */", "", ":root {"]
+    out = [f"/* {HEADER.format(source='design/tokens.json')} */", ""]
+    # Self-hosted faces only (issue #228): each src is a path the API serves from ui/public.
+    for font in tokens["type"].get("fonts", []):
+        out += [
+            "@font-face {",
+            f'  font-family: "{font["family"]}";',
+            f'  src: url("{font["src"]}") format("woff2");',
+            f"  font-weight: {font['weight']};",
+            "  font-style: normal;",
+            "  font-display: swap;",
+        ]
+        if "unicodeRange" in font:
+            out.append(f"  unicode-range: {font['unicodeRange']};")
+        out += ["}", ""]
+    out.append(":root {")
     out.append("  color-scheme: light dark;")
     out += _theme_vars(tokens, "light", "  ")
     for name, family in tokens["type"]["families"].items():

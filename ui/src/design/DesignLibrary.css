@@ -61,3 +61,10 @@
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-4);
 }
+
+.dl-note {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
