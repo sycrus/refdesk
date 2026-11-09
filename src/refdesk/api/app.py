@@ -31,6 +31,7 @@ from refdesk.api.models import (
     ExportRequest,
     GateBlocked,
     Health,
+    PackSummary,
     Problem,
     ProvenanceRecords,
     ProvenanceRequest,
@@ -278,6 +279,23 @@ def get_provenance(request: ProvenanceRequest, service: Service):
         return ProvenanceRecords(rows=reads.provenance(service, request.record_ids))
     except reads.UnknownRecord as error:
         return _unknown_record(error)
+
+
+@app.get(
+    "/runs/{run_id}/pack",
+    response_model=PackSummary,
+    tags=["runs"],
+    responses={**NOT_FOUND},
+)
+def get_pack(run_id: str, service: Service):
+    """What the provenance pack will hold, grouped for the Approve screen (issue #233):
+    open, reviewed, reference only (permission required), and left out with the reason.
+    Built by the export's own rule."""
+    try:
+        return service.pack(run_id)
+    except UnknownRun:
+        problem = Problem(code="unknown_run", message=f"No run {run_id!r}.")
+        return JSONResponse(status_code=404, content=problem.model_dump())
 
 
 @app.post(

@@ -9,6 +9,7 @@ import type {
   RunCreated,
   RunSummary,
   RunView,
+  PackSummary,
   ShortlistRequest,
 } from "./types";
 
@@ -83,6 +84,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export function shortlistRun(runId: string, request: ShortlistRequest): Promise<RunView> {
   return post(`/runs/${encodeURIComponent(runId)}/shortlist`, request);
+}
+
+export async function getPack(runId: string): Promise<PackSummary> {
+  const response = await fetch(`/runs/${encodeURIComponent(runId)}/pack`);
+  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  return response.json();
 }
 
 export function raiseCap(runId: string, request: { new_cap_usd: number; raised_by: string }): Promise<RunView> {

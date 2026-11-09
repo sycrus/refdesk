@@ -987,3 +987,126 @@
   flex: none;
   white-space: nowrap;
 }
+
+/* S6 Approve: the pack as thumbnail groups (issue 233). Each group's mark is a shape and
+   symbol as well as a colour, and its title and count are words. */
+.rd-pack {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.rd-pack-group {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.rd-pack-head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: 600;
+}
+
+.rd-pack-icon,
+.rd-thumb-mark {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  color: var(--color-card);
+}
+
+.rd-pack-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.rd-pack-count {
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rd-pack-head--ok .rd-pack-icon,
+.rd-thumb--ok .rd-thumb-mark {
+  background: var(--color-ok);
+}
+
+.rd-pack-head--accent .rd-pack-icon,
+.rd-thumb--accent .rd-thumb-mark {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.rd-pack-head--danger .rd-pack-icon,
+.rd-thumb--danger .rd-thumb-mark {
+  border-radius: var(--radius-sm);
+  background: var(--color-danger);
+}
+
+.rd-pack-head--muted .rd-pack-icon,
+.rd-thumb--muted .rd-thumb-mark {
+  background: var(--color-ink-muted);
+}
+
+.rd-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 0 0;
+  list-style: none;
+}
+
+.rd-thumb {
+  position: relative;
+  display: block;
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-sunken);
+  cursor: zoom-in;
+}
+
+.rd-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.rd-thumbs--out .rd-thumb img {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+.rd-thumb-none {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--color-ink-muted);
+}
+
+.rd-thumb-mark {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--color-card);
+}
+
+.rd-thumb-mark .rd-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.rd-thumb:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

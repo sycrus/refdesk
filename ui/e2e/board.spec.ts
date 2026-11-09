@@ -289,6 +289,8 @@ test("approve and export a verified board, then it is read-only", async ({ page 
   await page.getByRole("button", { name: "Approve and export" }).click();
   await expect(page).toHaveURL(/&approve=1/);
   await expect(page.getByRole("heading", { name: "What the provenance pack will hold" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Open (as stated by source): 1" })).toBeVisible(); // issue 233
+  await expect(page.getByRole("region", { name: "Left out: 0" })).toBeVisible();
   await page.getByRole("button", { name: "Approve and export 1 item" }).click();
 
   const dialog = page.getByRole("dialog");
@@ -307,6 +309,8 @@ test("approve and export a verified board, then it is read-only", async ({ page 
   await dialog.getByRole("button", { name: "Approve and export" }).click();
 
   await expect(page.getByText("Exported. This board is now read-only")).toBeVisible();
+  const stages = page.getByRole("list", { name: "Stages of this board" });
+  await expect(stages.getByRole("link", { name: "Export: passed (G5)" })).toBeVisible();
   await expect(page.getByText(/runs\/exports\/run-.*\.csv/)).toBeVisible();
   await page.getByRole("link", { name: "Back to the board" }).click();
   await expect(page.getByRole("link", { name: "See the receipt" })).toBeVisible();

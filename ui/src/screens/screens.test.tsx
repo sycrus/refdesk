@@ -14,7 +14,7 @@ import {
   USAGE_PUBLISH_HINT,
   USAGE_QUESTION,
 } from "../generated/wording";
-import { ApproveScreen, packPreview } from "./ApproveScreen";
+import { ApproveScreen } from "./ApproveScreen";
 import { NewBoard } from "./NewBoard";
 import { ReviewScreen } from "./ReviewScreen";
 import { RunScreen } from "./RunScreen";
@@ -499,20 +499,59 @@ describe("S6 ApproveScreen", () => {
     g.id === "G4" ? { ...g, state: "active" as const, status_text: "Ready for approval." } : g,
   );
 
-  it("previews the pack with the API's rule: dropped and unreviewed unverified items are left out", () => {
-    const preview = packPreview([verified, dropped, unverifiedRights]);
-    expect(preview.included.map((i) => i.record.id)).toEqual(["met:436535"]);
-    expect(preview.excludedUnverified).toBe(1);
-    expect(preview.countsByStatus).toEqual({ [RightsStatus.OPEN]: 1 });
+  // GET /runs/{id}/pack answers for the screen (issue 233); requests are matched by URL,
+  // because the pack is fetched again whenever the run changes.
+  function routes(table: Record<string, () => unknown>) {
+    const fetchMock = vi.fn(async (url: string) => {
+      const answer = table[String(url)];
+      if (!answer) return new Response(JSON.stringify({ code: "unknown", message: String(url) }), { status: 404 });
+      return new Response(JSON.stringify(answer()), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("groups the pack as the API says, never by its own arithmetic (issue 233)", async () => {
+    routes({
+      "/runs/run-1": () => view({ items: [verified, dropped, unverifiedRights], gates: readyGates }),
+      // Deliberately not what the items alone would suggest: the screen must follow this.
+      "/runs/run-1/pack": () => ({
+        included: 1,
+        open: [],
+        reviewed: ["met:436535"],
+        reference: [],
+        left_out: [
+          { record_id: "met:2", reason: "Dropped at Verify" },
+          { record_id: "met:3", reason: "Rights unverified, not reviewed" },
+        ],
+      }),
+    });
+    render(<ApproveScreen runId="run-1" onBack={vi.fn()} />);
+    expect(await screen.findByRole("region", { name: "Marked reviewed by you: 1" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: `${RightsStatus.OPEN}: 0` })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Left out: 2" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Wheat Field with Cypresses: Dropped at Verify" })).toBeTruthy();
+    expect(screen.getByText("1 work goes into the export.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve and export 1 item" })).toBeTruthy();
   });
 
-  it("leaves out a verified work that nobody kept (issue 231)", () => {
-    const notKept: BoardItem = { ...verified, selected: false, record: { ...ITEM.record, id: "met:4" } };
-    expect(packPreview([verified, notKept]).included.map((i) => i.record.id)).toEqual(["met:436535"]);
+  it("opens a thumbnail in the lightbox, read-only", async () => {
+    routes({
+      "/runs/run-1": () => view({ items: [verified], gates: readyGates }),
+      "/runs/run-1/pack": () => ({ included: 1, open: ["met:436535"], reviewed: [], reference: [], left_out: [] }),
+    });
+    render(<ApproveScreen runId="run-1" onBack={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: `Wheat Field with Cypresses: ${RightsStatus.OPEN}` }));
+    const dialog = screen.getByRole("dialog", { name: "Wheat Field with Cypresses" });
+    expect(within(dialog).queryByRole("button", { name: /^Keep/ })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /^Take off/ })).toBeNull();
   });
 
   it("keeps approval closed, with the reason, until the API opens G4", async () => {
-    respond({ body: view({ items: [ITEM] }) });
+    routes({
+      "/runs/run-1": () => view({ items: [ITEM] }),
+      "/runs/run-1/pack": () => ({ included: 0, open: [], reviewed: [], reference: [], left_out: [{ record_id: "met:436535", reason: "Not kept" }] }),
+    });
     render(<ApproveScreen runId="run-1" onBack={vi.fn()} />);
     const button = await screen.findByRole("button", { name: "Approve and export 0 items" });
     expect(button.getAttribute("aria-disabled")).toBe("true");
@@ -529,12 +568,18 @@ describe("S6 ApproveScreen", () => {
       notice: "Exported. This board is now read-only",
       not_legal_advice: NOT_LEGAL_ADVICE,
     };
-    const fetchMock = respond(
-      { body: view({ items: [verified], gates: readyGates }) },
-      { body: view({ items: [verified], approval: { approver: "Joe", acknowledged: true, approved_at: "t" } }) },
-      { body: receipt },
-      { body: view({ items: [verified], read_only: true, export: receipt }) },
-    );
+    let stage = "ready";
+    const approvedView = view({ items: [verified], approval: { approver: "Joe", acknowledged: true, approved_at: "t" } });
+    const fetchMock = routes({
+      "/runs/run-1": () =>
+        stage === "exported" ? view({ items: [verified], read_only: true, export: receipt }) : view({ items: [verified], gates: readyGates }),
+      "/runs/run-1/pack": () => ({ included: 1, open: ["met:436535"], reviewed: [], reference: [], left_out: [] }),
+      "/runs/run-1/approve": () => approvedView,
+      "/runs/run-1/export": () => {
+        stage = "exported";
+        return receipt;
+      },
+    });
     render(<ApproveScreen runId="run-1" onBack={vi.fn()} />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Approve and export 1 item" }));
@@ -544,7 +589,8 @@ describe("S6 ApproveScreen", () => {
     await user.click(within(dialog).getByRole("button", { name: "Approve and export" }));
     expect(await screen.findByText("runs/exports/run-1.csv")).toBeTruthy();
     expect(screen.getByText("Exported. This board is now read-only")).toBeTruthy();
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ approver: "Joe", acknowledged: true });
-    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ format: "csv" });
+    const body = (url: string) => JSON.parse((fetchMock.mock.calls.find(([u]) => u === url) as unknown as [string, RequestInit])[1].body as string);
+    expect(body("/runs/run-1/approve")).toEqual({ approver: "Joe", acknowledged: true });
+    expect(body("/runs/run-1/export")).toEqual({ format: "csv" });
   });
 });
