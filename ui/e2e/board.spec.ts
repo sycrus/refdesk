@@ -17,20 +17,27 @@ async function newBoard(page: Page, brief: string, options: { reproduction?: boo
 }
 
 // Keep every work on the shortlist (issue 231): a work nobody kept is not reviewed,
-// approved or exported. "Saved" appears only after the API confirms each change.
+// approved or exported. "Saved" appears only after the API confirms each change. Keep is
+// the ✓ on each image tile (issue 232).
 async function keepAll(page: Page) {
-  const keeps = page.getByRole("article").getByLabel("Keep", { exact: true });
-  await expect(keeps.first()).toBeVisible();
+  const keeps = page.getByRole("list", { name: "References" }).getByRole("button", { name: /^Keep / });
+  await expect(keeps.first()).toBeAttached();
   const count = await keeps.count();
   await page.getByLabel("Your name (recorded with what you keep)").fill("Joe");
   for (let i = 0; i < count; i++) {
-    await keeps.nth(i).click(); // the box ticks when the API confirms, not on click
-    await expect(page.getByText(new RegExp(`^${i + 1} of ${count} kept\. Saved `))).toBeVisible();
+    await keeps.nth(i).click(); // pressed once the API confirms, not on click
+    await expect(page.getByText(new RegExp(`^${i + 1} of ${count} kept\\. Saved `))).toBeVisible();
   }
+}
+
+// The Shortlist opens on Images (issue 232); the detailed cards are the Full view.
+async function showFull(page: Page) {
+  await page.getByRole("radio", { name: "Full" }).check();
 }
 
 test("creates a board and shows S3 with a rationale, both badges and evidence", async ({ page }) => {
   await newBoard(page, "cypresses in a landscape");
+  await showFull(page);
   const card = page.getByRole("article").filter({ hasText: "Wheat Field with Cypresses" });
   await expect(card).toBeVisible();
   // The mock generator writes claims from the record; the mock judge supports them (#98).
@@ -45,6 +52,7 @@ test("creates a board and shows S3 with a rationale, both badges and evidence", 
 
 test("reference-only shows every rights status; permission required has no image", async ({ page }) => {
   await newBoard(page, "oil");
+  await showFull(page);
   await expect(page.getByRole("article")).toHaveCount(3);
   const locked = page.getByRole("article").filter({ hasText: "Permission required" }).first();
   await expect(locked.getByRole("img")).toHaveCount(0);
@@ -53,6 +61,7 @@ test("reference-only shows every rights status; permission required has no image
 
 test("reproduction mode shows only works the source states are open", async ({ page }) => {
   await newBoard(page, "oil", { reproduction: true });
+  await showFull(page);
   await expect(page.getByRole("article")).toHaveCount(1);
   await expect(page.getByRole("article")).toContainText("Wheat Field with Cypresses");
 });
@@ -71,7 +80,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     const s1 = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(s1.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id)).toEqual([]);
     await newBoard(page, "oil");
-    await expect(page.getByRole("article")).toHaveCount(3);
+    await expect(page.getByRole("list", { name: "References" }).getByRole("listitem")).toHaveCount(3); // Images view
     const s3 = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(
       s3.violations
@@ -81,31 +90,80 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
-// S4 Item detail (issue #99): a card's Details link opens every section for that item.
+// S4 item details, now in the lightbox (issues 99 and 232): opening a work shows the image
+// and every section of its evidence; Esc closes it and the board is still there.
 for (const colorScheme of ["light", "dark"] as const) {
-  test(`S4 item detail shows each section and passes axe (${colorScheme})`, async ({ page }) => {
+  test(`the lightbox shows each section and passes axe (${colorScheme})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme });
     await newBoard(page, "cypresses in a landscape");
-    await page.getByRole("link", { name: "Details for Wheat Field with Cypresses" }).click();
+    await page.getByRole("button", { name: "Open Wheat Field with Cypresses" }).click();
     await expect(page).toHaveURL(/&item=met%3A436535/);
-    await expect(page.getByRole("heading", { level: 1, name: "Wheat Field with Cypresses" })).toBeVisible();
+    const dialog = page.getByRole("dialog", { name: "Wheat Field with Cypresses" });
+    await expect(dialog).toBeVisible();
     for (const name of ["Why it fits", "Evidence from the record", "Rights record", "How this result was made"]) {
-      await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
+      await expect(dialog.getByRole("heading", { level: 3, name })).toBeVisible();
     }
-    await expect(page.getByText(/The record gives the artist as Vincent van Gogh/)).toBeVisible();
-    await expect(page.getByText("Purchase, The Annenberg Foundation Gift, 1993")).toBeVisible();
-    await expect(page.getByText("isPublicDomain")).toBeVisible();
-    await expect(page.getByText("Not computed yet.")).toBeVisible();
+    await expect(dialog.getByText(/The record gives the artist as Vincent van Gogh/)).toBeVisible();
+    await expect(dialog.getByText("Purchase, The Annenberg Foundation Gift, 1993")).toBeVisible();
+    await expect(dialog.getByText("isPublicDomain")).toBeVisible();
+    await expect(dialog.getByText("Not computed yet.")).toBeVisible();
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(
       axe.violations
         .filter((v) => v.impact === "serious" || v.impact === "critical")
         .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
     ).toEqual([]);
-    await page.getByRole("link", { name: "Back to the board" }).click();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(page).not.toHaveURL(/&item=/);
     await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
   });
 }
+
+// Issue 232: shortlist by keyboard in the lightbox. Each work is flagged (the mock judge
+// is scripted UNSUPPORTED), so K asks for a note, which is recorded as its G3 decision;
+// Verify then shows both decided, and Continue opens Approve.
+test.describe("shortlist in the lightbox", () => {
+  test.afterEach(async ({ request }) => {
+    await request.post("http://127.0.0.1:8100/_mock/script", { data: { script: ["ok"] } });
+  });
+
+  test("keep two flagged works with notes by keyboard, verify, continue to Approve", async ({ page, request }) => {
+    await request.post("http://127.0.0.1:8100/_mock/script", { data: { script: ["unsupported"] } });
+    await newBoard(page, "oil");
+    await page.getByRole("list", { name: "References" }).getByRole("button", { name: /^Open / }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press("k");
+    const form = dialog.getByRole("form", { name: "Keep this work" });
+    await form.getByLabel("Your name (recorded with what you keep)").fill("Joe");
+    await form.getByLabel(/^Note/).fill("Checked against the Met page.");
+    await form.getByRole("button", { name: "Keep with this note" }).click();
+    await expect(dialog.getByRole("button", { name: /^Kept/ })).toBeVisible();
+
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("k");
+    await form.getByLabel(/^Note/).fill("Date confirmed on the record.");
+    await form.getByRole("button", { name: "Keep with this note" }).click();
+    await expect(dialog.getByRole("button", { name: /^Kept/ })).toBeVisible();
+
+    const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(
+      axe.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
+    ).toEqual([]);
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByText(/^2 of 3 kept\. Saved /)).toBeVisible();
+    await page.getByRole("button", { name: "Review flagged items (2)" }).click();
+    await expect(page.getByRole("main").getByText("All 2 flagged items decided: 2 kept, 0 dropped.")).toBeVisible();
+    await page.getByRole("button", { name: "Continue to approval" }).click();
+    await expect(page.getByRole("heading", { name: "Approve and export", level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve and export 2 items" })).toBeVisible();
+  });
+});
 
 // S5 Needs human check (issue #100). The mock judge is scripted to answer UNSUPPORTED for
 // this board only, so every item is flagged; board.spec tests run one after another, and the

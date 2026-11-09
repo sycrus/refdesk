@@ -17,7 +17,6 @@ import type { BoardItem, RunView } from "./api/types";
 import { NewBoard } from "./screens/NewBoard";
 import { ApproveScreen } from "./screens/ApproveScreen";
 import { HistoryScreen, RunAudit } from "./screens/HistoryScreen";
-import { ItemDetail } from "./screens/ItemDetail";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { RunScreen } from "./screens/RunScreen";
 import { TermsScreen } from "./screens/TermsScreen";
@@ -269,7 +268,7 @@ export function App() {
         <div className="rd-shell-main">
       <main>
         {/* Search and check and the board show the full stop banner themselves. */}
-        {board && (stage === "brief" || approving || reviewing || itemId) && (board.stop_banner || board.keep_local) && (
+        {board && (stage === "brief" || approving || reviewing) && (board.stop_banner || board.keep_local) && (
           <div className="rd-board-strip" role="group" aria-label="This board">
             {board.stop_banner && (
               <span className="rd-board-strip-stop">
@@ -304,8 +303,6 @@ export function App() {
             onContinue={() => open(runId, null, "approve")}
             onRun={followRun}
           />
-        ) : runId && itemId ? (
-          <ItemDetail runId={runId} itemId={itemId} onBack={() => open(runId)} />
         ) : runId ? (
           <RunScreen
             runId={runId}
@@ -315,6 +312,8 @@ export function App() {
             onReview={demo ? undefined : () => open(runId, null, "review")}
             onApprove={demo ? undefined : () => open(runId, null, "approve")}
             onRun={followRun}
+            itemId={itemId}
+            onCloseItem={() => open(runId)}
           />
         ) : profile === null ? (
           <p role="status">Loading…</p>

@@ -15,7 +15,6 @@ import {
   USAGE_QUESTION,
 } from "../generated/wording";
 import { ApproveScreen, packPreview } from "./ApproveScreen";
-import { ItemDetail } from "./ItemDetail";
 import { NewBoard } from "./NewBoard";
 import { ReviewScreen } from "./ReviewScreen";
 import { RunScreen } from "./RunScreen";
@@ -71,6 +70,11 @@ function respond(...bodies: { status?: number; body: unknown }[]) {
   }
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
+}
+
+// The Shortlist opens on Images (issue 232); these tests read the detailed cards.
+async function showFull() {
+  await userEvent.click(await screen.findByRole("radio", { name: "Full" }, { timeout: 2000 }));
 }
 
 afterEach(() => {
@@ -134,12 +138,14 @@ describe("S2/S3 RunScreen", () => {
     respond({ body: view({ state: "retrieve", items: [] }) }, { body: view() });
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
     expect(await screen.findByText("Searching the collection…")).toBeTruthy();
+    await showFull(); // the detailed cards are the Full view (issue 232)
     expect(await screen.findByRole("heading", { name: "Wheat Field with Cypresses" }, { timeout: 2000 })).toBeTruthy();
   });
 
   it("shows both badges, evidence, the score and where the brief was sent", async () => {
     respond({ body: view() });
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     expect(await screen.findByText(AttributionStatus.NEEDS_HUMAN_CHECK)).toBeTruthy();
     expect(screen.getByText(RightsStatus.OPEN)).toBeTruthy();
     expect(screen.getByText("Cypresses")).toBeTruthy();
@@ -168,6 +174,7 @@ describe("S2/S3 RunScreen", () => {
       }),
     });
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     expect(await screen.findByText(verified.rationale as string)).toBeTruthy();
     expect(screen.getByText("mock, mock-judge")).toBeTruthy();
     expect(screen.getByText("generator: mock-1, judge: mock-1")).toBeTruthy();
@@ -207,6 +214,7 @@ describe("S2/S3 RunScreen", () => {
     respond({ body: view() });
     const onMoreLikeThis = vi.fn();
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={onMoreLikeThis} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     await userEvent.click(await screen.findByRole("button", { name: "More like this" }));
     expect(onMoreLikeThis.mock.calls[0][1].record.id).toBe("met:436535");
   });
@@ -219,6 +227,7 @@ describe("S3 shortlist (issue 231)", () => {
   it("asks for a name before keeping, and sends nothing until there is one", async () => {
     const fetchMock = respond({ body: view() });
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     await userEvent.click(await screen.findByLabelText("Keep"));
     expect(screen.getByRole("alert").textContent).toContain("Enter your name first");
     expect(fetchMock.mock.calls.filter(([url]) => url === "/runs/run-1/shortlist")).toHaveLength(0);
@@ -231,6 +240,7 @@ describe("S3 shortlist (issue 231)", () => {
     });
     const fetchMock = respond({ body: view() }, { body: kept });
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     await userEvent.type(await screen.findByLabelText("Your name (recorded with what you keep)"), "Joe");
     expect(screen.getByText("0 of 1 kept.")).toBeTruthy();
     await userEvent.click(screen.getByLabelText("Keep"));
@@ -245,6 +255,7 @@ describe("S3 shortlist (issue 231)", () => {
       { status: 409, body: { gate: "G4", reason: "the board is approved; the shortlist is fixed" } },
     );
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     await userEvent.type(await screen.findByLabelText("Your name (recorded with what you keep)"), "Joe");
     await userEvent.click(screen.getByLabelText("Keep"));
     const alert = await screen.findByRole("alert");
@@ -256,6 +267,7 @@ describe("S3 shortlist (issue 231)", () => {
   it("offers no Keep once the board is approved", async () => {
     respond({ body: view({ approval: { approver: "Joe", acknowledged: true, approved_at: "2026-11-09T06:00:00Z" } }) });
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     await screen.findByRole("heading", { name: "Wheat Field with Cypresses" });
     expect(screen.queryByLabelText("Keep")).toBeNull();
   });
@@ -329,12 +341,13 @@ describe("S2 live meter and cancel", () => {
   it("an ended run has no Cancel button", async () => {
     respond({ body: view() });
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
+    await showFull(); // the detailed cards are the Full view (issue 232)
     await screen.findByRole("heading", { name: "Wheat Field with Cypresses" });
     expect(screen.queryByRole("button", { name: "Cancel the run" })).toBeNull();
   });
 });
 
-describe("S4 ItemDetail", () => {
+describe("S4 item details, now in the lightbox (issue 232)", () => {
   const detailed: BoardItem = {
     ...ITEM,
     record: {
@@ -359,10 +372,10 @@ describe("S4 ItemDetail", () => {
 
   it("shows each section from the API, with missing values said to be missing", async () => {
     respond({ body: view({ items: [detailed] }) });
-    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
-    expect(await screen.findByRole("heading", { level: 1, name: "Wheat Field with Cypresses" })).toBeTruthy();
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} itemId="met:436535" onCloseItem={vi.fn()} />);
+    const dialog = await screen.findByRole("dialog", { name: "Wheat Field with Cypresses" });
     for (const name of ["Why it fits", "Evidence from the record", "Rights record", "How this result was made"]) {
-      expect(screen.getByRole("heading", { level: 2, name })).toBeTruthy();
+      expect(within(dialog).getByRole("heading", { level: 3, name })).toBeTruthy();
     }
     expect(screen.getByText(detailed.rationale as string)).toBeTruthy();
     expect(screen.getByText(AttributionStatus.VERIFIED)).toBeTruthy();
@@ -377,7 +390,7 @@ describe("S4 ItemDetail", () => {
 
   it("an item the board does not have says so", async () => {
     respond({ body: view() });
-    render(<ItemDetail runId="run-1" itemId="met:999" onBack={vi.fn()} />);
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} itemId="met:999" onCloseItem={vi.fn()} />);
     expect((await screen.findByRole("alert")).textContent).toBe("This board has no item met:999.");
   });
 });
@@ -389,7 +402,7 @@ describe("S8 This is wrong", () => {
 
   it("files the report and shows the API's status", async () => {
     const fetchMock = respond({ body: view() }, { status: 202, body: { report_id: "report-1", status: "queued for review" } });
-    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} itemId="met:436535" onCloseItem={vi.fn()} />);
     await openForm();
     await userEvent.selectOptions(screen.getByLabelText("What is wrong"), "rights");
     await userEvent.type(screen.getByLabelText("What you found"), "The Met page says the image is restricted.");
@@ -410,7 +423,7 @@ describe("S8 This is wrong", () => {
 
   it("shows the API's refusal", async () => {
     respond({ body: view() }, { status: 400, body: { code: "unknown_item", message: "This board has no item 'met:436535'." } });
-    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} itemId="met:436535" onCloseItem={vi.fn()} />);
     await openForm();
     await userEvent.type(screen.getByLabelText("What you found"), "Wrong artist.");
     await userEvent.type(screen.getByLabelText("Your name (recorded with the report)"), "Joe");
@@ -420,7 +433,7 @@ describe("S8 This is wrong", () => {
 
   it("explains why it cannot send until the note and name are filled", async () => {
     const fetchMock = respond({ body: view() });
-    render(<ItemDetail runId="run-1" itemId="met:436535" onBack={vi.fn()} />);
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} itemId="met:436535" onCloseItem={vi.fn()} />);
     await openForm();
     expect(screen.getByText("Say what you found and who you are.")).toBeTruthy();
     await userEvent.click(screen.getByRole("button", { name: "Send report" }));

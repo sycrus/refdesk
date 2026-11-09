@@ -1,95 +1,40 @@
-// S4 Item detail (PRD 8A, issue #99): why one result fits, the evidence behind it, its
-// rights record and credit line as the source gives them, confidence and the tier used.
-// Opened by a card's "Details" link (?run=<id>&item=<record id>), so a reload or a shared
-// link reopens it. Nothing inferred is shown as verified: the badges come from the API, a
-// missing value says it is missing, and confidence is "not computed" until a model gives it.
-import { useEffect, useState } from "react";
-import { ApiError, getRun } from "../api/client";
+// The evidence for one result (PRD 8A S4, issues 99 and 232): why it fits, the record
+// fields behind it, its rights record and credit line as the source gives them, confidence
+// and the tier used, and "Report an error". It used to be its own page; it is now the
+// panel beside the image in the lightbox. Nothing inferred is shown as verified: the
+// badges come from the API in their full fixed wording, a missing value says it is
+// missing, and confidence is "not computed" until a model gives it.
 import type { BoardItem, RunView } from "../api/types";
 import { safeUrl } from "../components/safeUrl";
 import { StatusBadge } from "../components/StatusBadge";
-import { showsImage } from "../components/EvidenceCard";
 import { NOT_LEGAL_ADVICE } from "../generated/wording";
 import { DEMO_REPORT_INSTEAD } from "../content/demo";
 import { useDemo } from "../demo";
 import { ReportForm } from "./ReportForm";
 import "./screens.css";
 
-export interface ItemDetailProps {
-  runId: string;
-  itemId: string;
-  onBack: () => void;
-}
-
 function value(text: string | number | boolean | null | undefined, missing = "Not given by the source.") {
   return text === null || text === undefined || text === "" ? missing : String(text);
 }
 
-export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
+export function ItemEvidence({ run, item, titleId }: { run: RunView; item: BoardItem; titleId: string }) {
   const demo = useDemo(); // the demo API refuses reports
-  const [run, setRun] = useState<RunView | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getRun(runId)
-      .then(setRun)
-      .catch((err) => setError(err instanceof ApiError ? err.message : String(err)));
-  }, [runId]);
-
-  if (error) {
-    return (
-      <p className="rd-error" role="alert">
-        {error}
-      </p>
-    );
-  }
-  if (!run) return <p role="status">Loading the item…</p>;
-  const item: BoardItem | undefined = run.items.find((i) => i.record.id === itemId);
-  const back = (
-    <a
-      className="rd-back"
-      href={`?run=${encodeURIComponent(runId)}`}
-      onClick={(event) => {
-        event.preventDefault();
-        onBack();
-      }}
-    >
-      Back to the board
-    </a>
-  );
-  if (!item) {
-    return (
-      <section className="rd-screen">
-        <p role="alert">This board has no item {itemId}.</p>
-        {back}
-      </section>
-    );
-  }
-
   const { record } = item;
   const rights = record.rights;
   const recordUrl = safeUrl(record.record_url);
-  const alt = [record.title, record.artist].filter(Boolean).join(", ") || `Artwork ${record.id}`;
-
   return (
-    <section className="rd-screen rd-detail" aria-labelledby="detail-title">
-      {back}
-      <h1 id="detail-title" className="rd-screen-title">
+    <div className="rd-evidence">
+      <h2 id={titleId} className="rd-evidence-title">
         {record.title ?? record.id}
-      </h1>
+      </h2>
       <p className="rd-card-meta">{[record.artist, record.date].filter(Boolean).join(", ")}</p>
       <div className="rd-card-badges">
         <StatusBadge kind="attribution" status={item.attribution_status} />
         <StatusBadge kind="rights" status={rights.status} inferred={!rights.flag_field} />
       </div>
-      {showsImage(item) && (
-        <div className="rd-card-mat">
-          <img src={safeUrl(record.image_url)} alt={alt} />
-        </div>
-      )}
 
-      <section aria-labelledby="why-title">
-        <h2 id="why-title">Why it fits</h2>
+      <section aria-label="Why it fits">
+        <h3>Why it fits</h3>
         <p>{item.rationale ?? "No rationale: see the reasons below."}</p>
         {item.opinion_flag && <p className="rd-card-opinion-flag">{item.opinion_flag}</p>}
         {item.flag_reasons.length > 0 && (
@@ -101,10 +46,10 @@ export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
         )}
       </section>
 
-      <section aria-labelledby="evidence-title">
-        <h2 id="evidence-title">Evidence from the record</h2>
+      <section aria-label="Evidence from the record">
+        <h3>Evidence from the record</h3>
         {item.evidence.length > 0 ? (
-          <ul className="rd-card-chips" aria-label="Evidence from the record">
+          <ul className="rd-card-chips">
             {item.evidence.map((ev) => {
               const href = safeUrl(ev.record_url) ?? recordUrl;
               const chip = (
@@ -135,8 +80,8 @@ export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
         )}
       </section>
 
-      <section aria-labelledby="rights-title">
-        <h2 id="rights-title">Rights record</h2>
+      <section aria-label="Rights record">
+        <h3>Rights record</h3>
         <dl className="rd-facts">
           <dt>Status</dt>
           <dd>{rights.status}</dd>
@@ -158,8 +103,8 @@ export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
         <p className="rd-note">{NOT_LEGAL_ADVICE}</p>
       </section>
 
-      <section aria-labelledby="how-title">
-        <h2 id="how-title">How this result was made</h2>
+      <section aria-label="How this result was made">
+        <h3>How this result was made</h3>
         <dl className="rd-facts">
           <dt>Confidence</dt>
           <dd>{item.confidence ? `${item.confidence.bucket} (${item.confidence.value.toFixed(2)})` : "Not computed yet."}</dd>
@@ -184,10 +129,10 @@ export function ItemDetail({ runId, itemId, onBack }: ItemDetailProps) {
         </dl>
       </section>
 
-      <section aria-labelledby="report-title">
-        <h2 id="report-title">Report an error</h2>
+      <section aria-label="Report an error">
+        <h3>Report an error</h3>
         {demo ? <p>{DEMO_REPORT_INSTEAD}</p> : <ReportForm runId={run.run_id} itemId={record.id} />}
       </section>
-    </section>
+    </div>
   );
 }
