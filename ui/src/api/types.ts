@@ -121,6 +121,7 @@ export interface RunView {
   export?: ExportReceipt | null;
   read_only: boolean;
   saved_at?: string | null; // when the shortlist last changed
+  name?: string | null; // the board's name (issue 234)
   events?: RunEvent[];
 }
 
@@ -159,6 +160,10 @@ export interface RunSummary {
   sent_to: string[];
   approver?: string | null;
   read_only: boolean;
+  name: string; // never made from the brief (issue 234)
+  stage: string; // how far the board has got
+  cover: { record_id: string; image_url: string; alt: string }[]; // open works only, kept first
+  saved_at?: string | null;
 }
 
 export interface Problem {

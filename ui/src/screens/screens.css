@@ -1110,3 +1110,183 @@
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+
+/* S10 Boards (issue 234): equal-size cards. Equal rows, a fixed 4:3 cover of four tiles
+   (empty tiles when fewer), a two-line name, and the saved line pinned to the bottom. */
+.rd-boards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: 1fr;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rd-board-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+}
+
+.rd-board-card:hover {
+  border-color: var(--color-line-strong);
+}
+
+.rd-board-card-open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.rd-board-card-open:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.rd-board-cover {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-line);
+}
+
+.rd-board-cover > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-sunken);
+  object-fit: cover;
+}
+
+.rd-board-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 10px var(--space-3) var(--space-3);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-board-card-name {
+  display: -webkit-box;
+  min-height: 38px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--type-body-size);
+  line-height: 19px;
+}
+
+.rd-board-card-stage,
+.rd-board-card-stop {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.rd-board-card-stage--exported,
+.rd-board-card-stage--cancelled {
+  color: var(--color-ink-muted);
+}
+
+.rd-board-card-stop {
+  color: var(--color-warn);
+}
+
+.rd-board-card-when {
+  margin-top: auto;
+  padding-top: var(--space-1);
+  color: var(--color-ink-muted);
+}
+
+.rd-board-card-rename {
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: var(--type-body-s-size);
+}
+
+.rd-board-card-rename form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.rd-board-card-rename input {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.rd-board-card-rename button {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* S9 Settings (issue 234). */
+.rd-settings-group {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+}
+
+.rd-settings-group legend {
+  padding: 0 var(--space-1);
+  color: var(--color-ink-muted);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+  text-transform: uppercase;
+}
+
+.rd-settings-option {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.rd-settings-option input {
+  margin-top: 5px;
+  accent-color: var(--color-accent);
+}
+
+/* The note on New board after leaving a board (issue 234). */
+.rd-landing-left {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}

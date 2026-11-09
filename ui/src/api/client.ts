@@ -86,6 +86,10 @@ export function shortlistRun(runId: string, request: ShortlistRequest): Promise<
   return post(`/runs/${encodeURIComponent(runId)}/shortlist`, request);
 }
 
+export function renameBoard(runId: string, name: string): Promise<RunView> {
+  return post(`/runs/${encodeURIComponent(runId)}/name`, { name });
+}
+
 export async function getPack(runId: string): Promise<PackSummary> {
   const response = await fetch(`/runs/${encodeURIComponent(runId)}/pack`);
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response));

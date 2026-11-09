@@ -69,6 +69,16 @@ class TestNames:
         assert summary(client, run_id)["name"] == "Mid-Autumn tin"
         assert summary(client, run_id)["brief"] != BRIEF  # still redacted
 
+    def test_a_board_stored_before_names_gets_the_default(self, tmp_path):
+        client, run_id = board(tmp_path)
+        svc = app.dependency_overrides[get_service]()
+        stored = svc.runs.get(run_id)
+        with svc.runs._connect() as db:  # as a row written before #234
+            unnamed = stored.model_copy(update={"name": None}).model_dump_json(exclude={"events"})
+            db.execute("UPDATE runs SET view = ? WHERE run_id = ?", (unnamed, run_id))
+        expected = f"Board {run_id.removeprefix('run-')[:6]}"
+        assert client.get(f"/runs/{run_id}").json()["name"] == expected
+
     def test_an_empty_name_is_refused(self, tmp_path):
         client, run_id = board(tmp_path)
         assert rename(client, run_id, "   ").status_code == 422
