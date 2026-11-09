@@ -1,6 +1,6 @@
 # ADR-026: Compact status marks on cards
 
-- **Status:** proposed. The choice and the reasons in *Options considered* are Joe's (2026-11-09 UI review, issue #227).
+- **Status:** accepted. The choice and the reasons in *Options considered* are Joe's (2026-11-09 UI review, issue #227).
 - **Date:** 2026-11-09
 
 ## Context
