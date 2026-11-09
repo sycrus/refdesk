@@ -17,6 +17,7 @@ export interface ReviewScreenProps {
   runId: string;
   onBack: () => void;
   onContinue: () => void;
+  onRun?: (run: RunView) => void; // the stage panel follows this run (issue 229)
 }
 
 function isFlagged(item: BoardItem) {
@@ -88,7 +89,7 @@ function ReviewItem({
   );
 }
 
-export function ReviewScreen({ runId, onBack, onContinue }: ReviewScreenProps) {
+export function ReviewScreen({ runId, onBack, onContinue, onRun }: ReviewScreenProps) {
   const reviewerId = useId();
   const [run, setRun] = useState<RunView | null>(null);
   const [choices, setChoices] = useState<Record<string, Choice>>({});
@@ -98,6 +99,7 @@ export function ReviewScreen({ runId, onBack, onContinue }: ReviewScreenProps) {
 
   function load(view: RunView) {
     setRun(view);
+    onRun?.(view); // the stage panel follows saved decisions (issue 229)
     const next: Record<string, Choice> = {};
     for (const item of view.items.filter(isFlagged)) {
       next[item.record.id] = { decision: item.review?.decision, note: item.review?.note ?? "" };

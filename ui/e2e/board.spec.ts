@@ -40,7 +40,7 @@ test("creates a board and shows S3 with a rationale, both badges and evidence", 
   await expect(card.getByRole("link", { name: /subject_tags Cypresses/ })).toBeVisible();
   await expect(card.getByText(/^Score /)).toBeVisible();
   await expect(page.getByText("mock, mock-judge")).toBeVisible();
-  await expect(page.getByRole("list", { name: "Approval gates" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Stages of this board" })).toBeVisible(); // the gates, in the stage panel (issue 229)
 });
 
 test("reference-only shows every rights status; permission required has no image", async ({ page }) => {
@@ -141,11 +141,11 @@ test.describe("S5 review", () => {
     await items.nth(1).getByLabel("Drop", { exact: true }).check();
     await items.nth(2).getByLabel("Drop", { exact: true }).check();
     await page.getByRole("button", { name: "Save decisions" }).click();
-    await expect(page.getByText("All 3 flagged items decided: 1 kept, 2 dropped.")).toBeVisible();
+    await expect(page.getByRole("main").getByText("All 3 flagged items decided: 1 kept, 2 dropped.")).toBeVisible();
 
     await page.getByRole("button", { name: "Continue to approval" }).click();
     await expect(page.getByRole("heading", { name: "Approve and export", level: 1 })).toBeVisible();
-    await expect(page.getByText("Ready for approval.")).toBeVisible();
+    await expect(page.getByRole("main").getByText("Ready for approval.")).toBeVisible();
     // One item was kept with a note, two dropped: the pack holds one.
     await expect(page.getByRole("button", { name: "Approve and export 1 item" })).toBeVisible();
   });
@@ -166,7 +166,7 @@ test("S7 lists past runs, opens one run's events, and passes axe", async ({ page
   await expect(row.getByText("[brief redacted]")).toBeVisible();
   await expect(row.getByText("mock, mock-judge")).toBeVisible();
   await expect(page.getByText("cypresses in a landscape")).toHaveCount(0);
-  await expect(page.getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("button")).toHaveCount(0); // read-only; the panel's toggle is outside main
 
   const axe = async () => {
     for (const colorScheme of ["light", "dark"] as const) {
@@ -190,6 +190,38 @@ test("S7 lists past runs, opens one run's events, and passes axe", async ({ page
 
   await page.getByRole("link", { name: "Open the board" }).click();
   await expect(page.getByRole("heading", { name: "Board" })).toBeVisible();
+});
+
+// The stage panel (issue 229): no board stages on New board; once a board is open, go
+// back to Search and check (read-only), then return to the Shortlist where the work is.
+test("the stage panel opens an earlier stage and returns to the shortlist", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("list", { name: "Stages of this board" })).toHaveCount(0);
+  await newBoard(page, "cypresses in a landscape");
+  const stages = page.getByRole("list", { name: "Stages of this board" });
+  await expect(stages.getByRole("link", { name: /^Shortlist/ })).toHaveAttribute("aria-current", "step");
+
+  await stages.getByRole("link", { name: /^Search and check/ }).click();
+  await expect(page).toHaveURL(/&stage=search/);
+  await expect(page.getByRole("heading", { name: "Search and check", level: 1 })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Stopped:"); // the stop reason, never hidden
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(
+      axe.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
+    ).toEqual([]);
+  }
+
+  await stages.getByRole("link", { name: /^Brief/ }).click();
+  await expect(page.getByRole("heading", { name: "Brief", level: 1 })).toBeVisible();
+  await expect(page.getByRole("group", { name: "This board" })).toContainText("Stopped:");
+
+  await stages.getByRole("link", { name: /^Shortlist/ }).click();
+  await expect(page.getByRole("list", { name: "References" })).toBeVisible();
+  await expect(stages.getByText("Export: pending (G5). Not reached yet.")).toBeAttached();
 });
 
 // S6 Approve and export (issue 101): the ConfirmDialog, the irreversible export, the receipt.

@@ -469,9 +469,11 @@ describe("S5 ReviewScreen", () => {
 });
 
 describe("S6 ApproveScreen", () => {
-  const verified: BoardItem = { ...ITEM, attribution_status: AttributionStatus.VERIFIED, flag_reasons: [] };
+  // Kept on the shortlist: the pack covers kept works only (issue 231).
+  const verified: BoardItem = { ...ITEM, selected: true, attribution_status: AttributionStatus.VERIFIED, flag_reasons: [] };
   const dropped: BoardItem = {
     ...ITEM,
+    selected: true,
     record: { ...ITEM.record, id: "met:2" },
     review: { decision: "drop", decided_by: "Joe", decided_at: "2026-10-27T10:00:00Z" },
   };
@@ -488,6 +490,11 @@ describe("S6 ApproveScreen", () => {
     expect(preview.included.map((i) => i.record.id)).toEqual(["met:436535"]);
     expect(preview.excludedUnverified).toBe(1);
     expect(preview.countsByStatus).toEqual({ [RightsStatus.OPEN]: 1 });
+  });
+
+  it("leaves out a verified work that nobody kept (issue 231)", () => {
+    const notKept: BoardItem = { ...verified, selected: false, record: { ...ITEM.record, id: "met:4" } };
+    expect(packPreview([verified, notKept]).included.map((i) => i.record.id)).toEqual(["met:436535"]);
   });
 
   it("keeps approval closed, with the reason, until the API opens G4", async () => {

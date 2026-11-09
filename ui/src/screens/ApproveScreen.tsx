@@ -15,13 +15,15 @@ import "./screens.css";
 export interface ApproveScreenProps {
   runId: string;
   onBack: () => void;
+  onRun?: (run: RunView) => void; // the stage panel follows this run (issue 229)
 }
 
-// The same rule as `pack_items` in src/refdesk/boards.py.
+// The same rule as `pack_items` in src/refdesk/boards.py: kept works only (issue 231).
 export function packPreview(items: BoardItem[]) {
   const included: BoardItem[] = [];
   let excludedUnverified = 0;
   for (const item of items) {
+    if (!item.selected) continue;
     const kept = item.review?.decision === "keep";
     if (item.review?.decision === "drop") continue;
     if (item.record.rights.status === RightsStatus.UNVERIFIED && !kept) {
@@ -66,8 +68,11 @@ function Receipt({ receipt }: { receipt: ExportReceipt }) {
   );
 }
 
-export function ApproveScreen({ runId, onBack }: ApproveScreenProps) {
+export function ApproveScreen({ runId, onBack, onRun }: ApproveScreenProps) {
   const [run, setRun] = useState<RunView | null>(null);
+  useEffect(() => {
+    if (run) onRun?.(run); // the stage panel follows approval and export (issue 229)
+  }, [run, onRun]);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);

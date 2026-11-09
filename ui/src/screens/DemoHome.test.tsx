@@ -142,6 +142,34 @@ describe("App in the demo profile", () => {
   });
 });
 
+describe("App shell (issue 229)", () => {
+  it("shows no board stages on New board, then the stages once a board is open", async () => {
+    api("full");
+    window.history.pushState(null, "", "/");
+    const { unmount } = render(<App />);
+    await screen.findByRole("button", { name: "Find references" });
+    expect(screen.queryByRole("list", { name: "Stages of this board" })).toBeNull();
+    unmount();
+
+    window.history.pushState(null, "", "?run=run-boats");
+    render(<App />);
+    const stages = await screen.findByRole("list", { name: "Stages of this board" });
+    expect(within(stages).getByRole("link", { name: /^Shortlist/ }).getAttribute("aria-current")).toBe("step");
+    expect(screen.getByText("This board · Boats at night for")).toBeTruthy();
+  });
+
+  it("opens the read-only Brief stage from the panel", async () => {
+    api("full");
+    window.history.pushState(null, "", "?run=run-boats");
+    render(<App />);
+    const stages = await screen.findByRole("list", { name: "Stages of this board" });
+    within(stages).getByRole("link", { name: /^Brief/ }).click();
+    expect(await screen.findByRole("heading", { name: "Brief", level: 1 })).toBeTruthy();
+    expect(window.location.search).toBe("?run=run-boats&stage=brief");
+    expect(screen.getByText("Boats at night for a whisky label")).toBeTruthy();
+  });
+});
+
 describe("App in the full profile", () => {
   it("opens on New board with no demo banner", async () => {
     const fetchMock = api("full");

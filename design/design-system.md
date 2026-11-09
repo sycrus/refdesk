@@ -43,7 +43,7 @@ Used by the refdesk web app (React and TypeScript). This is a generic system: it
 
 ## Iconography
 
-Outline icons on a 16px grid, 1.5px stroke, round caps and joins, `currentColor`. A small fixed set: check, alert, lock, circle, dash, arrow. Icons never carry meaning alone: each sits next to a text label. No emoji.
+Outline icons on a 16px grid, 1.5px stroke, round caps and joins, `currentColor`. A small fixed set: check, alert, lock, circle, dash, arrow, and for the stage panel (issue 229) plus, history, brief, search, grid, verify, sign, export, chevrons. Icons never carry meaning alone: each sits next to a text label. When the stage panel is minimised to icons, every icon keeps its label as the link's accessible name and tooltip, and each stage's state stays in words. No emoji.
 
 ## Components
 
