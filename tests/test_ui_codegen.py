@@ -243,3 +243,14 @@ def test_ui_css_uses_only_the_type_scale():
         if "generated" not in path.parts
     }
     assert {k: v for k, v in offenders.items() if v} == {}
+
+
+def test_every_ui_stylesheet_has_balanced_braces():
+    """An unclosed rule makes the browser swallow every rule after it, including whole
+    stylesheets bundled later, with no error anywhere (a merge did this once, #234)."""
+    unbalanced = {}
+    for path in (ROOT / "ui" / "src").rglob("*.css"):
+        text = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        if text.count("{") != text.count("}"):
+            unbalanced[path.relative_to(ROOT).as_posix()] = text.count("{") - text.count("}")
+    assert unbalanced == {}

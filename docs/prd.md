@@ -571,6 +571,7 @@ Values are placeholders until measured. This is what the Tier 1-2 delivery work 
 |---|---|
 | `POST /boards` | Start a run from a brief |
 | `GET /runs/{id}` | Run state, items and events |
+| `GET /runs/{id}/pack` | What the pack will hold, grouped for S6: open, reviewed, listed for reference, and left out with the reason; built by the export's own rule (#233) |
 | `POST /runs/{id}/name` | Rename a board; a label only, refused once exported. New boards are named from the run ID, never the brief (#234) |
 | `POST /runs/{id}/shortlist` | Keep or un-keep works on the shortlist, with who and when; refused once approved (#231) |
 | `POST /runs/{id}/review` | Record G3 decisions on kept flagged items (keep with a note, or drop) |

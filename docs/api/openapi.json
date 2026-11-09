@@ -417,6 +417,59 @@
         }
       }
     },
+    "/runs/{run_id}/pack": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Pack",
+        "description": "What the provenance pack will hold, grouped for the Approve screen (issue #233):\nopen, reviewed, reference only (permission required), and left out with the reason.\nBuilt by the export's own rule.",
+        "operationId": "get_pack_runs__run_id__pack_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}/name": {
       "post": {
         "tags": [
@@ -2014,6 +2067,30 @@
         "title": "ItemReview",
         "description": "A recorded G3 decision on one flagged item."
       },
+      "LeftOut": {
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "title": "Record Id"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "Not kept",
+              "Dropped at Verify",
+              "Rights unverified, not reviewed"
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_id",
+          "reason"
+        ],
+        "title": "LeftOut"
+      },
       "LoopState": {
         "type": "string",
         "enum": [
@@ -2031,6 +2108,57 @@
         ],
         "title": "LoopState",
         "description": "The loop controller's states (PRD 10.2 state diagram)."
+      },
+      "PackSummary": {
+        "properties": {
+          "included": {
+            "type": "integer",
+            "title": "Included",
+            "description": "Works the pack will hold"
+          },
+          "open": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Open",
+            "description": "Open (as stated by source), attribution verified"
+          },
+          "reviewed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reviewed",
+            "description": "Kept at Verify with a note"
+          },
+          "reference": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reference",
+            "description": "Permission required: a reference row with a record link, never an image"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOut"
+            },
+            "type": "array",
+            "title": "Left Out"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "included",
+          "open",
+          "reviewed",
+          "reference",
+          "left_out"
+        ],
+        "title": "PackSummary",
+        "description": "What the provenance pack will hold, grouped for the Approve screen (issue #233).\nBuilt by the same rule as the export (`pack_items`), so the UI never computes it."
       },
       "Problem": {
         "properties": {

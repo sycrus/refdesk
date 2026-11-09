@@ -315,6 +315,24 @@ class RunView(_Model):
     )
 
 
+class LeftOut(_Model):
+    record_id: str
+    reason: Literal["Not kept", "Dropped at Verify", "Rights unverified, not reviewed"]
+
+
+class PackSummary(_Model):
+    """What the provenance pack will hold, grouped for the Approve screen (issue #233).
+    Built by the same rule as the export (`pack_items`), so the UI never computes it."""
+
+    included: int = Field(description="Works the pack will hold")
+    open: list[str] = Field(description="Open (as stated by source), attribution verified")
+    reviewed: list[str] = Field(description="Kept at Verify with a note")
+    reference: list[str] = Field(
+        description="Permission required: a reference row with a record link, never an image"
+    )
+    left_out: list[LeftOut]
+
+
 class BoardStage(StrEnum):
     """How far a board has got, for the Boards page (issue #234). Read from the run and its
     gates in this order: cancelled; still searching; exported; approved and waiting for

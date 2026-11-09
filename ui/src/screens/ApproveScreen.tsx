@@ -2,14 +2,18 @@
 // provenance pack will hold, the ConfirmDialog (acknowledgement and "Approving as"), then
 // approval and the irreversible export, then the receipt. The API enforces every rule:
 // approval only when every flagged item is decided, export only with an approval record,
-// read-only afterwards. The summary here mirrors the API's pack rule for display; the
-// receipt reports what the API actually exported.
+// read-only afterwards. What the pack will hold comes from the API (GET /runs/{id}/pack),
+// grouped as thumbnails (issue 233); the receipt reports what the API actually exported.
 import { useEffect, useState } from "react";
-import { ApiError, approveRun, exportRun, getRun } from "../api/client";
-import type { BoardItem, ExportReceipt, RunView } from "../api/types";
+import { ApiError, approveRun, exportRun, getPack, getRun } from "../api/client";
+import type { BoardItem, ExportReceipt, PackSummary, RunView } from "../api/types";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { AttributionStatus, NOT_LEGAL_ADVICE, RightsStatus } from "../generated/wording";
+import { showsImage } from "../components/EvidenceCard";
+import { Icon, type IconName } from "../components/Icon";
+import { Lightbox } from "../components/Lightbox";
+import { safeUrl } from "../components/safeUrl";
+import { NOT_LEGAL_ADVICE, RightsStatus } from "../generated/wording";
 import "./screens.css";
 
 export interface ApproveScreenProps {
@@ -18,28 +22,32 @@ export interface ApproveScreenProps {
   onRun?: (run: RunView) => void; // the stage panel follows this run (issue 229)
 }
 
-// The same rule as `pack_items` in src/refdesk/boards.py: kept works only (issue 231).
-export function packPreview(items: BoardItem[]) {
-  const included: BoardItem[] = [];
-  let excludedUnverified = 0;
-  for (const item of items) {
-    if (!item.selected) continue;
-    const kept = item.review?.decision === "keep";
-    if (item.review?.decision === "drop") continue;
-    if (item.record.rights.status === RightsStatus.UNVERIFIED && !kept) {
-      excludedUnverified += 1;
-    } else if (item.attribution_status === AttributionStatus.VERIFIED || kept) {
-      included.push(item);
-    }
-  }
-  const countsByStatus: Record<string, number> = {};
-  for (const item of included) {
-    countsByStatus[item.record.rights.status] = (countsByStatus[item.record.rights.status] ?? 0) + 1;
-  }
-  const reviewed = included
-    .filter((item) => item.review)
-    .map((item) => ({ id: item.record.id, title: item.record.title ?? item.record.id, note: item.review?.note ?? "" }));
-  return { included, excludedUnverified, countsByStatus, reviewed };
+// The groups on this screen (issue 233). Each comes from the API's pack summary; the
+// screen only lays them out. Marks follow the status marks: never colour alone.
+const GROUPS = [
+  { key: "open", title: RightsStatus.OPEN, note: "Attribution verified from record, and the source marks the rights as open.", icon: "check", tone: "ok" },
+  { key: "reviewed", title: "Marked reviewed by you", note: "These needed a human check. You kept them at Verify with a note.", icon: "verify", tone: "accent" },
+  { key: "reference", title: "Listed for reference", note: `${RightsStatus.PERMISSION_REQUIRED}: the pack lists the record and its link, never an image.`, icon: "lock", tone: "danger" },
+] as const;
+
+function Thumb({ item, icon, tone, label, onOpen }: { item: BoardItem; icon: IconName; tone: string; label: string; onOpen: () => void }) {
+  const title = item.record.title ?? item.record.id;
+  return (
+    <li>
+      <button type="button" className={`rd-thumb rd-thumb--${tone}`} onClick={onOpen} aria-label={`${title}: ${label}`} title={label}>
+        {showsImage(item) ? (
+          <img src={safeUrl(item.record.image_url)} alt="" loading="lazy" />
+        ) : (
+          <span className="rd-thumb-none">
+            <Icon name="lock" />
+          </span>
+        )}
+        <span className="rd-thumb-mark" aria-hidden="true">
+          <Icon name={icon} />
+        </span>
+      </button>
+    </li>
+  );
 }
 
 function Receipt({ receipt }: { receipt: ExportReceipt }) {
@@ -76,12 +84,22 @@ export function ApproveScreen({ runId, onBack, onRun }: ApproveScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pack, setPack] = useState<PackSummary | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null); // a thumbnail in the lightbox
 
   useEffect(() => {
     getRun(runId)
       .then(setRun)
       .catch((err) => setError(err instanceof ApiError ? err.message : String(err)));
   }, [runId]);
+
+  // The pack follows the run: fetched again whenever the run changes (approval, export).
+  useEffect(() => {
+    if (!run || run.export) return;
+    getPack(runId)
+      .then(setPack)
+      .catch((err) => setError(`What the pack will hold did not load: ${err instanceof ApiError ? err.message : String(err)}`));
+  }, [runId, run]);
 
   if (!run) {
     return error ? (
@@ -95,8 +113,20 @@ export function ApproveScreen({ runId, onBack, onRun }: ApproveScreenProps) {
 
   const g4 = run.gates.find((gate) => gate.id === "G4");
   const g5 = run.gates.find((gate) => gate.id === "G5");
-  const preview = packPreview(run.items);
   const approved = g4?.state === "passed";
+  const byId = new Map(run.items.map((item) => [item.record.id, item]));
+  const items = (ids: string[]) => ids.map((id) => byId.get(id)).filter((item): item is BoardItem => item !== undefined);
+  const included = pack ? [...items(pack.open), ...items(pack.reviewed), ...items(pack.reference)] : [];
+  const countsByStatus: Record<string, number> = {};
+  for (const item of included) {
+    countsByStatus[item.record.rights.status] = (countsByStatus[item.record.rights.status] ?? 0) + 1;
+  }
+  const reviewed = pack
+    ? items(pack.reviewed).map((item) => ({ id: item.record.id, title: item.record.title ?? item.record.id, note: item.review?.note ?? "" }))
+    : [];
+  const excludedUnverified = pack ? pack.left_out.filter((w) => w.reason === "Rights unverified, not reviewed").length : 0;
+  const count = pack?.included ?? 0;
+  const shown = [...included, ...(pack ? items(pack.left_out.map((w) => w.record_id)) : [])];
 
   async function doExport() {
     setBusy(true);
@@ -147,20 +177,65 @@ export function ApproveScreen({ runId, onBack, onRun }: ApproveScreenProps) {
       ) : (
         <>
           {g4 && <p role="status">{approved ? g5?.status_text : g4.status_text}</p>}
-          <section aria-labelledby="pack-title">
+          <section aria-labelledby="pack-title" className="rd-pack">
             <h2 id="pack-title">What the provenance pack will hold</h2>
-            <ul className="rd-dialog-counts">
-              {Object.entries(preview.countsByStatus).map(([status, count]) => (
-                <li key={status}>
-                  {status}: {count}
-                </li>
-              ))}
-            </ul>
-            <p>
-              {preview.included.length} {preview.included.length === 1 ? "item" : "items"} in the pack.
-              {preview.excludedUnverified > 0 && ` ${preview.excludedUnverified} unverified left out.`}
-            </p>
-            <p className="rd-note">{NOT_LEGAL_ADVICE}</p>
+            {!pack ? (
+              <p role="status">Loading what the pack will hold…</p>
+            ) : (
+              <>
+                <p>
+                  <strong>{`${count} ${count === 1 ? "work goes" : "works go"} into the export.`}</strong>
+                  {pack.left_out.length > 0 && ` ${pack.left_out.length} left out.`}
+                </p>
+                {GROUPS.map((group) => {
+                  const list = items(pack[group.key]);
+                  return (
+                    <section key={group.key} className="rd-pack-group" aria-label={`${group.title}: ${list.length}`}>
+                      <h3 className={`rd-pack-head rd-pack-head--${group.tone}`}>
+                        <span className="rd-pack-icon" aria-hidden="true">
+                          <Icon name={group.icon} />
+                        </span>
+                        {group.title}
+                        <span className="rd-pack-count">{list.length}</span>
+                      </h3>
+                      <p className="rd-note">{group.note}</p>
+                      {list.length > 0 ? (
+                        <ul className="rd-thumbs">
+                          {list.map((item) => (
+                            <Thumb key={item.record.id} item={item} icon={group.icon} tone={group.tone} label={group.title} onOpen={() => setViewing(item.record.id)} />
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="rd-note">None.</p>
+                      )}
+                    </section>
+                  );
+                })}
+                <section className="rd-pack-group" aria-label={`Left out: ${pack.left_out.length}`}>
+                  <h3 className="rd-pack-head rd-pack-head--muted">
+                    <span className="rd-pack-icon" aria-hidden="true">
+                      <Icon name="dash" />
+                    </span>
+                    Left out
+                    <span className="rd-pack-count">{pack.left_out.length}</span>
+                  </h3>
+                  <p className="rd-note">Not in the export. Each says why.</p>
+                  {pack.left_out.length > 0 ? (
+                    <ul className="rd-thumbs rd-thumbs--out">
+                      {pack.left_out.map((w) => {
+                        const item = byId.get(w.record_id);
+                        return item ? (
+                          <Thumb key={w.record_id} item={item} icon="dash" tone="muted" label={w.reason} onOpen={() => setViewing(w.record_id)} />
+                        ) : null;
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="rd-note">None.</p>
+                  )}
+                </section>
+                <p className="rd-note">{NOT_LEGAL_ADVICE}</p>
+              </>
+            )}
           </section>
           {error && (
             <p className="rd-error" role="alert">
@@ -179,19 +254,22 @@ export function ApproveScreen({ runId, onBack, onRun }: ApproveScreenProps) {
                 g4?.state !== "active" ? `Approval is not open yet: ${g4?.status_text}` : busy ? "Working…" : undefined
               }
             >
-              {`Approve and export ${preview.included.length} ${preview.included.length === 1 ? "item" : "items"}`}
+              {`Approve and export ${count} ${count === 1 ? "item" : "items"}`}
             </Button>
           )}
           <ConfirmDialog
             open={dialogOpen}
-            itemCount={preview.included.length}
-            countsByStatus={preview.countsByStatus}
-            reviewed={preview.reviewed}
-            excludedUnverified={preview.excludedUnverified}
+            itemCount={count}
+            countsByStatus={countsByStatus}
+            reviewed={reviewed}
+            excludedUnverified={excludedUnverified}
             runId={runId}
             onConfirm={(approval) => void onConfirm(approval)}
             onCancel={() => setDialogOpen(false)}
           />
+          {viewing && (
+            <Lightbox run={run} items={shown} itemId={viewing} onShow={setViewing} onClose={() => setViewing(null)} />
+          )}
         </>
       )}
     </section>
