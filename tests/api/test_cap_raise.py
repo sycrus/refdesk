@@ -206,3 +206,85 @@ class TestRaiseEndpoint:
             app.dependency_overrides.clear()
         assert response.status_code == 404
         assert response.json()["code"] == "unknown_run"
+
+
+class TestARaiseKeepsTheBoard:
+    """Issue #247: a raise resumes the search, and the resume must not undo what people
+    decided. Once approved or exported a board cannot be raised at all; before that, every
+    work still on the board keeps its shortlist and review decisions."""
+
+    def keep_and_review(self, svc, run_id):
+        from refdesk.api.models import (
+            ReviewDecision,
+            ReviewRequest,
+            ShortlistChange,
+            ShortlistRequest,
+        )
+
+        ids = [i.record.id for i in svc.get(run_id).items]
+        keep = [ShortlistChange(item_id=i, keep=True) for i in ids]
+        svc.shortlist(run_id, ShortlistRequest(operator="Joe", items=keep))
+        items = svc.get(run_id).items
+        flagged = [
+            i.record.id for i in items if i.attribution_status is not AttributionStatus.VERIFIED
+        ]
+        if flagged:
+            decisions = [
+                ReviewDecision(item_id=i, decision="keep", note="Checked.") for i in flagged
+            ]
+            svc.review(run_id, ReviewRequest(reviewer="Joe", decisions=decisions))
+        return ids, flagged
+
+    def test_a_raise_after_approval_is_refused(self, tmp_path):
+        from refdesk.api.models import ApprovalRequest
+
+        svc, _, _, run_id = budget_stopped(tmp_path)
+        self.keep_and_review(svc, run_id)
+        svc.approve(run_id, ApprovalRequest(approver="Joe", acknowledged=True))
+        with pytest.raises(GateRefused) as refused:
+            svc.raise_cap(run_id, CapRaise(new_cap_usd=2.0, raised_by="Joe"))
+        assert refused.value.gate.value == "G4" and "approved" in refused.value.reason
+        assert svc.get(run_id).approval is not None
+
+    def test_a_raise_after_export_is_refused_and_the_board_stays_read_only(self, tmp_path):
+        from refdesk.api.models import ApprovalRequest, ExportRequest
+
+        svc, _, _, run_id = budget_stopped(tmp_path)
+        svc.exports_dir = tmp_path / "exports"
+        self.keep_and_review(svc, run_id)
+        svc.approve(run_id, ApprovalRequest(approver="Joe", acknowledged=True))
+        svc.export(run_id, ExportRequest(format="csv"))
+        with pytest.raises(GateRefused) as refused:
+            svc.raise_cap(run_id, CapRaise(new_cap_usd=2.0, raised_by="Joe"))
+        assert refused.value.gate.value == "G5"
+        after = svc.get(run_id)
+        assert after.read_only and after.export is not None and after.approval is not None
+
+    def test_a_raise_before_approval_keeps_every_kept_work_and_review(self, tmp_path):
+        svc, _, _, run_id = budget_stopped(tmp_path)
+        ids, flagged = self.keep_and_review(svc, run_id)
+        before = svc.get(run_id)
+        svc.raise_cap(run_id, CapRaise(new_cap_usd=2.0, raised_by="Joe"))
+        after = svc.resume_after_raise(run_id)
+        by_id = {i.record.id: i for i in after.items}
+        for item_id in ids:
+            assert by_id[item_id].selected, item_id
+            assert by_id[item_id].selected_by == "Joe"
+        for item_id in flagged:
+            assert by_id[item_id].review is not None and by_id[item_id].review.note == "Checked."
+        assert after.saved_at == before.saved_at
+        assert after.name == before.name
+        # The gates follow the carried decisions: every kept work is decided, so approval is open.
+        assert after.state in (S.DONE, S.STOPPED)
+        assert next(g for g in after.gates if g.id.value == "G4").state.value == "active"
+
+    def test_a_work_taken_off_before_the_raise_stays_off(self, tmp_path):
+        from refdesk.api.models import ShortlistChange, ShortlistRequest
+
+        svc, _, _, run_id = budget_stopped(tmp_path)
+        ids, _ = self.keep_and_review(svc, run_id)
+        off = [ShortlistChange(item_id=ids[0], keep=False)]
+        svc.shortlist(run_id, ShortlistRequest(operator="Joe", items=off))
+        svc.raise_cap(run_id, CapRaise(new_cap_usd=2.0, raised_by="Joe"))
+        after = svc.resume_after_raise(run_id)
+        assert not next(i for i in after.items if i.record.id == ids[0]).selected

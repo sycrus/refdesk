@@ -628,6 +628,41 @@ def pack_items(items: list[BoardItem]) -> tuple[list[BoardItem], int, int]:
     return included, unverified, dropped
 
 
+def carry_decisions(view: RunView, prior: RunView | None) -> RunView:
+    """What people decided on a board, carried into a view the loop rebuilt (issue #247).
+
+    A resume (a cap raise or a restart) builds the board again from the search. Without
+    this, the rebuilt view dropped every work's shortlist and review decisions, the save
+    time and the name. For each work still on the board, its shortlist fields and review
+    come from `prior`, the board as it was when the resume began; the gates are then
+    recomputed from them. Works the search no longer returns are not invented back."""
+    if prior is None:
+        return view
+    earlier = {i.record.id: i for i in prior.items}
+    items = []
+    for item in view.items:
+        old = earlier.get(item.record.id)
+        if old is not None:
+            item = item.model_copy(
+                update={
+                    "selected": old.selected,
+                    "selected_by": old.selected_by,
+                    "selected_at": old.selected_at,
+                    "review": old.review,
+                }
+            )
+        items.append(item)
+    ended = view.state in (LoopState.DONE, LoopState.STOPPED)
+    return view.model_copy(
+        update={
+            "items": items,
+            "gates": review_gates(view.gates, items, ended),
+            "saved_at": prior.saved_at,
+            "name": view.name or prior.name,
+        }
+    )
+
+
 def default_name(run_id: str) -> str:
     """A new board's name, from its run ID and never its brief (Joe, 2026-11-09, #234): the
     run list is the redacted history (#159) and is exposed through the MCP read tools."""
@@ -806,8 +841,9 @@ class BoardService:
         cls = ResumeLog if resuming else RunLog
         return cls(self.events_path(run_id), run_id=run_id, brief=request.brief)
 
-    def _end(self, log: RunLog, view: RunView) -> RunView:
+    def _end(self, log: RunLog, view: RunView, prior: RunView | None = None) -> RunView:
         """A run that ends before the loop starts still logs how it ended."""
+        view = carry_decisions(view, prior)
         log.transition(
             view.state,
             reason_code=view.stop_reason.value if view.stop_reason else None,
@@ -825,6 +861,8 @@ class BoardService:
         process completed are answered from its checkpoints (checkpoints.py). A cap
         raise (issue #158) resumes the same way, with its own reason for the log."""
         log = self.run_log(run_id, request, resuming=resuming)
+        # The board as it was before a resume, so the rebuilt view keeps what people decided.
+        prior = self.runs.get(run_id) if resuming else None
         if resuming:
             recorded = self.runs.checkpoint_count(run_id)
             log.transition(
@@ -850,7 +888,7 @@ class BoardService:
                 stop=StopReason.SOURCE_UNAVAILABLE,
                 detail=detail,
             )
-            return self._end(log, view)
+            return self._end(log, view, prior)
 
         records = self.records()
         query = to_query(request)
@@ -865,10 +903,10 @@ class BoardService:
             view = _view(
                 run_id, request, LoopState.STOPPED, stop=StopReason.DECLINED, detail=str(error)
             )
-            return self._end(log, view)
+            return self._end(log, view, prior)
         hits = [hit for hit in hits if hit.record_id in records]
         if hits and self.reasoner is not None:
-            return self._execute_reasoned(run_id, request, hits, records, log)
+            return self._execute_reasoned(run_id, request, hits, records, log, prior)
         items = [self._item(hit, records[hit.record_id]) for hit in hits]
         if items:
             view = _view(run_id, request, LoopState.DONE, items)
@@ -880,10 +918,16 @@ class BoardService:
                 stop=StopReason.POOL_EXHAUSTED,
                 detail="No record matched the brief, conditions and rights filter.",
             )
-        return self._end(log, view)
+        return self._end(log, view, prior)
 
     def _execute_reasoned(
-        self, run_id: str, request: BoardRequest, hits: list[Hit], records: dict, log: RunLog
+        self,
+        run_id: str,
+        request: BoardRequest,
+        hits: list[Hit],
+        records: dict,
+        log: RunLog,
+        prior: RunView | None = None,
     ) -> RunView:
         """The loop controller (loop.py) runs the rounds; this turns its result into a board."""
         by_id = {hit.record_id: hit for hit in hits}
@@ -929,6 +973,7 @@ class BoardService:
             outcome=result,
             reasoned=True,
         )
+        view = carry_decisions(view, prior)
         self.runs.save(view)
         return view
 
@@ -977,6 +1022,12 @@ class BoardService:
             raise UnknownRun(run_id)
         if self.runs.is_cancelled(run_id):
             raise GateRefused(GateId.G1_SPEND, "the run was cancelled; a raise cannot resume it")
+        # A resume rebuilds the board, so an approved or exported board is never raised
+        # (issue #247): the approval, the receipt and read-only would be undone.
+        if view.read_only:
+            raise GateRefused(GateId.G5_EXPORT, "the board is exported and read-only")
+        if view.approval is not None:
+            raise GateRefused(GateId.G4_APPROVE, "the board is approved; its search is final")
         if view.state is not LoopState.STOPPED or view.stop_reason is not StopReason.BUDGET_CAP:
             state = view.state.value
             if view.stop_reason is not None:
