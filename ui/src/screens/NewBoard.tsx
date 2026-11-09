@@ -1,25 +1,41 @@
-// S1 New board (PRD 8A): the brief and its constraints. Validation is the API's job
-// (BoardRequest); this form sends what was typed and shows the API's message if it refuses.
-// Novelty is not offered yet: the API accepts it but does not apply it (M4).
-import { type FormEvent, useState } from "react";
-import { ApiError, createBoard } from "../api/client";
-import type { BoardRequest, Conditions, UsageMode } from "../api/types";
+// S1 New board, the landing page (PRD 8A, issue 230): one prompt, front and centre, with
+// one action. The question, then the usage choice with its hint in one tray, then the
+// brief. Keep-local and the cap stay visible inside the prompt; the other constraints sit
+// in Options, closed by default, with a count of how many are set. Two example briefs and
+// "Pick up where you left off" sit below. Validation is the API's job (BoardRequest): this
+// form sends what was typed and shows the API's message if it refuses. Novelty is not
+// offered: the API accepts it but does not apply it yet (M4).
+//
+// In the demo (ADR-025) the same page is shown, but the prompt cannot run: the button says
+// why, and the recorded example boards follow (Joe, 2026-11-09).
+import { type FormEvent, useEffect, useId, useState } from "react";
+import { ApiError, createBoard, getRun, listRuns } from "../api/client";
+import type { BoardRequest, Conditions, RunView, UsageMode } from "../api/types";
 import { Button } from "../components/Button";
+import { showsImage } from "../components/EvidenceCard";
+import { safeUrl } from "../components/safeUrl";
+import { LANDING_EXAMPLES } from "../content/landing";
 import {
+  LANDING_DEMO_REASON,
+  LANDING_LEAD,
+  LANDING_QUESTION,
   USAGE_INSPIRATION,
   USAGE_INSPIRATION_HINT,
   USAGE_PUBLISH,
   USAGE_PUBLISH_HINT,
   USAGE_QUESTION,
 } from "../generated/wording";
+import { useDemo } from "../demo";
 import "./screens.css";
 
 const CONDITION_FIELDS: { key: keyof Conditions; label: string; hint: string }[] = [
-  { key: "period", label: "Period", hint: "e.g. 17th century or 1650" },
+  { key: "period", label: "Period", hint: "e.g. 17th century" },
   { key: "material", label: "Material", hint: "e.g. oil" },
   { key: "motif", label: "Motif", hint: "e.g. ships" },
   { key: "department", label: "Department", hint: "e.g. paintings" },
 ];
+const OPTION_NAMES = ["period", "material", "motif", "department", "avoid", "anchor_id"];
+const DEFAULT_ITEMS = "12";
 
 export function buildRequest(form: FormData): BoardRequest {
   const text = (name: string) => String(form.get(name) ?? "").trim();
@@ -38,16 +54,52 @@ export function buildRequest(form: FormData): BoardRequest {
     anchor_id: text("anchor_id") || null,
     keep_local: form.get("keep_local") === "on",
     budget_cap_usd: Number(text("budget_cap_usd") || "0.05"),
-    target_items: Number(text("target_items") || "12"),
+    target_items: Number(text("target_items") || DEFAULT_ITEMS),
   };
 }
 
-export function NewBoard({ onCreated }: { onCreated: (runId: string) => void }) {
+const firstWords = (brief: string) => brief.split(/\s+/).slice(0, 4).join(" ");
+
+// The latest board that can still be worked on: not exported, not cancelled.
+function useLatestDraft(enabled: boolean): RunView | null {
+  const [draft, setDraft] = useState<RunView | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    listRuns()
+      .then(async (runs) => {
+        const latest = runs.find((run) => !run.read_only && run.state !== "cancelled");
+        if (latest && !cancelled) setDraft(await getRun(latest.run_id));
+      })
+      .catch(() => undefined); // no draft row is fine; the page works without it
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+  return draft;
+}
+
+export interface NewBoardProps {
+  onCreated: (runId: string) => void;
+  onOpenRun?: (runId: string) => void;
+  onAllBoards?: () => void;
+}
+
+export function NewBoard({ onCreated, onOpenRun, onAllBoards }: NewBoardProps) {
+  const demo = useDemo();
+  const [brief, setBrief] = useState("");
+  const [usage, setUsage] = useState<UsageMode>("reference_only");
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [optionsSet, setOptionsSet] = useState(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const draft = useLatestDraft(!demo && Boolean(onOpenRun));
+  const optionsId = useId();
+  const usageHintId = useId();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (demo || !brief.trim() || sending) return;
     setSending(true);
     setError(null);
     try {
@@ -59,75 +111,184 @@ export function NewBoard({ onCreated }: { onCreated: (runId: string) => void }) 
     }
   }
 
+  function countOptions(form: HTMLFormElement) {
+    const data = new FormData(form);
+    const set = OPTION_NAMES.filter((name) => String(data.get(name) ?? "").trim()).length;
+    const items = String(data.get("target_items") ?? "").trim();
+    setOptionsSet(set + (items && items !== DEFAULT_ITEMS ? 1 : 0));
+  }
+
+  const reason = demo ? LANDING_DEMO_REASON : sending ? "Sending the brief…" : !brief.trim() ? "Type a brief first." : undefined;
+  const kept = draft ? draft.items.filter((item) => item.selected) : [];
+  const cover = draft ? (kept.find(showsImage) ?? draft.items.find(showsImage)) : undefined;
+
   return (
-    <form className="rd-form" onSubmit={submit} aria-labelledby="new-board-title">
-      <h1 id="new-board-title" className="rd-screen-title">
-        New board
+    <section className="rd-landing" aria-labelledby="landing-title">
+      <h1 id="landing-title" className="rd-landing-title">
+        {LANDING_QUESTION}
       </h1>
-      <label className="rd-field">
-        <span>Brief</span>
-        <textarea name="brief" required rows={3} placeholder="What do you need references for?" />
-      </label>
+      <p className="rd-landing-lead">{LANDING_LEAD}</p>
 
-      <fieldset className="rd-fieldset">
-        <legend>{USAGE_QUESTION}</legend>
-        <label className="rd-option">
-          <input type="radio" name="usage_mode" value="reference_only" defaultChecked />
-          <span>
-            <strong>{USAGE_INSPIRATION}</strong> <span className="rd-option-hint">{USAGE_INSPIRATION_HINT}</span>
-          </span>
-        </label>
-        <label className="rd-option">
-          <input type="radio" name="usage_mode" value="reproduction" />
-          <span>
-            <strong>{USAGE_PUBLISH}</strong> <span className="rd-option-hint">{USAGE_PUBLISH_HINT}</span>
-          </span>
-        </label>
-      </fieldset>
+      <form
+        className="rd-landing-form"
+        onSubmit={submit}
+        onInput={(event) => countOptions(event.currentTarget)}
+        aria-labelledby="landing-title"
+      >
+        <fieldset className="rd-usage" aria-describedby={usageHintId}>
+          <legend className="rd-visually-hidden">{USAGE_QUESTION}</legend>
+          <div className="rd-usage-switch">
+            {(
+              [
+                ["reference_only", USAGE_INSPIRATION],
+                ["reproduction", USAGE_PUBLISH],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="rd-usage-option">
+                <input
+                  type="radio"
+                  name="usage_mode"
+                  value={value}
+                  checked={usage === value}
+                  onChange={() => setUsage(value)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          <p id={usageHintId} className="rd-usage-hint" aria-live="polite">
+            {usage === "reproduction" ? USAGE_PUBLISH_HINT : USAGE_INSPIRATION_HINT}
+          </p>
+        </fieldset>
 
-      <fieldset className="rd-fieldset rd-fieldset--grid">
-        <legend>Conditions (optional)</legend>
-        {CONDITION_FIELDS.map(({ key, label, hint }) => (
-          <label key={key} className="rd-field">
-            <span>{label}</span>
-            <input type="text" name={key} placeholder={hint} />
+        <div className="rd-prompt">
+          <label className="rd-visually-hidden" htmlFor="landing-brief">
+            Brief
           </label>
-        ))}
-      </fieldset>
+          <textarea
+            id="landing-brief"
+            name="brief"
+            rows={2}
+            value={brief}
+            placeholder="e.g. Mid-Autumn tin, festive but not red and gold"
+            onChange={(event) => setBrief(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                event.currentTarget.form?.requestSubmit();
+              }
+            }}
+          />
 
-      <div className="rd-form-grid">
-        <label className="rd-field">
-          <span>Avoid (comma-separated words or record IDs)</span>
-          <input type="text" name="avoid" placeholder="e.g. red, met:436535" />
-        </label>
-        <label className="rd-field">
-          <span>More like this work (record ID, optional)</span>
-          <input type="text" name="anchor_id" placeholder="e.g. met:436535" />
-        </label>
-        <label className="rd-field">
-          <span>Budget cap (USD)</span>
-          <input type="number" name="budget_cap_usd" defaultValue="0.05" min="0.01" step="0.01" />
-        </label>
-        <label className="rd-field">
-          <span>Items wanted</span>
-          <input type="number" name="target_items" defaultValue="12" min="1" max="50" />
-        </label>
-      </div>
+          <div id={optionsId} className="rd-prompt-options" hidden={!optionsOpen}>
+            {CONDITION_FIELDS.map(({ key, label, hint }) => (
+              <label key={key} className="rd-prompt-field">
+                <span>{label}</span>
+                <input type="text" name={key} placeholder={hint} />
+              </label>
+            ))}
+            <label className="rd-prompt-field rd-prompt-field--wide">
+              <span>Avoid (words or record IDs)</span>
+              <input type="text" name="avoid" placeholder="e.g. red, met:436535" />
+            </label>
+            <label className="rd-prompt-field">
+              <span>More like this work</span>
+              <input type="text" name="anchor_id" placeholder="Record ID" />
+            </label>
+            <label className="rd-prompt-field">
+              <span>Works wanted</span>
+              <input type="number" name="target_items" defaultValue={DEFAULT_ITEMS} min="1" max="50" />
+            </label>
+          </div>
 
-      <label className="rd-check">
-        <input type="checkbox" name="keep_local" /> Keep this brief on this machine (never sent to a cloud model)
-      </label>
+          <div className="rd-prompt-row">
+            <div className="rd-prompt-quiet">
+              <label className="rd-prompt-check">
+                <input type="checkbox" name="keep_local" /> Keep this brief on this machine
+              </label>
+              <label className="rd-prompt-cap">
+                <span>Cap $</span>
+                <input
+                  type="number"
+                  name="budget_cap_usd"
+                  defaultValue="0.05"
+                  min="0.01"
+                  step="0.01"
+                  aria-label="Spending cap (USD)"
+                />
+              </label>
+              <button
+                type="button"
+                className="rd-prompt-more"
+                aria-expanded={optionsOpen}
+                aria-controls={optionsId}
+                onClick={() => setOptionsOpen((open) => !open)}
+              >
+                Options
+                {optionsSet > 0 && (
+                  <span className="rd-prompt-count">
+                    {optionsSet}
+                    <span className="rd-visually-hidden"> set</span>
+                  </span>
+                )}
+              </button>
+            </div>
+            <Button type="submit" variant="primary" disabledReason={reason} reasonHidden={!demo}>
+              Find references
+            </Button>
+          </div>
+        </div>
+      </form>
 
       {error && (
         <p className="rd-error" role="alert">
           {error}
         </p>
       )}
-      <div>
-        <Button type="submit" variant="primary" disabledReason={sending ? "Sending the brief…" : undefined}>
-          Find references
-        </Button>
-      </div>
-    </form>
+
+      {!demo && !optionsOpen && (
+        <p className="rd-landing-examples">
+          <span className="rd-landing-label">Try an example</span>
+          {LANDING_EXAMPLES.map((example) => (
+            <button key={example} type="button" className="rd-landing-example" onClick={() => setBrief(example)}>
+              {example}
+            </button>
+          ))}
+        </p>
+      )}
+
+      {draft && onOpenRun && (
+        <div className="rd-landing-resume">
+          <span className="rd-landing-label">Pick up where you left off</span>
+          <div className="rd-landing-resume-row">
+            <a
+              className="rd-landing-resume-card"
+              href={`?run=${encodeURIComponent(draft.run_id)}`}
+              onClick={(event) => {
+                event.preventDefault();
+                onOpenRun(draft.run_id);
+              }}
+            >
+              {cover && <img src={safeUrl(cover.record.image_url)} alt="" />}
+              <strong>{firstWords(draft.request?.brief ?? draft.run_id)}</strong>
+              <span>{`${kept.length} kept`}</span>
+              <span aria-hidden="true">→</span>
+            </a>
+            {onAllBoards && (
+              <a
+                className="rd-landing-all"
+                href="?history=1"
+                onClick={(event) => {
+                  event.preventDefault();
+                  onAllBoards();
+                }}
+              >
+                All boards
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

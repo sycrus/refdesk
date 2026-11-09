@@ -107,9 +107,10 @@ describe("S1 NewBoard", () => {
     const inspiration = within(group).getByRole("radio", { name: new RegExp(`^${USAGE_INSPIRATION}`) });
     const publish = within(group).getByRole("radio", { name: new RegExp(`^${USAGE_PUBLISH}`) });
     expect((inspiration as HTMLInputElement).checked).toBe(true);
+    // Only the chosen option's hint shows, in the same tray (issue 230).
     expect(group.textContent).toContain(USAGE_INSPIRATION_HINT);
-    expect(group.textContent).toContain(USAGE_PUBLISH_HINT);
     await userEvent.click(publish);
+    expect(group.textContent).toContain(USAGE_PUBLISH_HINT);
     await userEvent.type(screen.getByLabelText("Brief"), "x");
     await userEvent.click(screen.getByRole("button", { name: "Find references" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());

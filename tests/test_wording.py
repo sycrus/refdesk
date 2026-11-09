@@ -60,3 +60,10 @@ def test_usage_wording_asks_about_intent():
     assert STYLE_NOTE == (
         "For inspiration only. Not cleared for publishing, or for copying {artist}'s style."
     )
+
+
+def test_landing_wording():
+    from refdesk.wording import LANDING_LEAD, LANDING_QUESTION
+
+    assert LANDING_QUESTION == "What do you need references for?"
+    assert LANDING_LEAD.startswith("Describe the brief.") and "RefDesk" in LANDING_LEAD

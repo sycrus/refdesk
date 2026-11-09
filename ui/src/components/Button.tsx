@@ -13,6 +13,7 @@ export interface ButtonProps {
   variant?: ButtonVariant;
   type?: "button" | "submit";
   disabledReason?: string; // set to disable the button; shown next to it
+  reasonHidden?: boolean; // the reason is obvious on screen: read out, not shown (issue 230)
 }
 
 export function Button({
@@ -21,6 +22,7 @@ export function Button({
   variant = "secondary",
   type = "button",
   disabledReason,
+  reasonHidden = false,
 }: ButtonProps) {
   const reasonId = useId();
   const disabled = Boolean(disabledReason);
@@ -42,7 +44,7 @@ export function Button({
         {children}
       </button>
       {disabled && (
-        <span id={reasonId} className="rd-button-reason">
+        <span id={reasonId} className={reasonHidden ? "rd-visually-hidden" : "rd-button-reason"}>
           {disabledReason}
         </span>
       )}
