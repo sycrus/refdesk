@@ -173,73 +173,76 @@ Section 8 lists the controls. This section says where they live and how an opera
 - A React and TypeScript app (my strongest stack), built to static files and served by the FastAPI service. No extra service to deploy (ADR-017, decided). HTMX was considered and not chosen.
 - Polish sells: the UI is also a portfolio asset, so it gets a real design system (`design/`) and careful states. It stays time-boxed because the learning goals are elsewhere. Polish here means clarity, consistency and honest states, not decoration.
 - v1 is single-user and local. No accounts. Roles are views, not logins.
+- **Image first** (Joe, 2026-11-09, #226). Art directors are visual-first people, so text stays out of the way until it is needed: shortlisting is image-led, and the text comes back for verification before the final board is used. Images open large in an overlay with one click.
+- The wordmark is "RefDesk". The repo, package and CLI stay `refdesk`.
 
-Screen designs for S1 to S6 are on the "refdesk: approval gates and screens" canvas.
+Screen designs for S1 to S6 are on the "refdesk: approval gates and screens" canvas. The image-first layout below supersedes them where they differ; its clickable mock-up is `design/mockups/board-image-first.html` (placeholder images and example records only).
+
+### Layout
+
+- **Stage panel (left).** Always open, with its own column; never an overlay. It can be minimised to one icon per stage, with each stage's state shown by the node style and a small pip, never by colour alone. New board, Boards and Settings are always in it. The stages of a board ("This board · <name>") appear only once a board is opened: Brief, Search and check, Shortlist, Verify, Approve, a point-of-no-return marker, then Export. A dotted line joins the stages and turns solid below a stage that is done. On a phone the panel becomes a row of icons.
+- **Workspace (centre).** Whatever the current stage needs. On a board, an image-led grid that takes the full width.
+- **Lightbox (overlay).** Opens on a click. The image fills the screen and the evidence panel opens beside it; the panel can be hidden. ← → move between works, Esc closes, Z zooms, I shows or hides details, K keeps and D drops.
 
 ### User flow
 
 ```mermaid
 flowchart TD
-  S1[S1 New board: brief, mode, constraints, keep-local, budget] --> S2[S2 Run progress: loop states, cost meter, cancel]
-  S2 -->|stopped or done| S3[S3 Board review: cards with evidence]
-  S2 -->|cancel| S1
-  S3 -->|more like this, conditions, novelty| S2
-  S3 -->|open a card| S4[S4 Item detail: why, evidence, rights record]
+  L[S1 New board: question, usage, brief, options] -->|Find references| S2[S2 Search and check: loop states, cost meter, cancel]
+  L -->|pick up where you left off| B[S10 Boards]
+  S2 -->|stopped or done| S3[S3 Shortlist: images, keep or drop]
+  S3 -->|open a work| S4[S4 Lightbox: image and evidence panel]
   S4 -->|this is wrong| S8[S8 Report an error]
-  S8 --> S3
-  S3 --> S5[S5 Needs human check]
-  S5 -->|keep or drop| S3
-  S3 -->|select items| S6[S6 Approve and export]
-  S6 -->|approved| X[Provenance pack and board export]
+  S3 -->|kept works| S5[S5 Verify: kept works, flagged first]
+  S5 -->|every flagged work decided| S6[S6 Approve: grouped thumbnails, acknowledgement]
+  S6 -->|approved, irreversible| X[Export: provenance pack and board]
   X --> S7[S7 Run history and audit view]
-  S7 --> S3
+  B -->|open a draft| S3
 ```
 
 ### Screens
 
 | ID | Screen | Purpose | Key content |
 |---|---|---|---|
-| S1 | New board | Capture the brief and constraints | Brief text or upload, avoid list, usage mode, anchor and conditions, novelty slider, keep-local toggle, budget cap |
-| S2 | Run progress (two states) | Make the loop visible | Running: current loop state, items appearing as accepted with skeletons for the rest, cost meter, cancel (kill switch). Stopped at the cap: a "Stopped: budget cap reached" banner with the counts and "Nothing was exported", the full cost meter, and two actions: raise the cap (an explicit decision recorded with name and time) or keep the partial board. A raised cap resumes from the checkpoint |
-| S3 | Board review (main screen) | Review references | Card grid, filters (verified only), "more like this", conditions, novelty re-run, selection |
-| S4 | Item detail | Explain one result | Why it fits with evidence chips linked to record fields, full record link, rights record, credit line, confidence, tier used |
-| S5 | Needs human check | Handle uncertainty | Items with reasons (unverified attribution, low confidence, flagged), keep or drop |
-| S6 | Approve and export | The irreversible step | Summary of counts and rights statuses, unverified items excluded unless I mark them reviewed, not-legal-advice note, export provenance pack and board |
+| S1 | New board (landing page) | Capture the brief; the first screen of the app | The question "What do you need references for?" and one line on what RefDesk does. The usage switch (fixed wording) with its hint in one tray. The prompt: brief, a quiet keep-local option and cap, an Options panel (period, material, motif, department, avoid list, more like this work, works wanted), and one action, "Find references", grey until a brief is typed. Two example briefs. "Pick up where you left off" for the latest draft, and "All boards". Fits one screen without scrolling while Options is closed. Novelty is not offered until the API applies it |
+| S2 | Search and check (two states) | Make the loop visible | Running: current loop state, items appearing as accepted with skeletons for the rest, cost meter, cancel (kill switch). Stopped at the cap: a "Stopped: budget cap reached" banner with the counts and "Nothing was exported", the full cost meter, and two actions: raise the cap (an explicit decision recorded with name and time) or keep the partial board. A raised cap resumes from the checkpoint. After the run it stays open read-only, with the event timeline |
+| S3 | Shortlist (main screen) | Pick references by eye | Image-led masonry grid. Density: Images (default here), Captions or Full. A status mark for attribution and rights on every card. Keep or drop from the card or the lightbox; the shortlist is saved automatically |
+| S4 | Item detail (lightbox) | Explain one result | An overlay, not a page: the image with zoom, and the evidence panel (why it fits with evidence chips linked to record fields, full record link, rights record, credit line, confidence, tier used). "This is wrong" opens S8 |
+| S5 | Verify (needs human check) | Handle uncertainty before use | Kept works only, flagged first, in the Full view. Reasons (unverified attribution, low confidence, flagged). Keeping a flagged work needs a note. Continue stays disabled until each flagged work is decided |
+| S6 | Approve and export | The irreversible step | Kept works as thumbnails grouped by status, each with its mark and count: open (as stated by source), marked reviewed by you, left out (permission required or dropped). Not-legal-advice note, acknowledgement and name, then export of the provenance pack and board |
 | S7 | Run history and audit | Show the work | Runs list, event timeline per run, versions and config hash, re-run |
 | S8 | Report an error | Feed the golden set | Error type (attribution, rights, irrelevant, rationale), note, queued for my review |
-| S9 | Settings | Defaults | Budget caps, sources, local-only, per-provider switches for sending real briefs to each cloud provider (off by default) |
+| S9 | Settings | Defaults | Budget caps, sources, local-only, per-provider switches for sending real briefs to each cloud provider (off by default). Card status style (compact marks or full wording) and appearance (match computer, light, dark) |
+| S10 | Boards | Find and reopen boards | Equal-size cards: a cover of four kept works, the board name, its stage ("Draft · at Shortlist"), its stop reason if stopped, "Exported · read-only" with a lock, and when it was saved. A draft opens at the stage where work stopped. The name is separate from the brief, which stays redacted (Joe, 2026-11-09) |
+| Brief, read-only | Brief stage | Show what was asked | The request, usage, keep-local, cap and intake result. The brief is fixed once the search has run; "New board from this brief" starts a new one |
 | /design | Design library | Show every component in every state, both themes | All 8 components from `design/`, built before the screens. Published with the static build. axe check in CI |
 
-### Wireframe: S3 Board review
+### Wireframe: S3 Shortlist
 
 ```
-+------------------------------------------------------------------------------+
-| refdesk   [New board] [History] [Settings]           Cost: 0.012 / 0.05 (cap)  |
-+------------------------------------------------------------------------------+
-| Brief: "Mid-Autumn tin, festive but not red and gold"                          |
-| Mode: Reproduction   Stays on this machine: yes                               |
-| Conditions: [period v] [material v] [motif v]                                  |
-| Novelty:  familiar ----o---- unexpected          Show: (x) all ( ) verified    |
-| Status: Done, 12 of 12 accepted                                                |
-+------------------------------------------------------------------------------+
-| +-----------+ +-----------+ +-----------+ +-----------+                        |
-| |  image    | |  image    | |  image    | |  image    |   (grid continues)     |
-| | Title     | | Title     | | Title     | | Title     |                        |
-| | Artist,   | | Artist,   | | Artist,   | | Artist,   |                        |
-| | date      | | date      | | date      | | date      |                        |
-| | Why: ...  | | Why: ...  | | Why: ...  | | Why: ...  |                        |
-| | [Attribution verified]  [Rights: open as stated by source]                   |
-| | More like this | Report | [ ] Keep                                           |
-| +-----------+ +-----------+ +-----------+ +-----------+                        |
-+------------------------------------------------------------------------------+
-| Needs human check (2) >                    [Approve 7 selected and export]    |
-+------------------------------------------------------------------------------+
++--------------------+---------------------------------------------------------+
+| RefDesk            | Stopped: budget cap reached · 14 of 16 · Nothing exported|
+| (+) New board      | ● This brief stays on this machine                        |
+| [] Boards          +---------------------------------------------------------+
+| -- This board --   | "Mid-Autumn tin, festive but not red and gold"           |
+| (v) Brief      G0  |     Saved automatically · 14:06   Show: [Images|Captions|Full]
+| (v) Search     G1  +---------------------------------------------------------+
+| (*) Shortlist      |  +------+ +----------+ +-----+ +--------+                |
+|  :  Verify     G3  |  |      | |          | |     | |        |   masonry,     |
+|  :  Approve    G4  |  |      | +----------+ |     | |        |   no captions  |
+| -- no return --    |  +------+ +-----+      +-----+ +--------+   by default   |
+|  :  Export     G5  |  (v Attribution)(? Rights)  <- marks on every card         |
+|                    |                                                          |
+| (o) Settings       +---------------------------------------------------------+
+| << Minimise        |                     8 kept of 14     [Verify 8 ->]       |
++--------------------+---------------------------------------------------------+
 ```
 
 ### Explainability in the UI
 
 - Every card shows why it fits, with the matching constraint or record field highlighted.
 - Attribution and rights are separate badges with fixed wording: attribution "verified from record" or "needs human check"; rights "open (as stated by source)", "unverified" or "permission required".
+- On cards, each status may show as a compact mark that is always present: ✓ for verified or open, ? for needs a check or unverified, a lock for permission required. The fixed wording then appears in the tooltip, the screen-reader label, the lightbox and the Full view, and Settings can switch cards back to full wording. A status is never left blank. This is an exception to showing the fixed wording on the card; it needs the ADR in #227 before it ships.
 - Confidence is shown as a plain bucket (high, medium, low) with the calibrated value on hover.
 - Cost and tier used are visible per run and per item. Model and adapter versions appear in the audit view only.
 - A stop reason is never hidden. A partial board says why it is partial.
@@ -249,7 +252,7 @@ flowchart TD
 
 | Role | v1 view |
 |---|---|
-| Operator | S1 to S5, S7, S8 |
+| Operator | S1 to S5, S7, S8, S10 |
 | Approver | S6 (same person in v1) |
 | Reviewer (client) | A read-only export (static HTML or PDF) with evidence in plain language. No controls |
 | Reader | A public case-study page and screenshots, not the live app |
@@ -265,6 +268,8 @@ flowchart TD
 | Cloud tier needed but brief is keep-local | Stay local and say so, or ask to change the setting |
 | Run killed | Confirm nothing was exported |
 | Rate limit | Show a retry state, not a blank screen |
+| Shortlist not saved | Say "Not saved" with a retry; never show "Saved" until the API confirms |
+| Leaving an open board | Say it is saved as a draft at its stage, and where to find it (Boards) |
 
 ### Not in v1
 
@@ -272,19 +277,21 @@ Image editing, a free-form mood-board canvas (Cosmos and Pinterest do this well)
 
 ### Accessibility and content
 
-Desktop-first with a usable tablet layout. Keyboard navigation for the card grid, visible focus, alt text from title and artist, sufficient contrast, plain language labels. Image-heavy views must not rely on colour alone to show status.
+Desktop-first with a usable tablet layout. Keyboard navigation for the card grid, visible focus, alt text from title and artist, sufficient contrast, plain language labels. Image-heavy views must not rely on colour alone to show status. Anything revealed on hover is also revealed on keyboard focus. The lightbox traps focus while open and returns it to the card on close. In light mode a `sunken` area needs a border or a strong shadow wherever it is the only thing separating a control from the page (about 1.1:1 against `paper`).
 
 ## 8B. Approval gates and the UI they expose (draft)
 
-A run passes through gates. Some are automatic, some need a person. The UI shows every gate in one stepper and exposes a different surface at each. Visual reference: the "refdesk: approval gates and screens" canvas (gate map and screens S3, S5, S6) and the "refdesk design system".
+A run passes through gates. Some are automatic, some need a person. The UI shows every gate in the stage panel (8A Layout) and exposes a different surface at each. Visual reference: the "refdesk: approval gates and screens" canvas (gate map and screens S3, S5, S6), the "refdesk design system", and `design/mockups/board-image-first.html`.
+
+**Shortlist** (Joe, 2026-11-09, #231). Between G2 and G3 the operator keeps or drops works. The shortlist is API state, saved as it changes, and recorded like a gate decision. It is not a gate itself: nothing blocks on it, but G3, G4 and G5 cover kept works only.
 
 | Gate | Who | Trigger | UI surface | Components | If it does not pass | Recorded |
 |---|---|---|---|---|---|---|
 | G0 Intake | Automatic | Brief submitted | S1 New board, inline checks | Input, StopBanner | Request declined, with the reason and alternatives | Decision, reason code |
 | G1 Spend | Automatic; you at the cap | Before each model call | S2 Run progress, cost meter | CostMeter, StopBanner, Button | Stopped: budget cap reached. Raise the cap (explicit) or keep the partial board | Spend, cap, reason code, who raised the cap |
-| G2 Verify | Automatic, per item | After each rationale | S3 Board review, two badges on every card | StatusBadge, EvidenceCard | "Needs human check" with the reason. Never shown as verified | Result per item |
-| G3 Review | You (operator) | Flagged items exist | S5 Needs human check | EvidenceCard, Button, note field | Flagged items stay out of the pack. Continue stays disabled until each is decided | Decision, note, who, when |
-| G4 Approve | You (approver) | Board ready | S6 Approve, summary and dialog | ConfirmDialog | Approve stays disabled until the acknowledgement is ticked and a name entered | Approver, acknowledgement, time |
+| G2 Verify | Automatic, per item | After each rationale | S3 Shortlist, a status mark or badge for attribution and rights on every card | StatusBadge, EvidenceCard | "Needs human check" with the reason. Never shown as verified | Result per item |
+| G3 Review | You (operator) | Kept works include flagged ones | S5 Verify | EvidenceCard, Button, note field | Flagged works stay out of the pack. Keeping one needs a note. Continue stays disabled until each is decided | Decision, note, who, when |
+| G4 Approve | You (approver) | Board ready | S6 Approve, grouped thumbnails and dialog | ConfirmDialog | Approve stays disabled until the acknowledgement is ticked and a name entered | Approver, acknowledgement, time |
 | G5 Export | You, irreversible | After approval | S6 Receipt | ConfirmDialog, AuditTimeline | No export without an approval record. A failed export leaves the board unlocked | Export file, run ID, versions. Board becomes read-only |
 | G6 Client sign-off | Later | Shared link | Read-only page | not in v1 | not in v1 | not in v1 |
 
@@ -293,7 +300,8 @@ Rules:
 2. All gates are always visible, in order, with states: passed, active, pending, blocked, skipped. A gate is never shown as passed until the action it needs has happened.
 3. Human gates name who must act. In v1 the operator and approver are the same person, but G4 is a separate step so there is a deliberate pause.
 4. "Approve and export" is one button but two recorded steps: approval (G4), then export (G5).
-5. Forward navigation is blocked until a gate passes. Backward navigation is allowed until export. After export the board is read-only, and a change creates a new version.
+5. Forward navigation is blocked until a gate passes. Backward navigation is allowed until export: earlier stages open read-only, and the stage where work stopped stays marked. After export the board is read-only, and a change creates a new version.
+8. The pack and the export contain kept works only. A permission-required work is never exported, even if kept. Shortlist changes are refused after export.
 6. A blocked gate always says why, in words, in a StopBanner.
 7. Every gate decision is written to the audit log with the run ID, actor, time and reason code.
 
@@ -748,4 +756,5 @@ Project skills live in `.claude/skills/<name>/SKILL.md`.
 | v0.3 (amended) | 2026-10-26 | ADR-001 accepted: decision models are adapters behind one typed-question contract (Kev-4B first; others such as H2O-Lightning-4B can be added); the base Kev-4B is served first and the fine-tune replaces it only on a significant validation gain. Section 10.3 "Serve behind the contract" and the ADR-001 seed line updated. |
 | v0.3 (amended) | 2026-10-26 | ADR-018 amended: golden-v1 references are proposed by Claude Code, checked by cross-family judges, and every label reviewed by Joe, who labels a blind subset first. Section 11 and the M3 line updated; CLAUDE.md and the `label-golden-cases` skill match. |
 | v0.3 (amended) | 2026-10-27 | ADR-022 accepted and ADR-021 amended: `phi4` alone, one claim at a time, is the judge; Granite Guardian dropped after the hard judge probe (#122) showed it missed every dropped attribution prefix. Section 10 and 10.3 updated. |
+| v0.3 (amended) | 2026-11-09 | Image-first UI (#226, Joe's review of a clickable mock-up). Section 8A: a left stage panel, the landing page as S1 with an Options panel, S3 Shortlist, the lightbox replacing S4 as a page, S5 Verify on kept works, S6 grouped thumbnails, S10 Boards with names separate from the redacted brief, and Settings for card status style and appearance. Section 8B: the shortlist is API state and G3 to G5 cover kept works only. Compact status marks on cards wait for the ADR in #227. Mock-up in `design/mockups/`. |
 | v0.3 (amended) | 2026-11-02 | Rawpixel removed from prior art (Section 2) and the bake-off (Section 11.5): it is an inspiration and remix site where authorship is mostly not shown, so it is not a fair baseline for attributed, rights-checked references (problem statement, #3). |
