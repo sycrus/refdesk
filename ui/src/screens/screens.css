@@ -957,3 +957,33 @@
     padding-bottom: var(--space-3);
   }
 }
+
+@media (max-width: 560px), (max-height: 700px) {
+  .rd-app-footer {
+    margin-top: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+}
+
+/* The resume row stays one line: a long board name is cut short with an ellipsis. */
+.rd-landing-resume-row {
+  flex-wrap: nowrap;
+}
+
+.rd-landing-resume-card {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.rd-landing-resume-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-landing-resume-card span,
+.rd-landing-all {
+  flex: none;
+  white-space: nowrap;
+}

@@ -22,7 +22,11 @@ for (const size of SIZES) {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "What do you need references for?", level: 1 })).toBeVisible();
     await expect(page.getByText("Pick up where you left off")).toBeVisible();
-    const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollHeight, window.innerHeight]);
+    // Measure the final layout: after the self-hosted fonts load (font-display: swap).
+    const [scroll, inner] = await page.evaluate(async () => {
+      await document.fonts.ready;
+      return [document.documentElement.scrollHeight, window.innerHeight];
+    });
     expect(scroll).toBeLessThanOrEqual(inner);
   });
 }
