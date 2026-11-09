@@ -44,15 +44,19 @@ flowchart LR
   D --> E[Export a provenance pack]
 ```
 
-![A recorded board: the brief, models, approval gates and the first results](docs/images/demo-board.png)
+![A recorded board: images first, with the run's gates, models and approval state in the side panel](docs/images/demo-board.png)
 
 1. **Write a brief.** Describe the mood, subject or style you want. You can add conditions (a period, material or motif) and choose whether the brief may leave your machine.
-2. **Review the board.** Each result shows the image, why it fits, and a rights badge such as *Open (as stated by source)*.
+2. **Review the board.** The board opens on the images: a grid of the works found, name and rights badge a click away. Captions and full cards are one click away, and every board states how it was made (see [Where a brief is sent](#where-a-brief-is-sent)).
 3. **Check flagged items.** Anything refdesk could not verify is marked *Needs human check*, with the exact claim that failed. Keep it with a note, or drop it.
 4. **Approve.** An approver signs off on the selection. refdesk does not let anything be exported before that.
 5. **Export.** Download a provenance pack (CSV): every work with its source, rights basis, credit line and the date it was checked.
 
 If a result looks wrong, use **This is wrong** on the item to report it. The report is queued for review; the board itself is not changed.
+
+Opening any work shows the evidence behind its card — why it fits, every claim with the record field it came from, and the rights record as the museum states it:
+
+![A work open in the lightbox: the fit sentence, the claims with their record fields, and the rights record](docs/images/item-evidence.png)
 
 ## How it works
 
@@ -99,7 +103,7 @@ flowchart LR
   P -->|no| ERR[Hard error:<br/>never a silent fallback]
 ```
 
-By default everything runs locally, or against a mock model server for tests. Every board records where its brief was sent.
+By default everything runs locally, or against a mock model server for tests. Every board records where its brief was sent, and says so: a line under the wordmark and on each board gives the mode — mock, local, cloud or search-only — and any board the mock server answered also carries a **Mock** tag on its strip and its Boards card, so test answers are never mistaken for real ones.
 
 ## Quick start
 
@@ -160,6 +164,8 @@ uv run uvicorn refdesk.api.app:app --port 8000
 
 **You now have:** refdesk at http://localhost:8000. Write a brief and follow the flow in [How you use it](#how-you-use-it).
 
+![The board after a run on the mock server: images first, and the mode line and Mock tag saying how it was made](docs/images/board-shortlist.png)
+
 ### Stage 4: Go further (optional)
 
 **Use real local models.** Pull `qwen3.5:9b` and `phi4` in Ollama. Copy `.env.example` to `.env` and set both `REFDESK_GENERATOR_TIER=local-small` and `REFDESK_JUDGE_TIER=auto` (set both, or the judge stays the mock). Then start the API with the env file. You no longer need the mock server.
@@ -194,13 +200,13 @@ Not yet a product claim: every evaluation so far uses a **synthetic** golden set
 
 ## How it was built: with a coding agent, under rules
 
-Most of the code was written with Claude Code, as an agent working through GitHub Issues: 263 commits, 106 merged PRs and 83 closed issues since 11 October 2026. The point was not speed alone, so the agent works under rules that keep the system explainable and the decisions mine:
+Most of the code was written with Claude Code, as an agent working through GitHub Issues: 280 commits, 121 merged PRs and 96 closed issues since 11 October 2026. The point was not speed alone, so the agent works under rules that keep the system explainable and the decisions mine:
 
 - **Permissions.** Pushing, merging, new dependencies, `gh api`, Docker, pulling models and any `--approve` (paid) run all wait for me ([`.claude/settings.json`](.claude/settings.json)). The agent may not widen its own permissions.
 - **Decisions stay human.** Golden-set labels, ADR reasoning, decision-contract costs and residual-risk calls are mine; the agent drafts scaffolding and asks ([`CLAUDE.md`](CLAUDE.md), "Learning mode").
 - **Tests first** for scorers, adapters, loop controls and rights logic; CI runs the Python suite, the UI tests, browser tests with an accessibility check, and a container build, smoke test and scan on every PR.
-- **Every AI-introduced defect is logged** with how it was caught and fixed: 32 so far, in [`docs/ai-assist-log.md`](docs/ai-assist-log.md). They include a broken workflow file, a test that only passed locally, and a design mistake caught by CI.
-- **Decisions are written down**: 25 ADRs in [`docs/adr/`](docs/adr/), each with the options rejected and why.
+- **Every AI-introduced defect is logged** with how it was caught and fixed: 36 so far, in [`docs/ai-assist-log.md`](docs/ai-assist-log.md). They include a broken workflow file, a test that only passed locally, and a design mistake caught by CI.
+- **Decisions are written down**: 26 ADRs in [`docs/adr/`](docs/adr/), each with the options rejected and why.
 
 ## Technical details
 
@@ -226,7 +232,7 @@ A golden-set validator, capped recall@k, MRR, an open-rights share, seeded boots
 
 ### API and UI
 
-FastAPI with a small static React UI (Vite + TypeScript) served by the API. A `/design` page shows every component, checked with axe in CI. The OpenAPI spec is in [`docs/api/openapi.json`](docs/api/openapi.json).
+FastAPI with a small static React UI (Vite + TypeScript) served by the API. The board is image-first: the grid of works opens first, captions and full cards are a click away, and a work opens in a lightbox with its evidence. A `/design` page shows every component, checked with axe in CI. The OpenAPI spec is in [`docs/api/openapi.json`](docs/api/openapi.json).
 
 ### MCP server
 
