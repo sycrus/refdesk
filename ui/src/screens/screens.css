@@ -824,7 +824,7 @@
   flex-direction: column;
   gap: var(--space-2);
   align-items: center;
-  margin-top: clamp(var(--space-5), 8vh, 96px);
+  margin-top: clamp(var(--space-4), 6vh, 80px);
 }
 
 .rd-landing-resume-row {
@@ -918,5 +918,42 @@
   /* The panel is a row above the page here, so a full-window page would always scroll. */
   .rd-shell-main {
     min-height: 0;
+  }
+}
+
+/* Short screens: the same page, closer together, so it still fits with the resume row. */
+@media (max-height: 700px) {
+  .rd-shell-main > main {
+    padding-top: var(--space-4);
+  }
+
+  .rd-landing {
+    margin-top: 0;
+  }
+
+  .rd-landing-lead {
+    margin-bottom: var(--space-4);
+  }
+
+  .rd-usage {
+    margin-bottom: var(--space-3);
+  }
+
+  .rd-landing-examples {
+    margin-top: var(--space-3);
+  }
+
+  .rd-landing-resume {
+    margin-top: var(--space-4);
+  }
+}
+
+@media (max-width: 560px) {
+  .rd-landing-resume {
+    margin-top: var(--space-4);
+  }
+
+  .rd-shell-main > main {
+    padding-bottom: var(--space-3);
   }
 }

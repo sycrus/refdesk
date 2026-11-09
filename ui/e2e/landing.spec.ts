@@ -10,11 +10,18 @@ const SIZES = [
   { width: 390, height: 800 },
 ];
 
+// The tallest case: a saved board exists, so "Pick up where you left off" is shown too.
+test.beforeAll(async ({ request }) => {
+  const created = await request.post("/boards", { data: { brief: "cypresses in a landscape" } });
+  expect(created.status()).toBe(202);
+});
+
 for (const size of SIZES) {
   test(`fits ${size.width}x${size.height} without scrolling`, async ({ page }) => {
     await page.setViewportSize(size);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "What do you need references for?", level: 1 })).toBeVisible();
+    await expect(page.getByText("Pick up where you left off")).toBeVisible();
     const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollHeight, window.innerHeight]);
     expect(scroll).toBeLessThanOrEqual(inner);
   });
