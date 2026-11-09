@@ -6,6 +6,7 @@ import csv
 import pytest
 from fastapi.testclient import TestClient
 from test_boards_reasoning import Mocks, service
+from test_shortlist import keep_all
 
 from refdesk.api.app import app, get_service
 from refdesk.wording import EXPORTED, NOT_LEGAL_ADVICE
@@ -26,6 +27,7 @@ def board(tmp_path, judge_script=None, **kwargs):
     app.dependency_overrides[get_service] = lambda: svc
     client = TestClient(app)
     run_id = client.post("/boards", json={"brief": "boats"}).json()["run_id"]
+    keep_all(client, run_id)  # these tests cover the whole board (#231)
     return client, run_id
 
 

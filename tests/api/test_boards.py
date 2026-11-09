@@ -164,9 +164,10 @@ class TestGates:
         assert gates["G2"]["state"] == "skipped"
         assert "verifier" in gates["G2"]["status_text"]
 
-    def test_review_is_active_for_the_operator_and_approval_waits(self, client):
-        gates = self.gates(client)
-        assert (gates["G3"]["state"], gates["G3"]["actor"]) == ("active", "operator")
+    def test_review_waits_for_the_shortlist_and_so_does_approval(self, client):
+        gates = self.gates(client)  # nothing kept yet (#231)
+        assert (gates["G3"]["state"], gates["G3"]["actor"]) == ("pending", "operator")
+        assert "shortlist" in gates["G4"]["status_text"]
         assert gates["G4"]["state"] == gates["G5"]["state"] == "pending"
 
     def test_no_human_gate_is_ever_passed(self, client):

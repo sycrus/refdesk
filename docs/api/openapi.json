@@ -417,6 +417,89 @@
         }
       }
     },
+    "/runs/{run_id}/shortlist": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Shortlist",
+        "description": "Keep or un-keep works on the shortlist, recorded with who and when (issue #231).\nA work nobody kept is not kept: review, approval and export cover kept works only.\nRefused once the board is approved.",
+        "operationId": "shortlist_runs__run_id__shortlist_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShortlistRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A gate has not passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateBlocked"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The board has no such item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}/review": {
       "post": {
         "tags": [
@@ -1213,7 +1296,33 @@
           "selected": {
             "type": "boolean",
             "title": "Selected",
+            "description": "Kept on the shortlist. A work nobody kept is not kept: review, approval and export cover kept works only (issue #231)",
             "default": false
+          },
+          "selected_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected By",
+            "description": "Who last changed it on the shortlist"
+          },
+          "selected_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected At",
+            "description": "When it last changed"
           },
           "score": {
             "anyOf": [
@@ -2787,6 +2896,19 @@
             "title": "Read Only",
             "default": false
           },
+          "saved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved At",
+            "description": "When the shortlist last changed (the UI's 'Saved automatically')"
+          },
           "events": {
             "items": {
               "$ref": "#/components/schemas/RunEvent"
@@ -2953,6 +3075,52 @@
           "hits"
         ],
         "title": "SearchResults"
+      },
+      "ShortlistChange": {
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Item Id"
+          },
+          "keep": {
+            "type": "boolean",
+            "title": "Keep"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "keep"
+        ],
+        "title": "ShortlistChange"
+      },
+      "ShortlistRequest": {
+        "properties": {
+          "operator": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Operator",
+            "description": "Who changed the shortlist; recorded per item"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ShortlistChange"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "operator",
+          "items"
+        ],
+        "title": "ShortlistRequest",
+        "description": "Keep or un-keep works on the shortlist (issue #231; PRD 8B \"Shortlist\")."
       },
       "StopReason": {
         "type": "string",

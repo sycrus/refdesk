@@ -125,7 +125,7 @@ class TestExplainedItems:
     def test_g2_passes_only_when_every_item_is_verified(self, tmp_path):
         view = run(tmp_path, Mocks())
         assert gate(view, "G2")["state"] == "passed"
-        assert gate(view, "G3")["state"] == "skipped"
+        assert gate(view, "G3")["state"] == "pending"  # waits for the shortlist (#231)
 
 
 class TestFlaggedItems:
@@ -135,7 +135,7 @@ class TestFlaggedItems:
             assert item["attribution_status"] == AttributionStatus.NEEDS_HUMAN_CHECK
             assert any("claim 1" in r for r in item["flag_reasons"])
         assert gate(view, "G2")["state"] == "blocked"
-        assert gate(view, "G3")["state"] == "active"
+        assert gate(view, "G3")["state"] == "pending"  # waits for the shortlist (#231)
 
     def test_a_flagged_fit_sentence_keeps_the_attribution_verified(self, tmp_path):
         # Option 3 in #135 (Joe, 2026-10-27): the opinion is flagged on its own.

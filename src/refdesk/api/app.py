@@ -44,6 +44,7 @@ from refdesk.api.models import (
     RunView,
     SearchRequest,
     SearchResults,
+    ShortlistRequest,
 )
 from refdesk.api.models import RetrieverUnavailable as RetrieverUnavailableBody
 from refdesk.api.profile import DEMO_MESSAGE, DisabledInDemo, demo_guard, get_profile
@@ -276,6 +277,32 @@ def get_provenance(request: ProvenanceRequest, service: Service):
         return ProvenanceRecords(rows=reads.provenance(service, request.record_ids))
     except reads.UnknownRecord as error:
         return _unknown_record(error)
+
+
+@app.post(
+    "/runs/{run_id}/shortlist",
+    response_model=RunView,
+    tags=["runs"],
+    responses={
+        **NOT_FOUND,
+        **GATE_BLOCKED,
+        400: {"model": Problem, "description": "The board has no such item"},
+    },
+)
+def shortlist(run_id: str, request: ShortlistRequest, service: Service):
+    """Keep or un-keep works on the shortlist, recorded with who and when (issue #231).
+    A work nobody kept is not kept: review, approval and export cover kept works only.
+    Refused once the board is approved."""
+    try:
+        return service.shortlist(run_id, request)
+    except UnknownRun:
+        problem = Problem(code="unknown_run", message=f"No run {run_id!r}.")
+        return JSONResponse(status_code=404, content=problem.model_dump())
+    except UnknownItem as error:
+        problem = Problem(code="unknown_item", message=f"This board has no item {error.args[0]!r}.")
+        return JSONResponse(status_code=400, content=problem.model_dump())
+    except GateRefused as error:
+        return _gate_blocked(error)
 
 
 @app.post(

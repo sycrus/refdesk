@@ -209,7 +209,7 @@ flowchart TD
 | S3 | Shortlist (main screen) | Pick references by eye | Image-led masonry grid. Density: Images (default here), Captions or Full. A status mark for attribution and rights on every card. Keep or drop from the card or the lightbox; the shortlist is saved automatically |
 | S4 | Item detail (lightbox) | Explain one result | An overlay, not a page: the image with zoom, and the evidence panel (why it fits with evidence chips linked to record fields, full record link, rights record, credit line, confidence, tier used). "This is wrong" opens S8 |
 | S5 | Verify (needs human check) | Handle uncertainty before use | Kept works only, flagged first, in the Full view. Reasons (unverified attribution, low confidence, flagged). Keeping a flagged work needs a note. Continue stays disabled until each flagged work is decided |
-| S6 | Approve and export | The irreversible step | Kept works as thumbnails grouped by status, each with its mark and count: open (as stated by source), marked reviewed by you, left out (permission required or dropped). Not-legal-advice note, acknowledgement and name, then export of the provenance pack and board |
+| S6 | Approve and export | The irreversible step | Kept works as thumbnails grouped by status, each with its mark and count: open (as stated by source), marked reviewed by you, left out (not kept, dropped at Verify, or unverified rights not reviewed). A kept permission-required work is listed as a reference only. Not-legal-advice note, acknowledgement and name, then export of the provenance pack and board |
 | S7 | Run history and audit | Show the work | Runs list, event timeline per run, versions and config hash, re-run |
 | S8 | Report an error | Feed the golden set | Error type (attribution, rights, irrelevant, rationale), note, queued for my review |
 | S9 | Settings | Defaults | Budget caps, sources, local-only, per-provider switches for sending real briefs to each cloud provider (off by default). Card status style (compact marks or full wording) and appearance (match computer, light, dark) |
@@ -301,7 +301,7 @@ Rules:
 3. Human gates name who must act. In v1 the operator and approver are the same person, but G4 is a separate step so there is a deliberate pause.
 4. "Approve and export" is one button but two recorded steps: approval (G4), then export (G5).
 5. Forward navigation is blocked until a gate passes. Backward navigation is allowed until export: earlier stages open read-only, and the stage where work stopped stays marked. After export the board is read-only, and a change creates a new version.
-8. The pack and the export contain kept works only. A permission-required work is never exported, even if kept. Shortlist changes are refused after export.
+8. The pack and the export contain kept works only; a work nobody kept is not kept. Once the board is approved the shortlist is fixed (Joe, 2026-11-09, #231). A kept permission-required work on a "For inspiration" board is exported as a reference: its row says "Permission required" and links to the record, and no image is ever exported (Joe, 2026-11-09).
 6. A blocked gate always says why, in words, in a StopBanner.
 7. Every gate decision is written to the audit log with the run ID, actor, time and reason code.
 
@@ -571,7 +571,8 @@ Values are placeholders until measured. This is what the Tier 1-2 delivery work 
 |---|---|
 | `POST /boards` | Start a run from a brief |
 | `GET /runs/{id}` | Run state, items and events |
-| `POST /runs/{id}/review` | Record G3 decisions on flagged items (keep with a note, or drop) |
+| `POST /runs/{id}/shortlist` | Keep or un-keep works on the shortlist, with who and when; refused once approved (#231) |
+| `POST /runs/{id}/review` | Record G3 decisions on kept flagged items (keep with a note, or drop) |
 | `POST /runs/{id}/cap` | Raise the spend cap (explicit, recorded with name and time) and resume from the checkpoint |
 | `POST /runs/{id}/approve` | Record approval (G4): acknowledgement and approver name |
 | `POST /runs/{id}/export` | Export the provenance pack (G5). Requires an approval record |

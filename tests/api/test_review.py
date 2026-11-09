@@ -8,6 +8,7 @@ UI only reflects it.
 import pytest
 from fastapi.testclient import TestClient
 from test_boards_reasoning import Mocks, service
+from test_shortlist import keep_all
 
 from refdesk.api.app import app, get_service
 from refdesk.wording import AttributionStatus
@@ -20,6 +21,7 @@ def api(tmp_path):
     app.dependency_overrides[get_service] = lambda: svc
     client = TestClient(app)
     run_id = client.post("/boards", json={"brief": "boats"}).json()["run_id"]
+    keep_all(client, run_id)  # only kept works are reviewed (#231)
     yield client, run_id
     app.dependency_overrides.clear()
 
@@ -73,6 +75,7 @@ class TestDecisions:
         try:
             client = TestClient(app)
             run_id = client.post("/boards", json={"brief": "boats"}).json()["run_id"]
+            keep_all(client, run_id)
             item = client.get(f"/runs/{run_id}").json()["items"][0]["record"]["id"]
             response = review(client, run_id, {"item_id": item, "decision": "drop"})
         finally:

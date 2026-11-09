@@ -114,6 +114,18 @@ class ReviewRequest(_Model):
     decisions: list[ReviewDecision]
 
 
+class ShortlistChange(_Model):
+    item_id: NonEmpty
+    keep: bool
+
+
+class ShortlistRequest(_Model):
+    """Keep or un-keep works on the shortlist (issue #231; PRD 8B "Shortlist")."""
+
+    operator: NonEmpty = Field(description="Who changed the shortlist; recorded per item")
+    items: list[ShortlistChange] = Field(min_length=1)
+
+
 class ItemReview(_Model):
     """A recorded G3 decision on one flagged item."""
 
@@ -197,7 +209,13 @@ class BoardItem(_Model):
     confidence: Confidence | None = None
     tier_used: str | None = None
     cost_usd: float = 0.0
-    selected: bool = False
+    selected: bool = Field(
+        False,
+        description="Kept on the shortlist. A work nobody kept is not kept: review, "
+        "approval and export cover kept works only (issue #231)",
+    )
+    selected_by: str | None = Field(None, description="Who last changed it on the shortlist")
+    selected_at: datetime | None = Field(None, description="When it last changed")
     score: float | None = Field(None, description="Retrieval score; higher ranks first")
     score_components: dict[str, float] = Field(
         {}, description="Named parts of the score that sum to it, e.g. similarity, attributes"
@@ -278,6 +296,9 @@ class RunView(_Model):
     approval: Approval | None = Field(None, description="G4 record, once approved")
     export: ExportReceipt | None = Field(None, description="G5 receipt, once exported")
     read_only: bool = False
+    saved_at: datetime | None = Field(
+        None, description="When the shortlist last changed (the UI's 'Saved automatically')"
+    )
     events: list[RunEvent] = Field(
         [], description="The run log, brief redacted (PRD 10.2); the trace view until Phoenix"
     )

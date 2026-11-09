@@ -63,6 +63,7 @@ from refdesk.api.models import (
     ReviewRequest,
     RunSummary,
     RunView,
+    ShortlistRequest,
 )
 from refdesk.checkpoints import (
     EXPORT_STEP,
@@ -457,11 +458,14 @@ def _gates(state: LoopState, items: int, cap: float) -> list[Gate]:
 
 
 def review_gates(gates: list[Gate], items: list[BoardItem], ended: bool) -> list[Gate]:
-    """G3 and G4 from the items' review decisions (issue #100). Approval (G4) opens only
-    when every flagged item is decided; the API enforces it at approval too (#101)."""
+    """G3 and G4 from the shortlist and the review decisions (issues #100, #231). Only kept
+    works are reviewed and approved: a work nobody kept is not kept. Approval (G4) opens
+    when something is kept and every kept flagged work is decided; the API enforces both
+    at review and approval too (#101)."""
     if not ended or not items:
         return gates
-    flagged = [i for i in items if i.attribution_status is not AttributionStatus.VERIFIED]
+    kept = [i for i in items if i.selected]
+    flagged = [i for i in kept if i.attribution_status is not AttributionStatus.VERIFIED]
     decided = [i for i in flagged if i.review is not None]
     by_id = {g.id: g for g in gates}
     g3, g4 = by_id[GateId.G3_REVIEW], by_id[GateId.G4_APPROVE]
@@ -471,7 +475,26 @@ def review_gates(gates: list[Gate], items: list[BoardItem], ended: bool) -> list
         status_text="Ready for approval.",
         actor="approver",
     )
-    if not flagged:
+    if not kept:
+        g3 = Gate(
+            id=GateId.G3_REVIEW,
+            state=GateState.PENDING,
+            status_text="Nothing on the shortlist yet.",
+            actor="operator",
+        )
+        g4 = Gate(
+            id=GateId.G4_APPROVE,
+            state=GateState.PENDING,
+            status_text="Nothing on the shortlist yet: keep the works you want first.",
+            actor="approver",
+        )
+    elif not flagged:
+        g3 = Gate(
+            id=GateId.G3_REVIEW,
+            state=GateState.SKIPPED,
+            status_text=f"No flagged works among the {len(kept)} kept.",
+            actor="operator",
+        )
         g4 = ready
     elif len(decided) == len(flagged):
         kept = sum(1 for i in decided if i.review.decision == "keep")
@@ -499,6 +522,19 @@ def review_gates(gates: list[Gate], items: list[BoardItem], ended: bool) -> list
                 f"Waiting for review: {len(flagged) - len(decided)} flagged items still need "
                 "a decision."
             ),
+            actor="approver",
+        )
+    else:
+        g3 = Gate(
+            id=GateId.G3_REVIEW,
+            state=GateState.ACTIVE,
+            status_text=f"{len(flagged)} kept works need a human check.",
+            actor="operator",
+        )
+        g4 = Gate(
+            id=GateId.G4_APPROVE,
+            state=GateState.PENDING,
+            status_text=f"Waiting for review: {len(flagged)} flagged items still need a decision.",
             actor="approver",
         )
     return [
@@ -559,11 +595,15 @@ PACK_COLUMNS = (
 
 
 def pack_items(items: list[BoardItem]) -> tuple[list[BoardItem], int, int]:
-    """What the provenance pack holds (rights-check skill): verified items and items kept at
-    review. Left out: dropped items, and items whose rights are unverified unless someone
-    reviewed and kept them. Returns (included, excluded unverified, dropped)."""
+    """What the provenance pack holds (rights-check skill): kept works (issue #231) that are
+    verified or were kept at review. Left out: works nobody kept on the shortlist, dropped
+    items, and items whose rights are unverified unless someone reviewed and kept them. A
+    kept permission-required work is a reference: its row says so, and no image is ever
+    exported (Joe, 2026-11-09). Returns (included, excluded unverified, dropped)."""
     included, unverified, dropped = [], 0, 0
     for item in items:
+        if not item.selected:
+            continue
         if item.review is not None and item.review.decision == "drop":
             dropped += 1
         elif item.record.rights.status is RightsStatus.UNVERIFIED and not (
@@ -1016,8 +1056,47 @@ class BoardService:
             for created, view in self.runs.history()
         ]
 
+    def shortlist(self, run_id: str, request: ShortlistRequest) -> RunView:
+        """Keep or un-keep works, with who and when (issue #231; PRD 8B "Shortlist"). Not a
+        gate: nothing waits on it, but review, approval and export cover kept works only.
+        Fixed once the board is approved, because the approved board is what is exported
+        (Joe, 2026-11-09). Refusals name G4 when approval fixed the shortlist and G2 while
+        the run is still working."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        if view.read_only:
+            raise GateRefused(GateId.G4_APPROVE, "the board is exported and read-only")
+        if view.approval is not None:
+            raise GateRefused(GateId.G4_APPROVE, "the board is approved; the shortlist is fixed")
+        if view.state not in (LoopState.DONE, LoopState.STOPPED):
+            raise GateRefused(GateId.G2_VERIFY, "the run is still working")
+        items = {i.record.id: i for i in view.items}
+        for change in request.items:
+            if change.item_id not in items:
+                raise UnknownItem(change.item_id)
+        now = datetime.now(UTC)
+        for change in request.items:
+            items[change.item_id] = items[change.item_id].model_copy(
+                update={
+                    "selected": change.keep,
+                    "selected_by": request.operator,
+                    "selected_at": now,
+                }
+            )
+        new_items = [items[i.record.id] for i in view.items]
+        updated = view.model_copy(
+            update={
+                "items": new_items,
+                "gates": review_gates(view.gates, new_items, True),
+                "saved_at": now,
+            }
+        )
+        self.runs.save(updated)
+        return updated
+
     def review(self, run_id: str, request: ReviewRequest) -> RunView:
-        """G3: record keep (with a note) or drop for flagged items, with who and when."""
+        """G3: record keep (with a note) or drop for kept flagged items, with who and when."""
         view = self.runs.get(run_id)
         if view is None:
             raise UnknownRun(run_id)
@@ -1033,6 +1112,10 @@ class BoardService:
         for d in request.decisions:
             if d.item_id not in items:
                 raise UnknownItem(d.item_id)
+            if not items[d.item_id].selected:
+                raise GateRefused(
+                    GateId.G3_REVIEW, f"{d.item_id} is not on the shortlist; keep it first"
+                )
             if items[d.item_id].attribution_status is AttributionStatus.VERIFIED:
                 raise GateRefused(
                     GateId.G3_REVIEW, f"{d.item_id} is not flagged; only flagged items are reviewed"
@@ -1064,9 +1147,13 @@ class BoardService:
             raise GateRefused(g4, f"already approved by {view.approval.approver}")
         if view.state not in (LoopState.DONE, LoopState.STOPPED):
             raise GateRefused(g4, "the run is still working")
+        if not any(i.selected for i in view.items):
+            raise GateRefused(g4, "nothing on the shortlist: keep the works you want first")
         undecided = [
             i for i in view.items
-            if i.attribution_status is not AttributionStatus.VERIFIED and i.review is None
+            if i.selected
+            and i.attribution_status is not AttributionStatus.VERIFIED
+            and i.review is None
         ]  # fmt: skip
         if undecided:
             raise GateRefused(g4, f"{len(undecided)} flagged items still need a decision (G3)")

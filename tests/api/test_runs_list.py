@@ -8,6 +8,7 @@ Read-only. One run's events are on GET /runs/{run_id}, as before.
 import pytest
 from fastapi.testclient import TestClient
 from test_boards_reasoning import Mocks, service
+from test_shortlist import keep_all
 
 from refdesk.api.app import app, get_service
 from refdesk.runlog import REDACTED
@@ -70,6 +71,7 @@ class TestRunsList:
 
     def test_the_approver_is_shown_once_approved(self, api):
         run_id = board(api)
+        keep_all(api, run_id)
         response = api.post(
             f"/runs/{run_id}/approve", json={"approver": "Joe", "acknowledged": True}
         )
