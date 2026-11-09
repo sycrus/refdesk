@@ -72,7 +72,9 @@ USAGE_PUBLISH_HINT = "Packaging, print, web. Shows only works the museum marks a
 # The landing page (#230; Joe, 2026-11-09, option 1 of the copy options): the question the
 # usage choice answers, and one line on what RefDesk does.
 LANDING_QUESTION = "What do you need references for?"
-LANDING_LEAD = "Describe the brief. RefDesk finds open museum works and shows the record behind each one."
+LANDING_LEAD = (
+    "Describe the brief. RefDesk finds open museum works and shows the record behind each one."
+)
 # In the demo the prompt is shown but cannot run (Joe, 2026-11-09, #230).
 LANDING_DEMO_REASON = "Live searches run on the owner's machine. Open an example board below."
 # On a board whose brief names an in-copyright artist as a mood (#217). `{artist}` is
