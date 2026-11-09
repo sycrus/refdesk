@@ -214,6 +214,52 @@ describe("S2/S3 RunScreen", () => {
 // S2 live meter and kill switch (issue 158): the meter tracks the polled spend against
 // the cap, and Cancel asks before it stops the run, because a cancelled run can never be
 // approved or exported (the API enforces that; the button only reflects it).
+describe("S3 shortlist (issue 231)", () => {
+  it("asks for a name before keeping, and sends nothing until there is one", async () => {
+    const fetchMock = respond({ body: view() });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await userEvent.click(await screen.findByLabelText("Keep"));
+    expect(screen.getByRole("alert").textContent).toContain("Enter your name first");
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/runs/run-1/shortlist")).toHaveLength(0);
+  });
+
+  it("keeps with the name, then shows the count and Saved only after the API confirms", async () => {
+    const kept = view({
+      items: [{ ...ITEM, selected: true, selected_by: "Joe" }],
+      saved_at: "2026-11-09T06:06:00Z",
+    });
+    const fetchMock = respond({ body: view() }, { body: kept });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await userEvent.type(await screen.findByLabelText("Your name (recorded with what you keep)"), "Joe");
+    expect(screen.getByText("0 of 1 kept.")).toBeTruthy();
+    await userEvent.click(screen.getByLabelText("Keep"));
+    await waitFor(() => expect(screen.getByText(/^1 of 1 kept\. Saved /)).toBeTruthy());
+    const call = fetchMock.mock.calls.find(([url]) => url === "/runs/run-1/shortlist");
+    expect(JSON.parse(call![1].body)).toEqual({ operator: "Joe", items: [{ item_id: "met:436535", keep: true }] });
+  });
+
+  it("says Not saved, with the API's reason, when the change is refused", async () => {
+    respond(
+      { body: view() },
+      { status: 409, body: { gate: "G4", reason: "the board is approved; the shortlist is fixed" } },
+    );
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await userEvent.type(await screen.findByLabelText("Your name (recorded with what you keep)"), "Joe");
+    await userEvent.click(screen.getByLabelText("Keep"));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Not saved");
+    expect(alert.textContent).toContain("the shortlist is fixed");
+    expect(screen.queryByText(/Saved /)).toBeNull();
+  });
+
+  it("offers no Keep once the board is approved", async () => {
+    respond({ body: view({ approval: { approver: "Joe", acknowledged: true, approved_at: "2026-11-09T06:00:00Z" } }) });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Wheat Field with Cypresses" });
+    expect(screen.queryByLabelText("Keep")).toBeNull();
+  });
+});
+
 describe("S2 live meter and cancel", () => {
   it("the cost meter updates while the run works", async () => {
     respond(
@@ -382,7 +428,8 @@ describe("S8 This is wrong", () => {
 });
 
 describe("S5 ReviewScreen", () => {
-  const flaggedItem: BoardItem = { ...ITEM, flag_reasons: ["claim 2 (date): the judge found it unsupported"] };
+  // Kept on the shortlist: only kept works are reviewed (issue 231).
+  const flaggedItem: BoardItem = { ...ITEM, selected: true, flag_reasons: ["claim 2 (date): the judge found it unsupported"] };
 
   it("keeps Continue disabled with the reason until every flagged item is decided", async () => {
     respond({ body: view({ items: [flaggedItem] }) });

@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 import pytest
 from test_boards import rec
 from test_boards_reasoning import CONFIG, Mocks
+from test_shortlist import keep_all_in
 
 from refdesk.api.app import resume_interrupted
 from refdesk.api.models import ApprovalRequest, BoardRequest, ExportRequest, LoopState
@@ -319,6 +320,7 @@ class TestScenario3Resume:
     def test_an_export_never_writes_the_pack_twice(self, tmp_path):
         svc = service(tmp_path, Mocks())
         view = board(svc, target_items=2)
+        keep_all_in(svc, view.run_id)
         svc.approve(view.run_id, ApprovalRequest(approver="joe", acknowledged=True))
         before = svc.runs.get(view.run_id)  # approved, not yet exported
         receipt = svc.export(view.run_id, ExportRequest(format="csv"))

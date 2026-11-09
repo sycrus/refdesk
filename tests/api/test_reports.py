@@ -8,6 +8,7 @@ queue. Neither is a `read` operation, so the MCP server never exposes them (ADR-
 import pytest
 from fastapi.testclient import TestClient
 from test_boards_reasoning import Mocks, service
+from test_shortlist import keep_all
 
 from refdesk.api.app import app, get_service
 
@@ -69,6 +70,7 @@ class TestFiling:
     def test_an_exported_board_can_still_be_reported(self, api):
         # Reporting changes nothing on the board, so read-only is no reason to refuse.
         client, run_id, item_id = api
+        keep_all(client, run_id)
         client.post(f"/runs/{run_id}/approve", json={"approver": "Joe", "acknowledged": True})
         client.post(f"/runs/{run_id}/export", json={"format": "csv"})
         assert client.get(f"/runs/{run_id}").json()["read_only"] is True

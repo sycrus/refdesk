@@ -16,6 +16,19 @@ async function newBoard(page: Page, brief: string, options: { reproduction?: boo
   await expect(page).toHaveURL(/\?run=run-/);
 }
 
+// Keep every work on the shortlist (issue 231): a work nobody kept is not reviewed,
+// approved or exported. "Saved" appears only after the API confirms each change.
+async function keepAll(page: Page) {
+  const keeps = page.getByRole("article").getByLabel("Keep", { exact: true });
+  await expect(keeps.first()).toBeVisible();
+  const count = await keeps.count();
+  await page.getByLabel("Your name (recorded with what you keep)").fill("Joe");
+  for (let i = 0; i < count; i++) {
+    await keeps.nth(i).click(); // the box ticks when the API confirms, not on click
+    await expect(page.getByText(new RegExp(`^${i + 1} of ${count} kept\. Saved `))).toBeVisible();
+  }
+}
+
 test("creates a board and shows S3 with a rationale, both badges and evidence", async ({ page }) => {
   await newBoard(page, "cypresses in a landscape");
   const card = page.getByRole("article").filter({ hasText: "Wheat Field with Cypresses" });
@@ -105,6 +118,7 @@ test.describe("S5 review", () => {
   test("decide every flagged item, then Continue opens approval", async ({ page, request }) => {
     await request.post("http://127.0.0.1:8100/_mock/script", { data: { script: ["unsupported"] } });
     await newBoard(page, "oil");
+    await keepAll(page);
     await page.getByRole("button", { name: "Review flagged items (3)" }).click();
     await expect(page).toHaveURL(/&review=1/);
     await expect(page.getByRole("heading", { name: "Needs human check" })).toBeVisible();
@@ -181,6 +195,7 @@ test("S7 lists past runs, opens one run's events, and passes axe", async ({ page
 // S6 Approve and export (issue 101): the ConfirmDialog, the irreversible export, the receipt.
 test("approve and export a verified board, then it is read-only", async ({ page }) => {
   await newBoard(page, "cypresses in a landscape");
+  await keepAll(page);
   await page.getByRole("button", { name: "Approve and export" }).click();
   await expect(page).toHaveURL(/&approve=1/);
   await expect(page.getByRole("heading", { name: "What the provenance pack will hold" })).toBeVisible();

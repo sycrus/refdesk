@@ -91,7 +91,7 @@ def test_approve_export_reports_and_start_board_are_absent():
     assert ("POST", "/reports") in forbidden and ("GET", "/reports") in forbidden
     assert not exposed & forbidden
     assert ("POST", "/boards") not in exposed  # spends budget (Joe, 2026-10-31, #160)
-    for word in ("approve", "export", "report", "board", "review", "cap", "cancel"):
+    for word in ("approve", "export", "report", "board", "review", "shortlist", "cap", "cancel"):
         assert not [n for n in tool_names() if word in n], word
 
 

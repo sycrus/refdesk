@@ -121,7 +121,7 @@ export function ReviewScreen({ runId, onBack, onContinue }: ReviewScreenProps) {
     );
   }
 
-  const flagged = run.items.filter(isFlagged);
+  const flagged = run.items.filter((item) => item.selected && isFlagged(item)); // kept works only (issue 231)
   const undecided = flagged.filter((item) => !item.review).length;
   const g3 = run.gates.find((gate) => gate.id === "G3");
 

@@ -9,6 +9,7 @@ import type {
   RunCreated,
   RunSummary,
   RunView,
+  ShortlistRequest,
 } from "./types";
 
 export class ApiError extends Error {
@@ -78,6 +79,10 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   });
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
   return response.json();
+}
+
+export function shortlistRun(runId: string, request: ShortlistRequest): Promise<RunView> {
+  return post(`/runs/${encodeURIComponent(runId)}/shortlist`, request);
 }
 
 export function approveRun(runId: string, approval: { approver: string; acknowledged: true }): Promise<RunView> {

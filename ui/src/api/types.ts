@@ -49,7 +49,9 @@ export interface BoardItem {
   evidence: Evidence[];
   attribution_status: AttributionStatus;
   flag_reasons: string[];
-  selected: boolean;
+  selected: boolean; // kept on the shortlist (issue 231); a work nobody kept is not kept
+  selected_by?: string | null;
+  selected_at?: string | null;
   score?: number | null; // retrieval score; higher ranks first
   score_components?: Record<string, number>; // parts that sum to the score
   confidence?: { bucket: "high" | "medium" | "low"; value: number } | null;
@@ -118,6 +120,7 @@ export interface RunView {
   approval?: { approver: string; acknowledged: true; approved_at: string } | null;
   export?: ExportReceipt | null;
   read_only: boolean;
+  saved_at?: string | null; // when the shortlist last changed
   events?: RunEvent[];
 }
 
@@ -198,4 +201,9 @@ export interface ExportReceipt {
   versions: Record<string, string>;
   notice: string;
   not_legal_advice: string;
+}
+
+export interface ShortlistRequest {
+  operator: string;
+  items: { item_id: string; keep: boolean }[];
 }

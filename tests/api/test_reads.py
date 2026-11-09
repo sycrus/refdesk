@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
+from test_shortlist import keep_all_in
 
 from refdesk import provenance as provenance_module
 from refdesk.api.app import app, get_service
@@ -337,6 +338,7 @@ class TestProvenance:
         service.execute(run_id, request)
         items = [i.record.id for i in service.get(run_id).items]
         assert "met:1" in items
+        keep_all_in(service, run_id)
         decisions = [ReviewDecision(item_id=i, decision="keep", note="ok") for i in items]
         service.review(run_id, ReviewRequest(reviewer="joe", decisions=decisions))
         service.approve(run_id, ApprovalRequest(approver="joe", acknowledged=True))

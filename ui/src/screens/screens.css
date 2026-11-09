@@ -160,6 +160,34 @@
   flex-wrap: wrap;
 }
 
+/* Shortlist bar (issue 231): the name recorded with each keep, the kept count, and "Saved"
+   only after the API confirms. Interim until the image-first board (issue 232). */
+.rd-shortlist-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.rd-shortlist-bar input {
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.rd-shortlist-bar input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rd-shortlist-bar p {
+  margin: 0;
+}
+
 .rd-board-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

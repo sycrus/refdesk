@@ -3,9 +3,11 @@
 // meter against the cap, and the kill switch: Cancel asks first, because a cancelled run
 // can never be approved or exported. When the run ends, it shows the board. Nothing the
 // API reports is hidden: the stop banner and its detail, both badges on every card, the
-// cost, and where the brief was sent.
-import { useEffect, useState } from "react";
-import { ApiError, cancelRun, getRun } from "../api/client";
+// cost, and where the brief was sent. Once the run ends, Keep on each card puts the work on
+// the shortlist (issue 231): a work nobody kept is not kept, so review, approval and export
+// cover kept works only. "Saved" is shown only after the API confirms the change.
+import { useEffect, useId, useState } from "react";
+import { ApiError, cancelRun, getRun, shortlistRun } from "../api/client";
 import type { BoardItem, RunView } from "../api/types";
 import { Button } from "../components/Button";
 import { CostMeter } from "../components/CostMeter";
@@ -53,6 +55,9 @@ export function RunScreen({
   const [error, setError] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [operator, setOperator] = useState("");
+  const [shortlistError, setShortlistError] = useState<string | null>(null);
+  const operatorId = useId();
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +103,21 @@ export function RunScreen({
       setCancelError(err instanceof ApiError ? err.message : `Could not reach the API: ${String(err)}`);
     }
   }
+  async function keep(itemId: string, value: boolean) {
+    setShortlistError(null);
+    if (!operator.trim()) {
+      setShortlistError("Enter your name first: it is recorded with what you keep.");
+      return;
+    }
+    try {
+      setRun(await shortlistRun(runId, { operator: operator.trim(), items: [{ item_id: itemId, keep: value }] }));
+    } catch (err) {
+      setShortlistError(`Not saved: ${err instanceof ApiError ? err.message : `could not reach the API: ${String(err)}`}`);
+    }
+  }
+  const canShortlist = !demo && !working && !run.read_only && !run.approval && run.state !== "cancelled";
+  const keptCount = run.items.filter((item) => item.selected).length;
+  const keptFlagged = run.items.filter((i) => i.selected && i.attribution_status !== AttributionStatus.VERIFIED).length;
   const sentTo = sentToText(run.sent_to);
   const models = Object.entries(run.models_used ?? {});
   const verified = run.items.filter((item) => item.attribution_status === AttributionStatus.VERIFIED).length;
@@ -176,9 +196,9 @@ export function RunScreen({
 
       {demo && !working && <p className="rd-demo-run-note">{DEMO_RUN_NOTE}</p>}
 
-      {!working && onReview && run.items.some((i) => i.attribution_status !== AttributionStatus.VERIFIED) && (
+      {!working && onReview && keptFlagged > 0 && (
         <Button variant="primary" onClick={onReview}>
-          {`Review flagged items (${run.items.filter((i) => i.attribution_status !== AttributionStatus.VERIFIED).length})`}
+          {`Review flagged items (${keptFlagged})`}
         </Button>
       )}
 
@@ -203,6 +223,22 @@ export function RunScreen({
         />
       )}
 
+      {canShortlist && run.items.length > 0 && (
+        <div className="rd-shortlist-bar">
+          <label htmlFor={operatorId}>Your name (recorded with what you keep)</label>
+          <input id={operatorId} value={operator} onChange={(event) => setOperator(event.target.value)} />
+          <p role="status">
+            {`${keptCount} of ${run.items.length} kept.`}
+            {run.saved_at && ` Saved ${new Date(run.saved_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`}
+          </p>
+          {shortlistError && (
+            <p className="rd-error" role="alert">
+              {shortlistError}
+            </p>
+          )}
+        </div>
+      )}
+
       {run.items.length > 0 && (
         <ul className="rd-board-grid" aria-label="References">
           {run.items.map((item) => (
@@ -212,6 +248,7 @@ export function RunScreen({
                 onMoreLikeThis={onMoreLikeThis ? () => onMoreLikeThis(run, item) : undefined}
                 detailsHref={`?run=${encodeURIComponent(run.run_id)}&item=${encodeURIComponent(item.record.id)}`}
                 onOpenDetails={onOpenItem ? () => onOpenItem(item.record.id) : undefined}
+                onKeepChange={canShortlist ? (value) => keep(item.record.id, value) : undefined}
               />
             </li>
           ))}
