@@ -14,7 +14,7 @@ It runs on your own machine by default, and uses a cloud model only under a spen
 
 **Live demo: [refdesk-demo.onrender.com](https://refdesk-demo.onrender.com)** (recorded example boards, read-only; the free host can take up to two minutes to wake). Every board shows its run ID, models, gates and full step log, so it can be checked, not just viewed.
 
-[![The demo's example boards](docs/images/demo-home.png)](https://refdesk-demo.onrender.com)
+[![The demo's example boards: briefs with thumbnail previews, works counts and flagged-item counts](docs/images/demo-boards.png)](https://refdesk-demo.onrender.com)
 
 ## The project in brief
 
@@ -47,6 +47,9 @@ flowchart LR
 ![A recorded board: images first, with the run's gates, models and approval state in the side panel](docs/images/demo-board.png)
 
 1. **Write a brief.** Describe the mood, subject or style you want. You can add conditions (a period, material or motif) and choose whether the brief may leave your machine.
+
+   ![The landing: a short brief, with usage mode and machine options](docs/images/demo-landing.png)
+
 2. **Review the board.** The board opens on the images: a grid of the works found, name and rights badge a click away. Captions and full cards are one click away, and every board states how it was made (see [Where a brief is sent](#where-a-brief-is-sent)).
 3. **Check flagged items.** Anything refdesk could not verify is marked *Needs human check*, with the exact claim that failed. Keep it with a note, or drop it.
 4. **Approve.** An approver signs off on the selection. refdesk does not let anything be exported before that.
