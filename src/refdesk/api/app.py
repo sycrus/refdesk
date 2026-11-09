@@ -533,7 +533,9 @@ def healthz():
             try:
                 judge = _tier_info(
                     providers,
-                    pick_judge(providers, generator_tier=generator_spec, candidates=providers.judges),
+                    pick_judge(
+                        providers, generator_tier=generator_spec, candidates=providers.judges
+                    ),
                 )  # fmt: skip
             except NoValidJudge:
                 judge = None

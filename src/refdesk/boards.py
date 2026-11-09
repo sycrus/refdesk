@@ -1595,8 +1595,6 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
 
 
 def default_reasoner(settings: dict) -> Reasoner | None:
-    import os
-
     from refdesk.llm.config import ProvidersConfig
     from refdesk.llm.model_manager import ModelManager, OllamaBackend, load_specs
 

@@ -15,6 +15,7 @@ URL, key or env var name), so the stage panel can say what a new board would use
 
 import pytest
 from fastapi.testclient import TestClient
+from test_boards_reasoning import CONFIG, WITH_ARTISTS, Mocks
 
 from refdesk.api.app import app, get_service
 from refdesk.api.models import BoardRequest, Cost, LoopState, RunView
@@ -23,7 +24,6 @@ from refdesk.llm.config import ProvidersConfig
 from refdesk.reasoning import Reasoner
 from refdesk.retrieval.metadata import JaccardRetriever
 from refdesk.wording import RunMode
-from test_boards_reasoning import CONFIG, WITH_ARTISTS, Mocks
 
 S = LoopState
 
@@ -154,7 +154,9 @@ class TestBoardMode:
             lambda: WITH_ARTISTS,
             JaccardRetriever,
             "jaccard",
-            reasoner=Reasoner(CONFIG, generator_tier="mock", transport=Mocks()) if reasoner else None,
+            reasoner=(
+                Reasoner(CONFIG, generator_tier="mock", transport=Mocks()) if reasoner else None
+            ),
         )  # fmt: skip
 
     def test_a_finished_mock_board_is_mock_here_and_in_history(self, tmp_path):
