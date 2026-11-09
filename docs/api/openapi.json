@@ -417,6 +417,79 @@
         }
       }
     },
+    "/runs/{run_id}/name": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Rename Board",
+        "description": "Rename a board (issue #234). A label only: the brief and the board do not change.\nRefused once exported.",
+        "operationId": "rename_board_runs__run_id__name_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoardName"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A gate has not passed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateBlocked"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runs/{run_id}/shortlist": {
       "post": {
         "tags": [
@@ -1379,6 +1452,23 @@
         ],
         "title": "BoardItem"
       },
+      "BoardName": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "BoardName",
+        "description": "Rename a board (issue #234). The name is a label, stored apart from the brief."
+      },
       "BoardRequest": {
         "properties": {
           "brief": {
@@ -1452,6 +1542,20 @@
         ],
         "title": "BoardRequest",
         "description": "S1 New board."
+      },
+      "BoardStage": {
+        "type": "string",
+        "enum": [
+          "cancelled",
+          "search",
+          "exported",
+          "export",
+          "shortlist",
+          "verify",
+          "approve"
+        ],
+        "title": "BoardStage",
+        "description": "How far a board has got, for the Boards page (issue #234). Read from the run and its\ngates in this order: cancelled; still searching; exported; approved and waiting for\nexport; nothing kept yet; a kept work still needs a G3 decision; ready to approve."
       },
       "CapRaise": {
         "properties": {
@@ -1577,6 +1681,31 @@
           "cap_usd"
         ],
         "title": "Cost"
+      },
+      "CoverImage": {
+        "properties": {
+          "record_id": {
+            "type": "string",
+            "title": "Record Id"
+          },
+          "image_url": {
+            "type": "string",
+            "title": "Image Url"
+          },
+          "alt": {
+            "type": "string",
+            "title": "Alt"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_id",
+          "image_url",
+          "alt"
+        ],
+        "title": "CoverImage",
+        "description": "One work on a board's cover. Open works only (images only for Open, CLAUDE.md)."
       },
       "ErrorReport": {
         "properties": {
@@ -2760,6 +2889,37 @@
             "type": "boolean",
             "title": "Read Only",
             "default": false
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "The board's name; never made from the brief (issue #234)"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/BoardStage",
+            "description": "How far the board has got (issue #234)"
+          },
+          "cover": {
+            "items": {
+              "$ref": "#/components/schemas/CoverImage"
+            },
+            "type": "array",
+            "title": "Cover",
+            "description": "Up to four open works for the Boards page, kept works first",
+            "default": []
+          },
+          "saved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved At",
+            "description": "When the shortlist last changed"
           }
         },
         "additionalProperties": false,
@@ -2771,7 +2931,9 @@
           "state",
           "cost",
           "keep_local",
-          "sent_to"
+          "sent_to",
+          "name",
+          "stage"
         ],
         "title": "RunSummary",
         "description": "One row of the S7 run history (issue #159). The brief is redacted, as in the run\nlog (PRD 10.2): the history is a list of what ran, not of what clients asked."
@@ -2908,6 +3070,18 @@
             ],
             "title": "Saved At",
             "description": "When the shortlist last changed (the UI's 'Saved automatically')"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "The board's name (issue #234). New boards are named from the run ID, never the brief; rename with POST /runs/{run_id}/name"
           },
           "events": {
             "items": {

@@ -114,6 +114,12 @@ class ReviewRequest(_Model):
     decisions: list[ReviewDecision]
 
 
+class BoardName(_Model):
+    """Rename a board (issue #234). The name is a label, stored apart from the brief."""
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+
+
 class ShortlistChange(_Model):
     item_id: NonEmpty
     keep: bool
@@ -299,9 +305,36 @@ class RunView(_Model):
     saved_at: datetime | None = Field(
         None, description="When the shortlist last changed (the UI's 'Saved automatically')"
     )
+    name: str | None = Field(
+        None,
+        description="The board's name (issue #234). New boards are named from the run ID, "
+        "never the brief; rename with POST /runs/{run_id}/name",
+    )
     events: list[RunEvent] = Field(
         [], description="The run log, brief redacted (PRD 10.2); the trace view until Phoenix"
     )
+
+
+class BoardStage(StrEnum):
+    """How far a board has got, for the Boards page (issue #234). Read from the run and its
+    gates in this order: cancelled; still searching; exported; approved and waiting for
+    export; nothing kept yet; a kept work still needs a G3 decision; ready to approve."""
+
+    CANCELLED = "cancelled"
+    SEARCH = "search"
+    EXPORTED = "exported"
+    EXPORT = "export"
+    SHORTLIST = "shortlist"
+    VERIFY = "verify"
+    APPROVE = "approve"
+
+
+class CoverImage(_Model):
+    """One work on a board's cover. Open works only (images only for Open, CLAUDE.md)."""
+
+    record_id: str
+    image_url: str
+    alt: str
 
 
 class RunSummary(_Model):
@@ -319,6 +352,12 @@ class RunSummary(_Model):
     sent_to: list[str] = Field(description="Providers this brief was sent to")
     approver: str | None = Field(None, description="Who approved (G4), once approved")
     read_only: bool = False
+    name: str = Field(description="The board's name; never made from the brief (issue #234)")
+    stage: BoardStage = Field(description="How far the board has got (issue #234)")
+    cover: list[CoverImage] = Field(
+        [], description="Up to four open works for the Boards page, kept works first"
+    )
+    saved_at: datetime | None = Field(None, description="When the shortlist last changed")
 
 
 class ReportAccepted(_Model):

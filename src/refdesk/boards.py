@@ -47,9 +47,12 @@ from refdesk.api.models import (
     Approval,
     ApprovalRequest,
     BoardItem,
+    BoardName,
     BoardRequest,
+    BoardStage,
     CapRaise,
     Cost,
+    CoverImage,
     ErrorReport,
     Evidence,
     ExportReceipt,
@@ -72,7 +75,7 @@ from refdesk.checkpoints import (
     checkpointed_search,
 )
 from refdesk.loop import LoopConfig, LoopController, LoopResult
-from refdesk.provenance import rights_columns
+from refdesk.provenance import open_image_url, rights_columns
 from refdesk.rationale import field_value
 from refdesk.reasoning import ItemReasoning, Reasoner, ReasoningOutcome
 from refdesk.retrieval import Hit, Query, Retriever
@@ -170,6 +173,12 @@ class RunStore:
 
     def save(self, view: RunView, request: BoardRequest | None = None) -> None:
         now = _now()
+        if request is None and view.name is None:
+            # The loop rebuilds the view as it runs; the board's name is not the loop's to
+            # drop (issue #234). A save without a name keeps the stored one.
+            current = self.get(view.run_id)
+            if current is not None and current.name:
+                view = view.model_copy(update={"name": current.name})
         stored = view.model_dump_json(exclude={"events"})  # events live in events.jsonl
         with self._connect() as db:
             if request is None:
@@ -617,6 +626,48 @@ def pack_items(items: list[BoardItem]) -> tuple[list[BoardItem], int, int]:
     return included, unverified, dropped
 
 
+def default_name(run_id: str) -> str:
+    """A new board's name, from its run ID and never its brief (Joe, 2026-11-09, #234): the
+    run list is the redacted history (#159) and is exposed through the MCP read tools."""
+    return f"Board {run_id.removeprefix('run-')[:6]}"
+
+
+def board_stage(view: RunView) -> BoardStage:
+    """How far a board has got (issue #234), read from the run and its gates."""
+    if view.state is LoopState.CANCELLED:
+        return BoardStage.CANCELLED
+    if view.state not in (LoopState.DONE, LoopState.STOPPED):
+        return BoardStage.SEARCH
+    if view.read_only:
+        return BoardStage.EXPORTED
+    if view.approval is not None:
+        return BoardStage.EXPORT
+    kept = [i for i in view.items if i.selected]
+    if not kept:
+        return BoardStage.SHORTLIST
+    flagged = [i for i in kept if i.attribution_status is not AttributionStatus.VERIFIED]
+    undecided = [i for i in flagged if i.review is None]
+    if undecided:
+        return BoardStage.VERIFY
+    return BoardStage.APPROVE
+
+
+def cover_images(view: RunView, limit: int = 4) -> list[CoverImage]:
+    """Up to `limit` works for the Boards page cover, kept first. Open works with a
+    structured rights field only, the same rule as the UI's cards (showsImage)."""
+    ordered = sorted(view.items, key=lambda i: not i.selected)  # stable: kept first
+    cover = []
+    for item in ordered:
+        url = open_image_url(item.record)
+        if url and item.record.rights.flag_field:
+            alt = ", ".join(x for x in (item.record.title, item.record.artist) if x)
+            alt = alt or item.record.id
+            cover.append(CoverImage(record_id=item.record.id, image_url=url, alt=alt))
+        if len(cover) == limit:
+            break
+    return cover
+
+
 def _git_sha() -> str:
     import subprocess
 
@@ -714,7 +765,10 @@ class BoardService:
             raise UnknownAnchor(request.anchor_id)
         if self._check_conditions is not None:
             self._check_conditions(to_query(request).conditions)  # ConditionNotUnderstood
-        view = _view(f"run-{uuid.uuid4().hex[:12]}", request, LoopState.RETRIEVE)
+        run_id = f"run-{uuid.uuid4().hex[:12]}"
+        view = _view(run_id, request, LoopState.RETRIEVE).model_copy(
+            update={"name": default_name(run_id)}
+        )
         self.runs.save(view, request)
         return view
 
@@ -1052,9 +1106,25 @@ class BoardService:
                 sent_to=view.sent_to,
                 approver=view.approval.approver if view.approval else None,
                 read_only=view.read_only,
+                name=view.name or default_name(view.run_id),
+                stage=board_stage(view),
+                cover=cover_images(view),
+                saved_at=view.saved_at,
             )
             for created, view in self.runs.history()
         ]
+
+    def rename(self, run_id: str, request: BoardName) -> RunView:
+        """Rename a board (issue #234). Only the label changes: never the request, items or
+        gates. Refused once exported, because an exported board is read-only."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        if view.read_only:
+            raise GateRefused(GateId.G5_EXPORT, "the board is exported and read-only")
+        updated = view.model_copy(update={"name": request.name})
+        self.runs.save(updated)
+        return updated
 
     def shortlist(self, run_id: str, request: ShortlistRequest) -> RunView:
         """Keep or un-keep works, with who and when (issue #231; PRD 8B "Shortlist"). Not a

@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from refdesk import __version__, reads
 from refdesk.api.models import (
     ApprovalRequest,
+    BoardName,
     BoardRequest,
     CapRaise,
     ErrorReport,
@@ -277,6 +278,24 @@ def get_provenance(request: ProvenanceRequest, service: Service):
         return ProvenanceRecords(rows=reads.provenance(service, request.record_ids))
     except reads.UnknownRecord as error:
         return _unknown_record(error)
+
+
+@app.post(
+    "/runs/{run_id}/name",
+    response_model=RunView,
+    tags=["runs"],
+    responses={**NOT_FOUND, **GATE_BLOCKED},
+)
+def rename_board(run_id: str, request: BoardName, service: Service):
+    """Rename a board (issue #234). A label only: the brief and the board do not change.
+    Refused once exported."""
+    try:
+        return service.rename(run_id, request)
+    except UnknownRun:
+        problem = Problem(code="unknown_run", message=f"No run {run_id!r}.")
+        return JSONResponse(status_code=404, content=problem.model_dump())
+    except GateRefused as error:
+        return _gate_blocked(error)
 
 
 @app.post(
