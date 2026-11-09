@@ -22,6 +22,7 @@ const THUMBNAILS = 4;
 
 export interface DemoHomeProps {
   onOpenRun: (runId: string) => void;
+  hero?: boolean; // false under the landing page, which has its own heading (issue 230)
 }
 
 function flagged(run: RunView): number {
@@ -73,7 +74,7 @@ function BoardCard({ run, onOpen }: { run: RunView; onOpen: () => void }) {
   );
 }
 
-export function DemoHome({ onOpenRun }: DemoHomeProps) {
+export function DemoHome({ onOpenRun, hero = true }: DemoHomeProps) {
   const [runs, setRuns] = useState<RunView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,12 +94,21 @@ export function DemoHome({ onOpenRun }: DemoHomeProps) {
 
   return (
     <section className="rd-screen rd-demo" aria-labelledby="demo-title">
-      <header className="rd-demo-hero">
-        <h1 id="demo-title" className="rd-demo-title">
-          {DEMO_TITLE}
-        </h1>
-        <p className="rd-demo-lead">{DEMO_LEAD}</p>
-      </header>
+      {hero ? (
+        <header className="rd-demo-hero">
+          <h1 id="demo-title" className="rd-demo-title">
+            {DEMO_TITLE}
+          </h1>
+          <p className="rd-demo-lead">{DEMO_LEAD}</p>
+        </header>
+      ) : (
+        <header className="rd-demo-hero">
+          <h2 id="demo-title" className="rd-demo-subtitle">
+            {DEMO_TITLE}
+          </h2>
+          <p className="rd-demo-lead">{DEMO_LEAD}</p>
+        </header>
+      )}
 
       <section aria-labelledby="demo-boards">
         <h2 id="demo-boards">{DEMO_BOARDS_HEADING}</h2>

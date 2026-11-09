@@ -529,3 +529,461 @@
 .rd-board-strip-local {
   margin-left: auto;
 }
+
+/* S1 New board, the landing page (issue 230). One prompt with one action; everything else
+   is quieter. Spacing scales with the screen height so the page fits without scrolling. */
+.rd-landing {
+  display: flex;
+  flex-direction: column;
+  max-width: 680px;
+  margin: clamp(0px, 5vh, 72px) auto 0;
+  text-align: center;
+}
+
+.rd-landing-title {
+  margin: 0;
+  font-family: var(--type-display-l-family);
+  font-size: var(--type-display-l-size);
+  line-height: var(--type-display-l-line);
+  font-weight: var(--type-display-l-weight);
+  text-wrap: balance;
+}
+
+@media (max-height: 700px), (max-width: 560px) {
+  .rd-landing-title {
+    font-size: var(--type-display-m-size);
+    line-height: var(--type-display-m-line);
+  }
+}
+
+.rd-landing-lead {
+  max-width: 48ch;
+  margin: var(--space-2) auto clamp(var(--space-5), 6vh, 72px);
+  color: var(--color-ink-muted);
+}
+
+.rd-landing-form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The usage switch and its hint share one tray, so the hint reads as part of the choice.
+   Joe chose no outline here (2026-11-09 review); the selected option is a raised card. */
+.rd-usage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: center;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 clamp(var(--space-4), 3.6vh, var(--space-6));
+  padding: var(--space-2) 6px 10px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--color-sunken);
+}
+
+.rd-usage-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+}
+
+.rd-usage-option {
+  position: relative;
+}
+
+/* The real radio covers its label, invisible: clicks and keys reach the control itself. */
+.rd-usage-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.rd-usage-option span {
+  display: block;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.rd-usage-option input:checked + span {
+  background: var(--color-card);
+  color: var(--color-ink);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 14%);
+}
+
+.rd-usage-option input:focus-visible + span {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.rd-usage-hint {
+  margin: 7px 14px 0;
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) 10px 14px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+  text-align: left;
+}
+
+.rd-prompt:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.rd-prompt textarea {
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink);
+  font-family: var(--type-body-family);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  resize: none;
+  outline: none;
+}
+
+.rd-prompt textarea::placeholder {
+  color: var(--color-ink-muted);
+}
+
+.rd-prompt-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px var(--space-3);
+  padding: var(--space-3) 0 6px;
+  border-top: 1px solid var(--color-line);
+}
+
+.rd-prompt-options[hidden] {
+  display: none;
+}
+
+.rd-prompt-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-prompt-field--wide {
+  grid-column: span 2;
+}
+
+.rd-prompt-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 5px var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--type-body-size);
+}
+
+@media (max-width: 720px) {
+  .rd-prompt-options {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.rd-prompt-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rd-prompt-quiet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) 14px;
+  align-items: center;
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-prompt-check,
+.rd-prompt-cap {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.rd-prompt-check input {
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.rd-prompt-cap input {
+  width: 52px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px dashed var(--color-line-strong);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+.rd-prompt-more {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: var(--space-1);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rd-prompt-more[aria-expanded="true"] {
+  color: var(--color-ink);
+}
+
+.rd-prompt-more:focus-visible,
+.rd-landing-example:focus-visible,
+.rd-landing-resume-card:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rd-prompt-count {
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: 600;
+}
+
+.rd-landing-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) 18px;
+  align-items: baseline;
+  justify-content: center;
+  margin: clamp(var(--space-4), 4vh, 36px) 0 0;
+  font-size: var(--type-body-s-size);
+}
+
+.rd-landing-label {
+  color: var(--color-ink-muted);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+  text-transform: uppercase;
+}
+
+.rd-landing-example {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink-muted);
+  font: inherit;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.rd-landing-example:hover {
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+
+.rd-landing-resume {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: clamp(var(--space-4), 6vh, 80px);
+}
+
+.rd-landing-resume-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.rd-landing-resume-card {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  max-width: 100%;
+  padding: var(--space-1) 14px var(--space-1) var(--space-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+  text-decoration: none;
+}
+
+.rd-landing-resume-card:hover {
+  border-color: var(--color-line-strong);
+}
+
+.rd-landing-resume-card img {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+}
+
+.rd-landing-resume-card span:last-child {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.rd-landing-all {
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+}
+
+.rd-demo-subtitle {
+  margin: 0;
+  font-family: var(--type-display-m-family);
+  font-size: var(--type-display-m-size);
+  line-height: var(--type-display-m-line);
+  font-weight: var(--type-display-m-weight);
+}
+
+/* The footer sits at the bottom of the window, not mid-screen under a short page. */
+.rd-shell-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.rd-shell-main > main {
+  flex: 1;
+}
+
+@media (max-width: 560px) {
+  .rd-shell-main > main {
+    padding-top: var(--space-4);
+  }
+
+  .rd-landing {
+    margin-top: 0;
+  }
+
+  .rd-landing-lead {
+    margin-bottom: var(--space-4);
+  }
+
+  .rd-usage {
+    margin-bottom: var(--space-3);
+  }
+
+  .rd-landing-examples {
+    margin-top: var(--space-3);
+  }
+}
+
+@media (max-width: 720px) {
+  /* The panel is a row above the page here, so a full-window page would always scroll. */
+  .rd-shell-main {
+    min-height: 0;
+  }
+}
+
+/* Short screens: the same page, closer together, so it still fits with the resume row. */
+@media (max-height: 700px) {
+  .rd-shell-main > main {
+    padding-top: var(--space-4);
+  }
+
+  .rd-landing {
+    margin-top: 0;
+  }
+
+  .rd-landing-lead {
+    margin-bottom: var(--space-4);
+  }
+
+  .rd-usage {
+    margin-bottom: var(--space-3);
+  }
+
+  .rd-landing-examples {
+    margin-top: var(--space-3);
+  }
+
+  .rd-landing-resume {
+    margin-top: var(--space-4);
+  }
+}
+
+@media (max-width: 560px) {
+  .rd-landing-resume {
+    margin-top: var(--space-4);
+  }
+
+  .rd-shell-main > main {
+    padding-bottom: var(--space-3);
+  }
+}
+
+@media (max-width: 560px), (max-height: 700px) {
+  .rd-app-footer {
+    margin-top: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+}
+
+/* The resume row stays one line: a long board name is cut short with an ellipsis. */
+.rd-landing-resume-row {
+  flex-wrap: nowrap;
+}
+
+.rd-landing-resume-card {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.rd-landing-resume-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-landing-resume-card span,
+.rd-landing-all {
+  flex: none;
+  white-space: nowrap;
+}

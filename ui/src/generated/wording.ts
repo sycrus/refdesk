@@ -56,4 +56,10 @@ export const USAGE_PUBLISH = "In something you'll publish";
 
 export const USAGE_PUBLISH_HINT = "Packaging, print, web. Shows only works the museum marks as free to use.";
 
+export const LANDING_QUESTION = "What do you need references for?";
+
+export const LANDING_LEAD = "Describe the brief. RefDesk finds open museum works and shows the record behind each one.";
+
+export const LANDING_DEMO_REASON = "Live searches run on the owner's machine. Open an example board below.";
+
 export const STYLE_NOTE = "For inspiration only. Not cleared for publishing, or for copying {artist}'s style.";

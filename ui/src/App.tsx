@@ -318,10 +318,11 @@ export function App() {
           />
         ) : profile === null ? (
           <p role="status">Loading…</p>
-        ) : demo ? (
-          <DemoHome onOpenRun={(id) => open(id)} />
         ) : (
-          <NewBoard onCreated={open} />
+          <>
+            <NewBoard onCreated={open} onOpenRun={(id) => open(id)} onAllBoards={() => openHistory()} />
+            {demo && <DemoHome onOpenRun={(id) => open(id)} hero={false} />}
+          </>
         )}
       </main>
       <footer className="rd-app-footer">
