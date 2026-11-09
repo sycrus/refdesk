@@ -1,0 +1,262 @@
+/* Lightbox (issue 232): the image on a dark ground in both themes (scrim tokens), the
+   evidence panel beside it on card. On a phone the panel sits below the image. */
+.rd-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  background: var(--color-scrim);
+  color: var(--color-on-scrim);
+}
+
+.rd-lightbox-stage {
+  position: relative;
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: 56px 64px 64px;
+}
+
+.rd-lightbox-top,
+.rd-lightbox-bottom {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-lightbox-top {
+  top: var(--space-3);
+}
+
+.rd-lightbox-bottom {
+  bottom: var(--space-3);
+  justify-content: center;
+}
+
+.rd-lightbox-spacer {
+  flex: 1;
+}
+
+.rd-lightbox-btn {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-on-scrim) 35%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-scrim) 60%, transparent);
+  color: var(--color-on-scrim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rd-lightbox-btn[aria-pressed="true"],
+.rd-lightbox-btn--primary {
+  background: var(--color-on-scrim);
+  color: var(--color-scrim);
+}
+
+.rd-lightbox-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rd-lightbox-btn kbd {
+  font-family: var(--type-mono-family);
+  font-size: var(--type-label-size);
+  opacity: 0.75;
+}
+
+.rd-lightbox-btn:focus-visible,
+.rd-lightbox-nav:focus-visible {
+  outline: 2px solid var(--color-on-scrim);
+  outline-offset: 2px;
+}
+
+.rd-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  width: 44px;
+  height: 64px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-scrim) 60%, transparent);
+  color: var(--color-on-scrim);
+  font-size: var(--type-display-m-size);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.rd-lightbox-nav--prev {
+  left: var(--space-3);
+}
+
+.rd-lightbox-nav--next {
+  right: var(--space-3);
+}
+
+.rd-lightbox-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.rd-lightbox-image img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+  user-select: none;
+}
+
+.rd-lightbox-image img.rd-lightbox-zoomed {
+  cursor: grab;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rd-lightbox-image img {
+    transition: transform 0.2s ease;
+  }
+}
+
+.rd-lightbox-noimage {
+  max-width: 36ch;
+  text-align: center;
+}
+
+.rd-lightbox-noimage a {
+  color: var(--color-on-scrim);
+}
+
+.rd-lightbox-note {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  display: grid;
+  gap: var(--space-2);
+  width: min(420px, calc(100% - 32px));
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-pop);
+  transform: translateX(-50%);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-lightbox-note label {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.rd-lightbox-note input {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--type-body-size);
+}
+
+.rd-lightbox-note-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.rd-lightbox-note .rd-lightbox-btn {
+  border-color: var(--color-line-strong);
+  background: var(--color-card);
+  color: var(--color-ink);
+}
+
+.rd-lightbox-note .rd-lightbox-btn--primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.rd-lightbox-error {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  transform: translateX(-50%);
+  font-size: var(--type-body-s-size);
+}
+
+.rd-lightbox-panel {
+  flex: none;
+  width: min(380px, 100%);
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--color-card);
+  color: var(--color-ink);
+  box-sizing: border-box;
+}
+
+.rd-evidence {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.rd-evidence-title {
+  margin: 0;
+  font-family: var(--type-display-m-family);
+  font-size: var(--type-display-m-size);
+  line-height: var(--type-display-m-line);
+  font-weight: var(--type-display-m-weight);
+}
+
+.rd-evidence h3 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-ink-muted);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+  text-transform: uppercase;
+}
+
+.rd-evidence p {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .rd-lightbox {
+    flex-direction: column;
+  }
+
+  .rd-lightbox-stage {
+    padding: 56px var(--space-2) 64px;
+  }
+
+  .rd-lightbox-panel {
+    width: 100%;
+    max-height: 50%;
+  }
+
+  .rd-lightbox-nav {
+    width: 36px;
+  }
+}
+
+/* The dialog takes focus back after the note form closes; its controls show focus. */
+.rd-lightbox:focus {
+  outline: none;
+}

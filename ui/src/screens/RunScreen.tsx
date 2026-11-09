@@ -6,12 +6,20 @@
 // cost, and where the brief was sent. Once the run ends, Keep on each card puts the work on
 // the shortlist (issue 231): a work nobody kept is not kept, so review, approval and export
 // cover kept works only. "Saved" is shown only after the API confirms the change.
+//
+// The image-first board (issue 232): the Shortlist opens on Images (a masonry grid, the
+// title on hover or focus), with Captions and Full one click away. Full shows the detailed
+// cards in the fixed wording. A work opens in the lightbox (?item=<record id>), which
+// replaces the S4 page.
 import { useEffect, useId, useState } from "react";
-import { ApiError, cancelRun, getRun, shortlistRun } from "../api/client";
+import { ApiError, cancelRun, getRun, reviewRun, shortlistRun } from "../api/client";
 import type { BoardItem, RunView } from "../api/types";
 import { Button } from "../components/Button";
 import { CostMeter } from "../components/CostMeter";
 import { EvidenceCard } from "../components/EvidenceCard";
+import { type Density, ImageTile } from "../components/ImageTile";
+import { Lightbox } from "../components/Lightbox";
+import { storedCardStyle } from "../cardStyle";
 import { StopBanner } from "../components/StopBanner";
 import { AttributionStatus, USAGE_INSPIRATION, USAGE_PUBLISH } from "../generated/wording";
 import { DEMO_RUN_NOTE } from "../content/demo";
@@ -40,6 +48,8 @@ export interface RunScreenProps {
   onReview?: () => void;
   onApprove?: () => void;
   onRun?: (run: RunView) => void; // the stage panel follows this run (issue 229)
+  itemId?: string | null; // the work open in the lightbox (issue 232)
+  onCloseItem?: () => void;
 }
 
 export function RunScreen({
@@ -50,6 +60,8 @@ export function RunScreen({
   onReview,
   onApprove,
   onRun,
+  itemId = null,
+  onCloseItem,
 }: RunScreenProps) {
   const demo = useDemo(); // the demo cannot start boards: no "New board" here
   const [run, setRun] = useState<RunView | null>(null);
@@ -62,6 +74,9 @@ export function RunScreen({
   const [operator, setOperator] = useState("");
   const [shortlistError, setShortlistError] = useState<string | null>(null);
   const operatorId = useId();
+  const densityName = useId();
+  const [density, setDensity] = useState<Density>("images");
+  const [cardStyle] = useState(storedCardStyle);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,6 +135,25 @@ export function RunScreen({
     }
   }
   const canShortlist = !demo && !working && !run.read_only && !run.approval && run.state !== "cancelled";
+  // For the lightbox, which shows its own "Not saved" message: these throw instead.
+  const apiMessage = (err: unknown) => (err instanceof ApiError ? err.message : `could not reach the API: ${String(err)}`);
+  async function keepOrThrow(itemId: string, value: boolean) {
+    try {
+      setRun(await shortlistRun(runId, { operator: operator.trim(), items: [{ item_id: itemId, keep: value }] }));
+    } catch (err) {
+      throw new Error(apiMessage(err));
+    }
+  }
+  async function keepWithNote(itemId: string, note: string) {
+    // A flagged work kept with a note: on the shortlist, and the note is its G3 decision.
+    try {
+      await shortlistRun(runId, { operator: operator.trim(), items: [{ item_id: itemId, keep: true }] });
+      setRun(await reviewRun(runId, { reviewer: operator.trim(), decisions: [{ item_id: itemId, decision: "keep", note }] }));
+    } catch (err) {
+      setRun(await getRun(runId).catch(() => run as RunView));
+      throw new Error(apiMessage(err));
+    }
+  }
   const keptCount = run.items.filter((item) => item.selected).length;
   const keptFlagged = run.items.filter((i) => i.selected && i.attribution_status !== AttributionStatus.VERIFIED).length;
   const sentTo = sentToText(run.sent_to);
@@ -242,19 +276,72 @@ export function RunScreen({
       )}
 
       {run.items.length > 0 && (
-        <ul className="rd-board-grid" aria-label="References">
-          {run.items.map((item) => (
-            <li key={item.record.id}>
-              <EvidenceCard
-                item={item}
-                onMoreLikeThis={onMoreLikeThis ? () => onMoreLikeThis(run, item) : undefined}
-                detailsHref={`?run=${encodeURIComponent(run.run_id)}&item=${encodeURIComponent(item.record.id)}`}
-                onOpenDetails={onOpenItem ? () => onOpenItem(item.record.id) : undefined}
-                onKeepChange={canShortlist ? (value) => keep(item.record.id, value) : undefined}
+        <fieldset className="rd-density">
+          <legend className="rd-visually-hidden">Show</legend>
+          {(
+            [
+              ["images", "Images"],
+              ["captions", "Captions"],
+              ["full", "Full"],
+            ] as const
+          ).map(([value, label]) => (
+            <label key={value}>
+              <input
+                type="radio"
+                name={densityName}
+                value={value}
+                checked={density === value}
+                onChange={() => setDensity(value)}
               />
-            </li>
+              <span>{label}</span>
+            </label>
           ))}
-        </ul>
+        </fieldset>
+      )}
+
+      {run.items.length > 0 &&
+        (density === "full" ? (
+          <ul className="rd-board-grid" aria-label="References">
+            {run.items.map((item) => (
+              <li key={item.record.id}>
+                <EvidenceCard
+                  item={item}
+                  onMoreLikeThis={onMoreLikeThis ? () => onMoreLikeThis(run, item) : undefined}
+                  detailsHref={`?run=${encodeURIComponent(run.run_id)}&item=${encodeURIComponent(item.record.id)}`}
+                  onOpenDetails={onOpenItem ? () => onOpenItem(item.record.id) : undefined}
+                  onKeepChange={canShortlist ? (value) => keep(item.record.id, value) : undefined}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ul className="rd-masonry" aria-label="References">
+            {run.items.map((item) => (
+              <ImageTile
+                key={item.record.id}
+                item={item}
+                density={density}
+                cardStyle={cardStyle}
+                onOpen={() => onOpenItem?.(item.record.id)}
+                onKeep={canShortlist ? (value) => keep(item.record.id, value) : undefined}
+              />
+            ))}
+          </ul>
+        ))}
+
+      {itemId && !working && (
+        <Lightbox
+          run={run}
+          items={run.items}
+          itemId={itemId}
+          onShow={(id) => onOpenItem?.(id)}
+          onClose={() => onCloseItem?.()}
+          shortlist={
+            canShortlist
+              ? { operator, setOperator, keep: keepOrThrow, keepWithNote }
+              : undefined
+          }
+        />
       )}
     </section>
   );

@@ -51,6 +51,7 @@ PAIRS = [
     ("line-strong", "card", 3.0),
     ("focus", "paper", 3.0),
     ("focus", "card", 3.0),
+    ("on-scrim", "scrim", 4.5),  # the lightbox (issue 232)
 ]
 
 

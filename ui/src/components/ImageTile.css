@@ -1,0 +1,202 @@
+/* The image-first grid (issue 232): columns of tiles at the images' own proportions. */
+.rd-masonry {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 4 220px;
+  column-gap: var(--space-3);
+}
+
+.rd-tile {
+  position: relative;
+  break-inside: avoid;
+  margin: 0 0 var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+}
+
+.rd-tile--kept {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.rd-tile-open {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--color-sunken);
+  color: inherit;
+  font: inherit;
+  cursor: zoom-in;
+}
+
+.rd-tile-open:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.rd-tile-open img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rd-tile-noimage {
+  display: grid;
+  gap: var(--space-1);
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  padding: var(--space-4);
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+  text-align: center;
+}
+
+/* Title on hover or keyboard focus (Images view): text in words, on the image's own mat. */
+.rd-tile-hover {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  padding: var(--space-5) 10px 36px;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--color-scrim) 80%, transparent));
+  color: var(--color-on-scrim);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+  text-align: left;
+  opacity: 0;
+}
+
+.rd-tile-open:hover .rd-tile-hover,
+.rd-tile-open:focus-visible .rd-tile-hover {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rd-tile-hover,
+  .rd-tile-keep {
+    transition: opacity 0.15s;
+  }
+}
+
+.rd-tile-status {
+  position: absolute;
+  left: var(--space-2);
+  bottom: var(--space-2);
+  pointer-events: none;
+}
+
+.rd-tile-caption {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) 10px 10px;
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-tile-maker {
+  color: var(--color-ink-muted);
+}
+
+.rd-tile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.rd-tile-keep {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.rd-tile:hover .rd-tile-keep,
+.rd-tile:focus-within .rd-tile-keep,
+.rd-tile-keep[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.rd-tile-keep[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.rd-tile-keep:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .rd-tile-keep {
+    opacity: 1;
+  }
+}
+
+/* The density switch above the grid. */
+.rd-density {
+  display: inline-flex;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+}
+
+.rd-density legend {
+  float: left;
+  margin-right: var(--space-2);
+}
+
+.rd-density label {
+  position: relative;
+}
+
+.rd-density input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.rd-density span {
+  display: block;
+  padding: var(--space-1) 10px;
+  background: var(--color-card);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-density label + label span {
+  border-left: 1px solid var(--color-line);
+}
+
+.rd-density input:checked + span {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.rd-density input:focus-visible + span {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}

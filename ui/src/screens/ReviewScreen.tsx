@@ -7,6 +7,7 @@ import { useEffect, useId, useState } from "react";
 import { ApiError, getRun, reviewRun } from "../api/client";
 import type { BoardItem, RunView } from "../api/types";
 import { Button } from "../components/Button";
+import { EvidenceCard } from "../components/EvidenceCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { AttributionStatus } from "../generated/wording";
 import "./screens.css";
@@ -125,6 +126,8 @@ export function ReviewScreen({ runId, onBack, onContinue, onRun }: ReviewScreenP
 
   const flagged = run.items.filter((item) => item.selected && isFlagged(item)); // kept works only (issue 231)
   const undecided = flagged.filter((item) => !item.review).length;
+  // Verify covers kept works only, flagged first (issue 232): the rest follow, in full wording.
+  const verifiedKept = run.items.filter((item) => item.selected && !isFlagged(item));
   const g3 = run.gates.find((gate) => gate.id === "G3");
 
   async function save() {
@@ -189,6 +192,21 @@ export function ReviewScreen({ runId, onBack, onContinue, onRun }: ReviewScreenP
             Save decisions
           </Button>
         </form>
+      )}
+      {verifiedKept.length > 0 && (
+        <section aria-labelledby="also-kept-title">
+          <h2 id="also-kept-title" className="rd-stage-heading">
+            {`Also kept (${verifiedKept.length})`}
+          </h2>
+          <p className="rd-note">Verified from the record: nothing to decide here.</p>
+          <ul className="rd-board-grid" aria-label="Also kept">
+            {verifiedKept.map((item) => (
+              <li key={item.record.id}>
+                <EvidenceCard item={item} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       <Button
         variant="primary"

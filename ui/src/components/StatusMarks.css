@@ -1,0 +1,62 @@
+/* Compact status marks (ADR-026). Never colour alone: each state has its own shape and
+   symbol, and the word says which status it is. */
+.rd-marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.rd-mark {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  height: 22px;
+  padding: 0 7px 0 3px;
+  border: 1px solid var(--color-line);
+  border-radius: 11px;
+  background: var(--color-card);
+  color: var(--color-ink);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: 600;
+}
+
+.rd-mark-symbol {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--color-card);
+  font-size: var(--type-label-size);
+  line-height: 1;
+}
+
+.rd-mark-symbol .rd-icon {
+  width: 11px;
+  height: 11px;
+}
+
+.rd-mark--ok .rd-mark-symbol {
+  border-radius: var(--radius-pill);
+  background: var(--color-ok);
+}
+
+.rd-mark--warn {
+  border-color: var(--color-warn);
+  background: var(--color-warn-soft);
+}
+
+.rd-mark--warn .rd-mark-symbol {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: var(--color-warn);
+}
+
+.rd-mark--danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.rd-mark--danger .rd-mark-symbol {
+  border-radius: var(--radius-sm);
+  background: var(--color-danger);
+}
