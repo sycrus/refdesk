@@ -316,6 +316,27 @@ test("leave a board mid-shortlist, find it on Boards, reopen it with its kept wo
   await expect(page.getByRole("list", { name: "References" }).getByRole("button", { pressed: true })).toHaveCount(1);
 });
 
+// Issue 248: images first. At 1280x800 the first row of images starts above the fold, and
+// the stop reason, keep-local and where the brief was sent show without opening anything.
+test("the board's images start above the fold, with the stop reason still visible", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await page.getByLabel("Brief", { exact: true }).fill("oil");
+  await page.getByLabel("Keep this brief on this machine").check();
+  await page.getByRole("button", { name: "Find references" }).click();
+  const grid = page.getByRole("list", { name: "References" });
+  await expect(grid).toBeVisible();
+  const first = await grid.getByRole("listitem").first().boundingBox();
+  expect(first && first.y).toBeLessThan(800);
+  const strip = page.getByRole("group", { name: "This board" });
+  await expect(strip).toContainText("Stopped:");
+  await expect(strip).toContainText("This brief stays on this machine");
+  await expect(strip).toContainText("Brief sent to:");
+  await expect(page.getByRole("button", { name: "New board" })).toBeHidden(); // folded into Details
+  await page.getByText("Details: brief, models, cost and run").click();
+  await expect(page.getByRole("button", { name: "New board" })).toBeVisible();
+});
+
 // S6 Approve and export (issue 101): the ConfirmDialog, the irreversible export, the receipt.
 test("approve and export a verified board, then it is read-only", async ({ page }) => {
   await newBoard(page, "cypresses in a landscape");

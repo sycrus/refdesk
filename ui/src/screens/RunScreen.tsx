@@ -11,6 +11,12 @@
 // title on hover or focus), with Captions and Full one click away. Full shows the detailed
 // cards in the fixed wording. A work opens in the lightbox (?item=<record id>), which
 // replaces the S4 page.
+//
+// Images first (issue 248): once the run has ended with works to show, the top of the page
+// is one line (the board's name and its next action), a slim strip with the stop reason
+// and keep-local (never hidden), and the shortlist tools. The brief, models, cost, run ID
+// and the full stop banner fold into "Details". While the run works, or when it found
+// nothing, the full layout stays: progress and the stop detail are the point then.
 import { useEffect, useId, useState } from "react";
 import { ApiError, cancelRun, getRun, reviewRun, shortlistRun } from "../api/client";
 import type { BoardItem, RunView } from "../api/types";
@@ -135,6 +141,7 @@ export function RunScreen({
     }
   }
   const canShortlist = !demo && !working && !run.read_only && !run.approval && run.state !== "cancelled";
+  const compact = !working && run.items.length > 0; // images first (issue 248)
   // For the lightbox, which shows its own "Not saved" message: these throw instead.
   const apiMessage = (err: unknown) => (err instanceof ApiError ? err.message : `could not reach the API: ${String(err)}`);
   async function keepOrThrow(itemId: string, value: boolean) {
@@ -166,99 +173,141 @@ export function RunScreen({
 
   return (
     <section className="rd-screen" aria-labelledby="board-title">
-      <header className="rd-board-head">
-        <h1 id="board-title" className="rd-screen-title">
-          Board
-        </h1>
-        <dl className="rd-facts">
-          {request && (
-            <>
-              <dt>Brief</dt>
-              <dd>{request.brief}</dd>
-              <dt>Use</dt>
-              <dd>{request.usage_mode === "reproduction" ? USAGE_PUBLISH : USAGE_INSPIRATION}</dd>
-            </>
+      {compact ? (
+        <>
+          <header className="rd-board-bar">
+            <h1 id="board-title" className="rd-board-name">
+              {run.name ?? "Board"}
+            </h1>
+            <div className="rd-board-bar-actions">
+              {!working && onReview && keptFlagged > 0 && (
+                <Button variant="primary" onClick={onReview}>
+                  {`Review flagged items (${keptFlagged})`}
+                </Button>
+              )}
+
+              {onApprove && run.gates.some((g) => (g.id === "G4" || g.id === "G5") && g.state === "active") && (
+                <Button variant="primary" onClick={onApprove}>
+                  Approve and export
+                </Button>
+              )}
+              {run.read_only && run.export && (
+                <p role="status">
+                  {run.export.notice}. <a href={`?run=${encodeURIComponent(run.run_id)}&approve=1`}>See the receipt</a>
+                </p>
+              )}
+            </div>
+          </header>
+          {/* Never folded away: the stop reason, keep-local, and where the brief was sent. */}
+          {(
+            <div className="rd-board-strip rd-board-strip--board" role="group" aria-label="This board">
+              {run.stop_banner && (
+                <span className="rd-board-strip-stop">
+                  <strong>{run.stop_banner}</strong>
+                  {` · ${run.items.length} of ${request?.target_items ?? run.items.length} accepted`}
+                  {!run.read_only && " · Nothing was exported"}
+                </span>
+              )}
+              <span className="rd-board-strip-sent">{`Brief sent to: ${sentTo}`}</span>
+              {run.keep_local && <span className="rd-board-strip-local">This brief stays on this machine</span>}
+            </div>
           )}
-          <dt>Stays on this machine</dt>
-          <dd>{run.keep_local ? "Yes" : "No"}</dd>
-          <dt>Brief sent to</dt>
-          <dd>{sentTo}</dd>
-          {models.length > 0 && (
-            <>
-              <dt>Models</dt>
-              <dd>{models.map(([role, model]) => `${role}: ${model}`).join(", ")}</dd>
-            </>
-          )}
-          <dt>Run</dt>
-          <dd className="rd-mono">{run.run_id}</dd>
-        </dl>
-        <CostMeter spent={run.cost.spent_usd} cap={run.cost.cap_usd} currency={run.cost.currency} />
-        {working && !confirmingCancel && (
-          <Button variant="danger" onClick={() => { setCancelError(null); setConfirmingCancel(true); }}>
-            Cancel the run
-          </Button>
-        )}
-        {confirmingCancel && (
-          <div className="rd-cancel" role="group" aria-label="Confirm the kill switch">
-            <p>Cancel this run now? A cancelled run can never be approved or exported.</p>
-            <span className="rd-cancel-actions">
-              <Button
-                variant="danger"
-                onClick={() => {
-                  void doCancel();
-                }}
-              >
-                Yes, cancel the run
+          {demo && <p className="rd-demo-run-note">{DEMO_RUN_NOTE}</p>}
+        </>
+      ) : (
+        <>
+          <header className="rd-board-head">
+            <h1 id="board-title" className="rd-screen-title">
+              {run.name ?? "Board"}
+            </h1>
+            <dl className="rd-facts">
+              {request && (
+                <>
+                  <dt>Brief</dt>
+                  <dd>{request.brief}</dd>
+                  <dt>Use</dt>
+                  <dd>{request.usage_mode === "reproduction" ? USAGE_PUBLISH : USAGE_INSPIRATION}</dd>
+                </>
+              )}
+              <dt>Stays on this machine</dt>
+              <dd>{run.keep_local ? "Yes" : "No"}</dd>
+              <dt>Brief sent to</dt>
+              <dd>{sentTo}</dd>
+              {models.length > 0 && (
+                <>
+                  <dt>Models</dt>
+                  <dd>{models.map(([role, model]) => `${role}: ${model}`).join(", ")}</dd>
+                </>
+              )}
+              <dt>Run</dt>
+              <dd className="rd-mono">{run.run_id}</dd>
+            </dl>
+            <CostMeter spent={run.cost.spent_usd} cap={run.cost.cap_usd} currency={run.cost.currency} />
+            {working && !confirmingCancel && (
+              <Button variant="danger" onClick={() => { setCancelError(null); setConfirmingCancel(true); }}>
+                Cancel the run
               </Button>
-              <Button onClick={() => setConfirmingCancel(false)}>Keep the run going</Button>
-            </span>
-          </div>
-        )}
-        {cancelError && (
-          <p role="alert">
-            The run was not cancelled: {cancelError}
+            )}
+            {confirmingCancel && (
+              <div className="rd-cancel" role="group" aria-label="Confirm the kill switch">
+                <p>Cancel this run now? A cancelled run can never be approved or exported.</p>
+                <span className="rd-cancel-actions">
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      void doCancel();
+                    }}
+                  >
+                    Yes, cancel the run
+                  </Button>
+                  <Button onClick={() => setConfirmingCancel(false)}>Keep the run going</Button>
+                </span>
+              </div>
+            )}
+            {cancelError && (
+              <p role="alert">
+                The run was not cancelled: {cancelError}
+              </p>
+            )}
+            {!demo && <Button onClick={onNewBoard}>New board</Button>}
+          </header>
+          <p role="status" className="rd-run-state">
+            {working
+              ? STATE_TEXT[run.state] ?? `Working: ${run.state}`
+              : run.state === "done"
+                ? `Done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"}. ${doneText}`
+                : STATE_TEXT[run.state] ?? run.state}
           </p>
-        )}
-        {!demo && <Button onClick={onNewBoard}>New board</Button>}
-      </header>
+          {demo && !working && <p className="rd-demo-run-note">{DEMO_RUN_NOTE}</p>}
+          {!working && onReview && keptFlagged > 0 && (
+            <Button variant="primary" onClick={onReview}>
+              {`Review flagged items (${keptFlagged})`}
+            </Button>
+          )}
 
-      <p role="status" className="rd-run-state">
-        {working
-          ? STATE_TEXT[run.state] ?? `Working: ${run.state}`
-          : run.state === "done"
-            ? `Done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"}. ${doneText}`
-            : STATE_TEXT[run.state] ?? run.state}
-      </p>
-
-      {demo && !working && <p className="rd-demo-run-note">{DEMO_RUN_NOTE}</p>}
-
-      {!working && onReview && keptFlagged > 0 && (
-        <Button variant="primary" onClick={onReview}>
-          {`Review flagged items (${keptFlagged})`}
-        </Button>
+          {onApprove && run.gates.some((g) => (g.id === "G4" || g.id === "G5") && g.state === "active") && (
+            <Button variant="primary" onClick={onApprove}>
+              Approve and export
+            </Button>
+          )}
+          {run.read_only && run.export && (
+            <p role="status">
+              {run.export.notice}. <a href={`?run=${encodeURIComponent(run.run_id)}&approve=1`}>See the receipt</a>
+            </p>
+          )}
+          {run.stop_reason && (
+            <StopBanner
+              reason={run.stop_reason}
+              accepted={run.items.length}
+              target={request?.target_items ?? run.items.length}
+              detail={run.stop_detail}
+              actions={demo ? undefined : <Button onClick={onNewBoard}>Change the brief</Button>}
+            />
+          )}
+        </>
       )}
 
-      {onApprove && run.gates.some((g) => (g.id === "G4" || g.id === "G5") && g.state === "active") && (
-        <Button variant="primary" onClick={onApprove}>
-          Approve and export
-        </Button>
-      )}
-      {run.read_only && run.export && (
-        <p role="status">
-          {run.export.notice}. <a href={`?run=${encodeURIComponent(run.run_id)}&approve=1`}>See the receipt</a>
-        </p>
-      )}
-
-      {run.stop_reason && (
-        <StopBanner
-          reason={run.stop_reason}
-          accepted={run.items.length}
-          target={request?.target_items ?? run.items.length}
-          detail={run.stop_detail}
-          actions={demo ? undefined : <Button onClick={onNewBoard}>Change the brief</Button>}
-        />
-      )}
-
+      <div className="rd-board-tools">
       {canShortlist && run.items.length > 0 && (
         <div className="rd-shortlist-bar">
           <label htmlFor={operatorId}>Your name (recorded with what you keep)</label>
@@ -297,6 +346,51 @@ export function RunScreen({
             </label>
           ))}
         </fieldset>
+      )}
+      </div>
+
+      {compact && (
+        <details className="rd-board-details">
+          <summary>Details: brief, models, cost and run</summary>
+            <dl className="rd-facts">
+              {request && (
+                <>
+                  <dt>Brief</dt>
+                  <dd>{request.brief}</dd>
+                  <dt>Use</dt>
+                  <dd>{request.usage_mode === "reproduction" ? USAGE_PUBLISH : USAGE_INSPIRATION}</dd>
+                </>
+              )}
+              <dt>Stays on this machine</dt>
+              <dd>{run.keep_local ? "Yes" : "No"}</dd>
+              {models.length > 0 && (
+                <>
+                  <dt>Models</dt>
+                  <dd>{models.map(([role, model]) => `${role}: ${model}`).join(", ")}</dd>
+                </>
+              )}
+              <dt>Run</dt>
+              <dd className="rd-mono">{run.run_id}</dd>
+            </dl>
+          <CostMeter spent={run.cost.spent_usd} cap={run.cost.cap_usd} currency={run.cost.currency} />
+          <p role="status" className="rd-run-state">
+            {working
+              ? STATE_TEXT[run.state] ?? `Working: ${run.state}`
+              : run.state === "done"
+                ? `Done: ${run.items.length} ${run.items.length === 1 ? "item" : "items"}. ${doneText}`
+                : STATE_TEXT[run.state] ?? run.state}
+          </p>
+          {run.stop_reason && (
+            <StopBanner
+              reason={run.stop_reason}
+              accepted={run.items.length}
+              target={request?.target_items ?? run.items.length}
+              detail={run.stop_detail}
+              actions={demo ? undefined : <Button onClick={onNewBoard}>Change the brief</Button>}
+            />
+          )}
+          {!demo && <Button onClick={onNewBoard}>New board</Button>}
+        </details>
       )}
 
       {run.items.length > 0 &&

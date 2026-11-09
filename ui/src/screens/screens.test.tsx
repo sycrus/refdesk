@@ -150,7 +150,7 @@ describe("S2/S3 RunScreen", () => {
     expect(screen.getByText(RightsStatus.OPEN)).toBeTruthy();
     expect(screen.getByText("Cypresses")).toBeTruthy();
     expect(screen.getByText("Score 0.250 = attributes 0.250")).toBeTruthy();
-    expect(screen.getByText("nowhere: no model was called (retrieval only)")).toBeTruthy();
+    expect(screen.getByText("Brief sent to: nowhere: no model was called (retrieval only)")).toBeTruthy(); // always visible (issue 248)
     expect(screen.getByText("cypresses")).toBeTruthy(); // the brief
   });
 
@@ -176,7 +176,7 @@ describe("S2/S3 RunScreen", () => {
     render(<RunScreen runId="run-1" onNewBoard={vi.fn()} onMoreLikeThis={vi.fn()} />);
     await showFull(); // the detailed cards are the Full view (issue 232)
     expect(await screen.findByText(verified.rationale as string)).toBeTruthy();
-    expect(screen.getByText("mock, mock-judge")).toBeTruthy();
+    expect(screen.getByText("Brief sent to: mock, mock-judge")).toBeTruthy();
     expect(screen.getByText("generator: mock-1, judge: mock-1")).toBeTruthy();
     expect(screen.getByText("Done: 2 items. 1 verified from the record, 1 need a human check.")).toBeTruthy();
     expect(screen.getByText("claim 1 (date): the judge found it unsupported")).toBeTruthy();
