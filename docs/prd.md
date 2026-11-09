@@ -242,7 +242,7 @@ flowchart TD
 
 - Every card shows why it fits, with the matching constraint or record field highlighted.
 - Attribution and rights are separate badges with fixed wording: attribution "verified from record" or "needs human check"; rights "open (as stated by source)", "unverified" or "permission required".
-- On cards, each status may show as a compact mark that is always present: ✓ for verified or open, ? for needs a check or unverified, a lock for permission required. The fixed wording then appears in the tooltip, the screen-reader label, the lightbox and the Full view, and Settings can switch cards back to full wording. A status is never left blank. This is an exception to showing the fixed wording on the card; it needs the ADR in #227 before it ships.
+- On Shortlist cards in the Images and Captions views, each status shows as a compact mark that is always present: ✓ for verified or open, ? for needs a check or unverified, a lock for permission required. The mark's tooltip and screen-reader label are the fixed wording. The Full view, Verify and the lightbox always show the fixed wording, and Settings can switch Shortlist cards to full wording too. A status is never left blank (ADR-026).
 - Confidence is shown as a plain bucket (high, medium, low) with the calibrated value on hover.
 - Cost and tier used are visible per run and per item. Model and adapter versions appear in the audit view only.
 - A stop reason is never hidden. A partial board says why it is partial.

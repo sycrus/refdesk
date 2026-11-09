@@ -475,7 +475,8 @@ function imgHTML(it,cls=""){
    :`<span class="noimg"><span style="font-size:20px">🔒</span>No image shown<br>${W.rights.permission}</span>`;
 }
 function tileHTML(it){
-  const showMarks=S.badge==="a";
+  // ADR-026: compact marks only on Shortlist in the Images and Captions views; Verify and Full always use the fixed wording.
+  const showMarks=S.badge==="a"&&S.stage==="shortlist"&&dens()!=="full";
   const keepState=S.stage==="verify"?(S.decided[it.id]||null):(it.kept?"keep":null);
   return `<figure class="tile ${keepState==="keep"?"kept":""} ${keepState==="drop"?"dropped":""}">
     <button class="tile-btn" data-open="${it.id}" aria-label="Open Example work ${it.n}">${imgHTML(it)}
