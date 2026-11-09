@@ -1,0 +1,312 @@
+/* The stage panel (issue 229). Its own column, never an overlay. Node centre: 16px
+   padding + 12px (half the 24px node), which the timeline line is drawn through. */
+.rd-panel {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 248px;
+  height: 100vh;
+  overflow-y: auto;
+  padding: var(--space-3) 0;
+  border-right: 1px solid var(--color-line);
+  background: var(--color-card);
+  box-sizing: border-box;
+}
+
+.rd-panel--min {
+  width: 56px;
+}
+
+.rd-panel-brand {
+  display: block;
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-3);
+  white-space: nowrap;
+}
+
+.rd-panel-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rd-panel-item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.rd-panel-item:hover {
+  background: var(--color-sunken);
+}
+
+.rd-panel-item:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.rd-panel-item[aria-current] {
+  background: var(--color-accent-soft);
+}
+
+.rd-panel-item--off {
+  cursor: default;
+}
+
+.rd-panel-body {
+  display: contents;
+}
+
+.rd-panel-item--off:hover {
+  background: none;
+}
+
+.rd-panel-node {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-card);
+  color: var(--color-ink-muted);
+  box-sizing: border-box;
+}
+
+.rd-panel-node--passed {
+  border-color: var(--color-ok);
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
+}
+
+.rd-panel-node--active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.rd-panel-node--blocked {
+  border-color: var(--color-warn);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+}
+
+.rd-panel-node--skipped,
+.rd-panel-node--none {
+  border-style: dashed;
+}
+
+.rd-panel-node--current {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.rd-panel-pip {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-card);
+  border-radius: var(--radius-pill);
+  background: var(--color-ok);
+  color: var(--color-card);
+}
+
+.rd-panel-pip .rd-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.rd-panel-pip--alert {
+  background: var(--color-warn);
+}
+
+.rd-panel-pip--dash {
+  background: var(--color-ink-muted);
+}
+
+.rd-panel-pip--lock {
+  border-radius: var(--radius-sm);
+  background: var(--color-danger);
+}
+
+.rd-panel-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rd-panel-label {
+  font-size: var(--type-body-s-size);
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.rd-panel-gate {
+  font-family: var(--type-mono-family);
+  font-size: var(--type-mono-size);
+  font-weight: 400;
+  color: var(--color-ink-muted);
+}
+
+.rd-panel-detail {
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+  color: var(--color-ink-muted);
+}
+
+.rd-panel-sep,
+.rd-panel-nor {
+  margin: var(--space-2) var(--space-4) var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-line);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking);
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+/* The point of no return: a dashed danger line across the timeline, before Export. */
+.rd-panel-nor {
+  position: relative;
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-top: 0;
+  color: var(--color-danger);
+}
+
+.rd-panel-nor::before {
+  content: "";
+  display: inline-block;
+  width: 24px;
+  margin-right: var(--space-3);
+  vertical-align: middle;
+  border-top: 2px dashed var(--color-danger);
+}
+
+/* The timeline: dotted between stages, solid below a stage that has passed. */
+.rd-panel-stage {
+  position: relative;
+}
+
+.rd-panel-stage + .rd-panel-stage::before,
+.rd-panel-stage:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 27px;
+  border-left: 2px dotted var(--color-line-strong);
+  pointer-events: none;
+}
+
+.rd-panel-stage + .rd-panel-stage::before {
+  top: 0;
+  height: var(--space-2);
+}
+
+.rd-panel-stage:not(:last-child)::after {
+  top: calc(var(--space-2) + 24px);
+  bottom: 0;
+}
+
+.rd-panel-stage--done:not(:last-child)::after,
+.rd-panel-stage--done + .rd-panel-stage::before {
+  border-left-style: solid;
+  border-color: var(--color-ok);
+}
+
+.rd-panel-toggle {
+  margin-top: auto;
+}
+
+.rd-panel--min .rd-panel-toggle .rd-icon {
+  transform: scaleX(-1);
+}
+
+.rd-panel--min .rd-panel-text,
+.rd-panel--min .rd-panel-nor::before {
+  display: none;
+}
+
+.rd-panel--min .rd-panel-nor {
+  height: 0;
+  margin: var(--space-1) var(--space-3);
+  padding: 0;
+  border-top: 2px dashed var(--color-danger);
+}
+
+/* Phone: the panel becomes a row of icons across the top. */
+@media (max-width: 720px) {
+  .rd-panel,
+  .rd-panel--min {
+    position: static;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    width: auto;
+    height: auto;
+    overflow-x: auto;
+    padding: var(--space-2);
+    border-right: 0;
+    border-bottom: 1px solid var(--color-line);
+  }
+
+  .rd-panel-list {
+    display: flex;
+  }
+
+  .rd-panel-text,
+  .rd-panel-toggle,
+  .rd-panel-stage::before,
+  .rd-panel-stage::after,
+  .rd-panel-nor::before {
+    display: none;
+  }
+
+  .rd-panel-item {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .rd-panel-sep {
+    margin: 0 var(--space-1);
+    padding: 0;
+    height: 24px;
+    border-top: 0;
+    border-left: 1px solid var(--color-line);
+  }
+
+  .rd-panel-nor {
+    height: 24px;
+    margin: 0 var(--space-1);
+    padding: 0;
+    border-left: 2px dashed var(--color-danger);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rd-panel {
+    transition: width 0.15s ease;
+  }
+}
+
+.rd-panel-brand .rd-panel-text {
+  display: inline;
+}

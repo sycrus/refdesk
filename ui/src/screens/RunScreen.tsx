@@ -12,7 +12,6 @@ import type { BoardItem, RunView } from "../api/types";
 import { Button } from "../components/Button";
 import { CostMeter } from "../components/CostMeter";
 import { EvidenceCard } from "../components/EvidenceCard";
-import { GateStepper } from "../components/GateStepper";
 import { StopBanner } from "../components/StopBanner";
 import { AttributionStatus, USAGE_INSPIRATION, USAGE_PUBLISH } from "../generated/wording";
 import { DEMO_RUN_NOTE } from "../content/demo";
@@ -40,6 +39,7 @@ export interface RunScreenProps {
   onOpenItem?: (itemId: string) => void;
   onReview?: () => void;
   onApprove?: () => void;
+  onRun?: (run: RunView) => void; // the stage panel follows this run (issue 229)
 }
 
 export function RunScreen({
@@ -49,12 +49,16 @@ export function RunScreen({
   onOpenItem,
   onReview,
   onApprove,
+  onRun,
 }: RunScreenProps) {
   const demo = useDemo(); // the demo cannot start boards: no "New board" here
   const [run, setRun] = useState<RunView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  useEffect(() => {
+    if (run) onRun?.(run);
+  }, [run, onRun]);
   const [operator, setOperator] = useState("");
   const [shortlistError, setShortlistError] = useState<string | null>(null);
   const operatorId = useId();
@@ -183,8 +187,6 @@ export function RunScreen({
         )}
         {!demo && <Button onClick={onNewBoard}>New board</Button>}
       </header>
-
-      <GateStepper gates={run.gates} />
 
       <p role="status" className="rd-run-state">
         {working

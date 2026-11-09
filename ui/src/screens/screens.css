@@ -327,15 +327,45 @@
   color: var(--color-ink-muted);
 }
 
-.rd-app-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  align-items: baseline;
-  /* Same column as .rd-screen (max-width 1200px, centred) inside main's padding. */
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-4) var(--space-4) 0;
+/* The shell (issue 229): the stage panel in its own column, the screen beside it. */
+.rd-shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  min-height: 100vh;
+}
+
+.rd-shell-main {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .rd-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The read-only Brief and Search and check stages. */
+.rd-stage-brief {
+  margin: 0;
+  font-family: var(--type-title-family);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+}
+
+.rd-stage-heading {
+  margin: var(--space-4) 0 0;
+  font-family: var(--type-title-family);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+}
+
+.rd-cap-raise {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 420px;
 }
 
 /* The wordmark (issue #228): Cal Sans, self-hosted, used for nothing else. */
@@ -474,4 +504,28 @@
 
 .rd-demo-how h2 {
   margin-top: 0;
+}
+
+/* The board strip (issue 229): the stop reason and keep-local on every screen of an open
+   board other than the board itself, which shows the full stop banner. Never hidden. */
+.rd-board-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  max-width: 1200px;
+  margin: 0 auto var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-board-strip-stop strong {
+  color: var(--color-warn);
+}
+
+.rd-board-strip-local {
+  margin-left: auto;
 }
