@@ -4,6 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BoardItem, Gate, RunView } from "../api/types";
 import {
   AttributionStatus,
+  MODE_BOARD_LOCAL,
+  MODE_BOARD_MOCK,
+  MODE_BOARD_RECORDED,
+  MODE_MOCK_TAG,
   NOT_LEGAL_ADVICE,
   RightsStatus,
   STOP_REASON_BANNER,
@@ -14,6 +18,8 @@ import {
   USAGE_PUBLISH_HINT,
   USAGE_QUESTION,
 } from "../generated/wording";
+import { fill } from "../content/modes";
+import { DemoContext } from "../demo";
 import { ApproveScreen } from "./ApproveScreen";
 import { NewBoard } from "./NewBoard";
 import { ReviewScreen } from "./ReviewScreen";
@@ -592,5 +598,69 @@ describe("S6 ApproveScreen", () => {
     const body = (url: string) => JSON.parse((fetchMock.mock.calls.find(([u]) => u === url) as unknown as [string, RequestInit])[1].body as string);
     expect(body("/runs/run-1/approve")).toEqual({ approver: "Joe", acknowledged: true });
     expect(body("/runs/run-1/export")).toEqual({ format: "csv" });
+  });
+});
+
+describe("Run modes (issue 251)", () => {
+  it("tags a mock board on its strip and states the mock wording", async () => {
+    respond({
+      body: view({
+        sent_to: ["mock", "mock-judge"],
+        models_used: { generator: "mock-1", judge: "mock-1" },
+        mode: "mock",
+      }),
+    });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    const strip = await screen.findByRole("group", { name: "This board" });
+    expect(within(strip).getByText(MODE_BOARD_MOCK)).toBeTruthy();
+    expect(within(strip).getByText(MODE_MOCK_TAG)).toBeTruthy();
+  });
+
+  it("states the local wording with the models that ran", async () => {
+    respond({
+      body: view({
+        sent_to: ["ollama", "ollama-microsoft"],
+        models_used: { generator: "qwen3.5:9b", judge: "phi4" },
+        mode: "local",
+        keep_local: true,
+      }),
+    });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    const strip = await screen.findByRole("group", { name: "This board" });
+    expect(within(strip).getByText(fill(MODE_BOARD_LOCAL, { generator: "qwen3.5:9b", judge: "phi4" }))).toBeTruthy();
+    expect(within(strip).queryByText(MODE_MOCK_TAG)).toBeNull();
+    // Outside the demo, keep-local stays its own line; only the demo replaces it (#251).
+    expect(within(strip).getByText("This brief stays on this machine")).toBeTruthy();
+  });
+
+  it("in the demo, the recorded line stands for keep-local and sent-to", async () => {
+    respond({
+      body: view({
+        keep_local: true,
+        sent_to: ["ollama", "ollama-microsoft"],
+        created_at: "2026-11-08T09:00:00Z",
+        models_used: { generator: "qwen3.5:9b", judge: "phi4" },
+        mode: "recorded",
+      }),
+    });
+    render(
+      <DemoContext.Provider value={true}>
+        <RunScreen runId="run-1" onNewBoard={vi.fn()} />
+      </DemoContext.Provider>,
+    );
+    const strip = await screen.findByRole("group", { name: "This board" });
+    expect(
+      within(strip).getByText(fill(MODE_BOARD_RECORDED, { date: "8 Nov 2026", generator: "qwen3.5:9b", judge: "phi4" })),
+    ).toBeTruthy();
+    expect(strip.textContent).not.toContain("Brief sent to");
+    expect(within(strip).queryByText("This brief stays on this machine")).toBeNull();
+  });
+
+  it("keeps the plain keep-local line when the mode is not derivable", async () => {
+    respond({ body: view({ keep_local: true, mode: null }) });
+    render(<RunScreen runId="run-1" onNewBoard={vi.fn()} />);
+    const strip = await screen.findByRole("group", { name: "This board" });
+    expect(within(strip).getByText("This brief stays on this machine")).toBeTruthy();
+    expect(within(strip).queryByText(/· nothing sent to a cloud service/)).toBeNull(); // no invented line
   });
 });

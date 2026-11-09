@@ -17,6 +17,9 @@ class Provider(_Model):
     family: str
     cloud: bool
     paid: bool
+    # True for the mock server's providers (#39): their answers are scripted test text,
+    # never real models. The run-mode indicator (issue #251) uses this to say so.
+    mock: bool = False
     base_url: str | None = None
     base_url_env: str | None = None
     key_env: str | None = None

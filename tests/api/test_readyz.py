@@ -295,7 +295,9 @@ class TestEndpoint:
         assert response.status_code == 503
         assert response.json()["ready"] is False
         assert "metadata store unavailable" in response.json()["checks"]["metadata_store"]
-        assert self.healthz().json() == {"status": "ok", "profile": "full"}
+        # Liveness only here; the exact /healthz shape is pinned in test_contract (#251).
+        body = self.healthz().json()
+        assert body["status"] == "ok" and body["profile"] == "full"
 
     def test_embedding_index_down(self, tmp_path, monkeypatch):
         monkeypatch.setattr(app_module, "INDEX_DIR", tmp_path / "no-index")
@@ -305,7 +307,8 @@ class TestEndpoint:
         response = self.readyz()
         assert response.status_code == 503
         assert "unavailable" in response.json()["checks"]["embedding_index"]
-        assert self.healthz().json() == {"status": "ok", "profile": "full"}
+        body = self.healthz().json()
+        assert body["status"] == "ok" and body["profile"] == "full"
 
     def test_model_backend_down(self, tmp_path, monkeypatch):
         monkeypatch.setattr(app_module, "INDEX_DIR", index_dir(tmp_path))
@@ -319,4 +322,5 @@ class TestEndpoint:
         response = self.readyz()
         assert response.status_code == 503
         assert "model backend unavailable" in response.json()["checks"]["model_backend"]
-        assert self.healthz().json() == {"status": "ok", "profile": "full"}
+        body = self.healthz().json()
+        assert body["status"] == "ok" and body["profile"] == "full"

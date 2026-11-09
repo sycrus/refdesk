@@ -36,6 +36,15 @@ export const STOP_REASON_BANNER: Record<StopReason, string> = {
   cancelled: "Stopped: cancelled",
 };
 
+export const RunMode = {
+  RECORDED: "recorded",
+  MOCK: "mock",
+  LOCAL: "local",
+  CLOUD: "cloud",
+  RETRIEVAL_ONLY: "retrieval_only",
+} as const;
+export type RunMode = (typeof RunMode)[keyof typeof RunMode];
+
 export const EXPORTED = "Exported. This board is now read-only";
 
 export const OPINION_FLAGGED = "Opinion flagged: may state a fact the record does not give";
@@ -63,3 +72,31 @@ export const LANDING_LEAD = "Describe the brief. RefDesk finds open museum works
 export const LANDING_DEMO_REASON = "Live searches run on the owner's machine. Open an example board below.";
 
 export const STYLE_NOTE = "For inspiration only. Not cleared for publishing, or for copying {artist}'s style.";
+
+export const MODE_APP_RECORDED = "Demo · recorded runs, nothing runs here";
+
+export const MODE_APP_MOCK = "Live · mock models (test answers, not real)";
+
+export const MODE_APP_LOCAL = "Live · local models on this machine ({generator}, {judge})";
+
+export const MODE_APP_LOCAL_NO_JUDGE = "Live · local model on this machine ({generator})";
+
+export const MODE_APP_CLOUD = "Live · cloud model in use ({model})";
+
+export const MODE_APP_RETRIEVAL_ONLY = "Live · search only, no models";
+
+export const MODE_BOARD_RECORDED = "Recorded {date} on the owner's machine · local models {generator} and {judge} · nothing sent to a cloud service";
+
+export const MODE_BOARD_MOCK = "Mock models: the reasons are test text, not checked by a real model";
+
+export const MODE_BOARD_LOCAL = "Made on this machine · {generator} wrote, {judge} checked · nothing sent to a cloud service";
+
+export const MODE_BOARD_LOCAL_NO_JUDGE = "Made on this machine · {generator} wrote, no judge checked · nothing sent to a cloud service";
+
+export const MODE_BOARD_CLOUD = "Brief sent to {providers} (cloud) · {judge} checked";
+
+export const MODE_BOARD_CLOUD_NO_JUDGE = "Brief sent to {providers} (cloud) · no judge checked the reasons";
+
+export const MODE_BOARD_RETRIEVAL_ONLY = "Search only: no model wrote or checked a reason";
+
+export const MODE_MOCK_TAG = "Mock";

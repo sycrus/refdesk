@@ -80,3 +80,52 @@ LANDING_DEMO_REASON = "Live searches run on the owner's machine. Open an example
 # On a board whose brief names an in-copyright artist as a mood (#217). `{artist}` is
 # filled in by whoever adds the note.
 STYLE_NOTE = "For inspiration only. Not cleared for publishing, or for copying {artist}'s style."
+
+# Run modes (issue #251, Joe 2026-11-09): where a board's brief went, stated the same way
+# every time, because it is a trust statement. The API derives the mode from the run's own
+# `sent_to` and providers.yaml; the UI fills these templates with the run's facts (model
+# names from `models_used`, the date from `created_at`, cloud providers from
+# `cloud_providers`) and renders the result verbatim — it never composes its own wording.
+# The `_NO_JUDGE` variants cover a run whose judge could not be chosen (no valid judge
+# outside the generator's family, ADR-021): the wording must not claim a check that did
+# not happen. Draft strings — Joe approves the final wording in the PR for #251.
+
+
+class RunMode(StrEnum):
+    """How a board's brief was answered (the machine code; the words are the templates
+    below). `recorded` is the demo profile only: its runs are replays, not live."""
+
+    RECORDED = "recorded"
+    MOCK = "mock"
+    LOCAL = "local"
+    CLOUD = "cloud"
+    RETRIEVAL_ONLY = "retrieval_only"
+
+
+# The app indicator (stage panel, under the wordmark): what a new board here would use.
+MODE_APP_RECORDED = "Demo · recorded runs, nothing runs here"
+MODE_APP_MOCK = "Live · mock models (test answers, not real)"
+MODE_APP_LOCAL = "Live · local models on this machine ({generator}, {judge})"
+MODE_APP_LOCAL_NO_JUDGE = "Live · local model on this machine ({generator})"
+MODE_APP_CLOUD = "Live · cloud model in use ({model})"
+MODE_APP_RETRIEVAL_ONLY = "Live · search only, no models"
+
+# The board indicator (the board's strip, next to the stop reason): how this board was made.
+MODE_BOARD_RECORDED = (
+    "Recorded {date} on the owner's machine · local models {generator} and {judge} · "
+    "nothing sent to a cloud service"
+)
+MODE_BOARD_MOCK = "Mock models: the reasons are test text, not checked by a real model"
+MODE_BOARD_LOCAL = (
+    "Made on this machine · {generator} wrote, {judge} checked · nothing sent to a cloud service"
+)
+MODE_BOARD_LOCAL_NO_JUDGE = (
+    "Made on this machine · {generator} wrote, no judge checked · nothing sent to a cloud service"
+)
+MODE_BOARD_CLOUD = "Brief sent to {providers} (cloud) · {judge} checked"
+MODE_BOARD_CLOUD_NO_JUDGE = "Brief sent to {providers} (cloud) · no judge checked the reasons"
+MODE_BOARD_RETRIEVAL_ONLY = "Search only: no model wrote or checked a reason"
+
+# The small tag on a mock board's strip and Boards card (#251): a mock board must never be
+# mistaken for a real result.
+MODE_MOCK_TAG = "Mock"

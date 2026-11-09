@@ -7,6 +7,7 @@
 # family: used to make sure a model never judges its own family's output (ADR-021).
 # cloud:  keep_local blocks every provider with cloud: true (FR-11).
 # paid:   needs a key in .env, a budget in config/budgets.yaml and a run with --approve.
+# mock:   the scripted test server (#39); the run-mode indicator says "mock" (issue #251).
 
 providers:
   deepseek:
@@ -42,6 +43,7 @@ providers:
     family: mock
     cloud: false
     paid: false
+    mock: true
     base_url: http://127.0.0.1:8100/v1   # the mock server (#39)
   mock-judge:
     # The same mock server as a judge. Its own family, so the mock generator is never
@@ -49,6 +51,7 @@ providers:
     family: mock-judge
     cloud: false
     paid: false
+    mock: true
     base_url: http://127.0.0.1:8100/v1
 
 tiers:

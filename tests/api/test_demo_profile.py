@@ -107,8 +107,15 @@ class TestDemoServesReads:
 
     def test_healthz_answers_and_names_the_profile(self, demo):
         # The UI reads the profile here to show the demo home and banner (it hides
-        # nothing the API would allow: the API still refuses every write).
-        assert TestClient(app).get("/healthz").json() == {"status": "ok", "profile": "demo"}
+        # nothing the API would allow: the API still refuses every write). The demo is
+        # always `recorded` (issue #251): nothing runs here, so no tier is named.
+        assert TestClient(app).get("/healthz").json() == {
+            "status": "ok",
+            "profile": "demo",
+            "mode": "recorded",
+            "generator": None,
+            "judge": None,
+        }
 
     def test_healthz_names_the_full_profile_by_default(self, monkeypatch):
         monkeypatch.delenv("REFDESK_PROFILE", raising=False)

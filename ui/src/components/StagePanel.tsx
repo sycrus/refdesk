@@ -6,7 +6,7 @@
 // only maps each stage to its gates (PRD 8B), and the API's states pass through unchanged.
 // Without it, the gates were one stepper on the board screen only, and the other screens
 // of a board had no way back to an earlier stage.
-import type { Gate, GateId, GateState, RunView } from "../api/types";
+import type { Gate, GateId, GateState, RunMode, RunView } from "../api/types";
 import { Icon, type IconName } from "./Icon";
 import "./StagePanel.css";
 
@@ -98,9 +98,19 @@ export interface StagePanelProps {
   board?: { name: string; run: RunView; current: StageKey | null; onOpen: (stage: StageKey) => void; href: (stage: StageKey) => string };
   minimised: boolean;
   onToggle: () => void;
+  appMode?: { text: string; mock: boolean; mode: RunMode } | null; // issue 251, from /healthz
 }
 
-export function StagePanel({ links, board, minimised, onToggle }: StagePanelProps) {
+// One icon per run mode, beside the words (never colour alone); mock uses the warning tone.
+const MODE_ICON: Record<RunMode, IconName> = {
+  recorded: "history",
+  mock: "alert",
+  local: "check",
+  cloud: "alert",
+  retrieval_only: "search",
+};
+
+export function StagePanel({ links, board, minimised, onToggle, appMode }: StagePanelProps) {
   const stages = board ? stagesFor(board.run) : [];
   return (
     <nav className={`rd-panel${minimised ? " rd-panel--min" : ""}`} aria-label="refdesk">
@@ -111,6 +121,17 @@ export function StagePanel({ links, board, minimised, onToggle }: StagePanelProp
         </span>
         <span className="rd-visually-hidden">RefDesk</span>
       </span>
+      {appMode && (
+        <p
+          className={`rd-panel-mode${appMode.mock ? " rd-panel-mode--mock" : ""}`}
+          title={minimised ? appMode.text : undefined}
+        >
+          <span className="rd-panel-node rd-panel-mode-icon" aria-hidden="true">
+            <Icon name={MODE_ICON[appMode.mode] ?? "check"} />
+          </span>
+          <span className="rd-panel-text">{appMode.text}</span>
+        </p>
+      )}
       <ul className="rd-panel-list">
         {links.map((link) => (
           <li key={link.key}>

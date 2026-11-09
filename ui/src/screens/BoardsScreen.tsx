@@ -10,6 +10,7 @@ import type { RunSummary } from "../api/types";
 import { Icon, type IconName } from "../components/Icon";
 import { safeUrl } from "../components/safeUrl";
 import { type BoardStage, stageLine } from "../content/boards";
+import { isMockBoard, MOCK_TAG } from "../content/modes";
 import { useDemo } from "../demo";
 import "./screens.css";
 
@@ -64,7 +65,10 @@ function BoardCard({ row, onOpen, onRenamed }: { row: RunSummary; onOpen: () => 
           )}
         </span>
         <span className="rd-board-card-body">
-          <strong className="rd-board-card-name">{row.name}</strong>
+          <strong className="rd-board-card-name">
+            {row.name}
+            {isMockBoard(row) && <span className="rd-tag rd-tag--mock">{MOCK_TAG}</span>}
+          </strong>
           <span className={`rd-board-card-stage rd-board-card-stage--${stage}`}>
             <Icon name={STAGE_ICON[stage] ?? "circle"} />
             {stageLine(stage)}

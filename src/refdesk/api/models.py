@@ -14,7 +14,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from refdesk.schema import ArtworkRecord
-from refdesk.wording import AttributionStatus, RightsStatus, StopReason
+from refdesk.wording import AttributionStatus, RightsStatus, RunMode, StopReason
 
 NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -310,6 +310,18 @@ class RunView(_Model):
         description="The board's name (issue #234). New boards are named from the run ID, "
         "never the brief; rename with POST /runs/{run_id}/name",
     )
+    mode: RunMode | None = Field(
+        None,
+        description="How this board's brief was answered (issue #251): recorded, mock, "
+        "local, cloud or retrieval_only, from sent_to and the providers config. None "
+        "when it cannot be derived, so no indicator is shown rather than a wrong one",
+    )
+    cloud_providers: list[str] = Field(
+        [], description="The cloud providers among sent_to (issue #251), for the cloud line"
+    )
+    created_at: datetime | None = Field(
+        None, description="When the run started (issue #251, the recorded line's date)"
+    )
     events: list[RunEvent] = Field(
         [], description="The run log, brief redacted (PRD 10.2); the trace view until Phoenix"
     )
@@ -376,6 +388,9 @@ class RunSummary(_Model):
         [], description="Up to four open works for the Boards page, kept works first"
     )
     saved_at: datetime | None = Field(None, description="When the shortlist last changed")
+    mode: RunMode | None = Field(
+        None, description="How this board's brief was answered (issue #251); None if not derivable"
+    )
 
 
 class ReportAccepted(_Model):
@@ -501,10 +516,32 @@ class Problem(_Model):
     message: str
 
 
+class TierInfo(_Model):
+    """A configured LLM tier, for the run-mode indicator (issue #251). Names only: never
+    a base URL, an API key or an env var name — this endpoint is public and unauthenticated."""
+
+    tier: str
+    provider: str
+    model: str | None
+    cloud: bool = Field(description="keep_local would refuse this tier (FR-11)")
+    mock: bool = Field(description="A mock provider: its answers are test text, not real models")
+
+
 class Health(_Model):
     status: Literal["ok"] = "ok"
     profile: Literal["full", "demo"] = Field(
         "full", description="Deployment profile (ADR-025); `demo` is read-only"
+    )
+    mode: RunMode | None = Field(
+        None,
+        description="How a new board would run here (issue #251). In the demo profile "
+        "always `recorded`; None when it cannot be derived",
+    )
+    generator: TierInfo | None = Field(
+        None, description="The configured generator tier; None for retrieval-only or demo"
+    )
+    judge: TierInfo | None = Field(
+        None, description="The configured judge tier (ADR-021); None if none can be chosen"
     )
 
 

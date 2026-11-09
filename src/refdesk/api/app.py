@@ -16,6 +16,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
+import yaml
 from fastapi import BackgroundTasks, Depends, FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -47,6 +48,7 @@ from refdesk.api.models import (
     SearchRequest,
     SearchResults,
     ShortlistRequest,
+    TierInfo,
 )
 from refdesk.api.models import RetrieverUnavailable as RetrieverUnavailableBody
 from refdesk.api.profile import DEMO_MESSAGE, DisabledInDemo, demo_guard, get_profile
@@ -59,9 +61,13 @@ from refdesk.boards import (
     UnknownItem,
     UnknownRun,
     default_service,
+    reasoning_tiers,
 )
+from refdesk.llm.client import NoValidJudge, pick_judge
+from refdesk.llm.config import ProvidersConfig
 from refdesk.readiness import report as readiness_report
 from refdesk.retrieval.combined import ConditionNotUnderstood
+from refdesk.wording import RunMode
 
 
 def resume_interrupted(service: BoardService) -> list[threading.Thread]:
@@ -483,11 +489,66 @@ def list_reports(service: Service):
     return service.reports()
 
 
+def _tier_info(config: ProvidersConfig, name: str) -> TierInfo | None:
+    """A configured tier by name, with its provider's nature — names only, never a base
+    URL, key or env var (TierInfo). Unknown name: None."""
+    tier = config.tiers.get(name)
+    if tier is None:
+        return None
+    provider = config.providers[tier.provider]
+    return TierInfo(
+        tier=name, provider=tier.provider, model=tier.model,
+        cloud=provider.cloud, mock=provider.mock,
+    )  # fmt: skip
+
+
 @app.get("/healthz", response_model=Health, tags=["ops"])
 def healthz():
     """Liveness: the process is up. Touches no dependency, so it answers even when
-    /readyz fails. Names the profile, so the UI can show the demo home and banner."""
-    return Health(profile=get_profile())
+    /readyz fails. Names the profile, so the UI can show the demo home and banner.
+
+    Also says how a new board would run here (issue #251): the configured mode and the
+    generator and judge tiers, from the config files and the REFDESK_*_TIER overrides —
+    the same reads default_reasoner makes, through reasoning_tiers, so the indicator
+    cannot disagree with what actually runs. A config it cannot read leaves the mode
+    unset rather than failing: liveness never depends on a config file being loadable.
+    In the demo profile there is no configured tier to name: nothing runs here, every
+    board is a recording."""
+    profile = get_profile()
+    if profile == "demo":
+        return Health(profile=profile, mode=RunMode.RECORDED)
+    generator = judge = None
+    try:
+        config = yaml.safe_load(Path("config/retrieval.yaml").read_text(encoding="utf-8")) or {}
+        settings = config.get("api", {}).get("reasoning") or {}
+        providers = ProvidersConfig.load("config/providers.yaml")
+    except (OSError, yaml.YAMLError, ValueError):
+        settings, providers = {}, None
+    generator_spec, judge_spec = reasoning_tiers(settings)
+    if providers is not None and generator_spec:
+        generator = _tier_info(providers, generator_spec)
+        if judge_spec == "auto":
+            # The same family rule the run uses (ADR-021): no judge outside the
+            # generator's family, no judge at all.
+            try:
+                judge = _tier_info(
+                    providers,
+                    pick_judge(
+                        providers, generator_tier=generator_spec, candidates=providers.judges
+                    ),
+                )  # fmt: skip
+            except NoValidJudge:
+                judge = None
+        elif judge_spec != "none":
+            judge = _tier_info(providers, judge_spec)
+    mode = None
+    if generator is not None:
+        mode = (
+            RunMode.CLOUD if generator.cloud else RunMode.MOCK if generator.mock else RunMode.LOCAL
+        )
+    elif not generator_spec:
+        mode = RunMode.RETRIEVAL_ONLY
+    return Health(profile=profile, mode=mode, generator=generator, judge=judge)
 
 
 # Where the embedding index lives (refdesk.retrieval.registry.Resources.default reads

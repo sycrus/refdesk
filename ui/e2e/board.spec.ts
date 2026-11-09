@@ -2,6 +2,7 @@
 // works: Van Gogh's Wheat Field with Cypresses (open) and two that need permission.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { MODE_APP_MOCK, MODE_BOARD_MOCK, MODE_MOCK_TAG } from "../src/generated/wording";
 
 test.beforeEach(async ({ page }) => {
   // Offline and deterministic: never fetch museum images during tests.
@@ -48,6 +49,24 @@ test("creates a board and shows S3 with a rationale, both badges and evidence", 
   await expect(card.getByText(/^Score /)).toBeVisible();
   await expect(page.getByText("mock, mock-judge")).toBeVisible();
   await expect(page.getByRole("list", { name: "Stages of this board" })).toBeVisible(); // the gates, in the stage panel (issue 229)
+});
+
+// Issue 251: a mock board says so everywhere it shows. The e2e API runs the committed
+// default (mock generator and judge), so every board here is mode=mock. The demo's
+// recorded line is covered in vitest; it needs a demo-profile server (#252).
+test("a mock board shows the mock indicator on the strip, panel and Boards card", async ({ page }) => {
+  await newBoard(page, "oil");
+  const strip = page.getByRole("group", { name: "This board" });
+  await expect(strip.getByText(MODE_MOCK_TAG, { exact: true })).toBeVisible();
+  await expect(strip.getByText(MODE_BOARD_MOCK)).toBeVisible();
+  await expect(page.getByText(MODE_APP_MOCK)).toBeVisible(); // the stage panel, under the wordmark
+  // Its Boards card carries the tag too. Other specs share this store, so pick this
+  // board's card by its name (the run ID), never by position.
+  const runId = new URL(page.url()).searchParams.get("run")!;
+  const name = `Board ${runId.replace("run-", "").slice(0, 6)}`;
+  await page.goto("/?boards=1");
+  const card = page.getByRole("list", { name: "Boards" }).getByRole("listitem").filter({ hasText: name });
+  await expect(card.getByText(MODE_MOCK_TAG, { exact: true })).toBeVisible();
 });
 
 test("reference-only shows every rights status; permission required has no image", async ({ page }) => {
