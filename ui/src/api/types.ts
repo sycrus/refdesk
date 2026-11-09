@@ -1,8 +1,8 @@
 // The parts of the API contract the components read (src/refdesk/api/models.py,
 // docs/api/openapi.json). Handwritten for now; keep in step with the models.
-import type { AttributionStatus, RightsStatus, StopReason } from "../generated/wording";
+import type { AttributionStatus, RightsStatus, RunMode, StopReason } from "../generated/wording";
 
-export type { AttributionStatus, RightsStatus, StopReason };
+export type { AttributionStatus, RightsStatus, RunMode, StopReason };
 
 export type GateId = "G0" | "G1" | "G2" | "G3" | "G4" | "G5";
 export type GateState = "passed" | "active" | "pending" | "blocked" | "skipped";
@@ -122,6 +122,9 @@ export interface RunView {
   read_only: boolean;
   saved_at?: string | null; // when the shortlist last changed
   name?: string | null; // the board's name (issue 234)
+  mode?: RunMode | null; // how this board's brief was answered (issue 251); null: not derivable
+  cloud_providers?: string[]; // the cloud providers among sent_to (issue 251)
+  created_at?: string | null; // when the run started (issue 251, the recorded line's date)
   events?: RunEvent[];
 }
 
@@ -164,6 +167,27 @@ export interface RunSummary {
   stage: string; // how far the board has got
   cover: { record_id: string; image_url: string; alt: string }[]; // open works only, kept first
   saved_at?: string | null;
+  mode?: RunMode | null; // how this board's brief was answered (issue 251)
+}
+
+// A configured LLM tier, from /healthz (issue 251). Names only — the API never sends a
+// base URL, key or env var name here.
+export interface TierInfo {
+  tier: string;
+  provider: string;
+  model: string | null;
+  cloud: boolean; // keep_local would refuse this tier
+  mock: boolean; // a mock provider: test answers, not real models
+}
+
+// GET /healthz (issue 251): the profile, how a new board would run here, and the
+// configured generator and judge tiers.
+export interface Health {
+  status: "ok";
+  profile: "full" | "demo";
+  mode: RunMode | null;
+  generator: TierInfo | null;
+  judge: TierInfo | null;
 }
 
 export interface Problem {

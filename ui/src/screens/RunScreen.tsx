@@ -29,6 +29,7 @@ import { storedCardStyle } from "../cardStyle";
 import { StopBanner } from "../components/StopBanner";
 import { AttributionStatus, USAGE_INSPIRATION, USAGE_PUBLISH } from "../generated/wording";
 import { DEMO_RUN_NOTE } from "../content/demo";
+import { boardModeLine, isMockBoard, MOCK_TAG } from "../content/modes";
 import { useDemo } from "../demo";
 import { sentToText } from "./HistoryScreen";
 import "./screens.css";
@@ -164,6 +165,9 @@ export function RunScreen({
   const keptCount = run.items.filter((item) => item.selected).length;
   const keptFlagged = run.items.filter((i) => i.selected && i.attribution_status !== AttributionStatus.VERIFIED).length;
   const sentTo = sentToText(run.sent_to);
+  // How this board was made (issue 251). In the demo the recorded line replaces
+  // "this machine": to a visitor, that phrase reads as their own machine.
+  const modeLine = boardModeLine(run);
   const models = Object.entries(run.models_used ?? {});
   const verified = run.items.filter((item) => item.attribution_status === AttributionStatus.VERIFIED).length;
   const doneText =
@@ -198,9 +202,11 @@ export function RunScreen({
               )}
             </div>
           </header>
-          {/* Never folded away: the stop reason, keep-local, and where the brief was sent. */}
+          {/* Never folded away: the stop reason, how the board was made, and where the
+              brief was sent. In the demo the recorded line stands for both (issue 251). */}
           {(
             <div className="rd-board-strip rd-board-strip--board" role="group" aria-label="This board">
+              {isMockBoard(run) && <span className="rd-tag rd-tag--mock">{MOCK_TAG}</span>}
               {run.stop_banner && (
                 <span className="rd-board-strip-stop">
                   <strong>{run.stop_banner}</strong>
@@ -208,8 +214,9 @@ export function RunScreen({
                   {!run.read_only && " · Nothing was exported"}
                 </span>
               )}
-              <span className="rd-board-strip-sent">{`Brief sent to: ${sentTo}`}</span>
-              {run.keep_local && <span className="rd-board-strip-local">This brief stays on this machine</span>}
+              {modeLine && <span className="rd-board-strip-mode">{modeLine}</span>}
+              {!demo && <span className="rd-board-strip-sent">{`Brief sent to: ${sentTo}`}</span>}
+              {!demo && run.keep_local && <span className="rd-board-strip-local">This brief stays on this machine</span>}
             </div>
           )}
           {demo && <p className="rd-demo-run-note">{DEMO_RUN_NOTE}</p>}
@@ -271,6 +278,9 @@ export function RunScreen({
             )}
             {!demo && <Button onClick={onNewBoard}>New board</Button>}
           </header>
+          {modeLine && (
+            <p className={`rd-board-mode${isMockBoard(run) ? " rd-board-mode--mock" : ""}`}>{modeLine}</p>
+          )}
           <p role="status" className="rd-run-state">
             {working
               ? STATE_TEXT[run.state] ?? `Working: ${run.state}`

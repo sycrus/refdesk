@@ -4,6 +4,7 @@ import type {
   BoardRequest,
   ErrorReport,
   ExportReceipt,
+  Health,
   ReportAccepted,
   ReviewRequest,
   RunCreated,
@@ -119,8 +120,9 @@ export function reportError(report: ErrorReport): Promise<ReportAccepted> {
 }
 
 // Liveness and the deployment profile (ADR-025). The UI shows the demo home and banner
-// when the profile is `demo`; the API refuses every write there regardless.
-export async function getHealth(): Promise<{ status: "ok"; profile: "full" | "demo" }> {
+// when the profile is `demo`; the API refuses every write there regardless. It also
+// carries the run mode and configured tiers (issue 251) for the panel's indicator.
+export async function getHealth(): Promise<Health> {
   const response = await fetch("/healthz");
   if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
   return response.json();

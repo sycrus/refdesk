@@ -1093,7 +1093,7 @@
           "ops"
         ],
         "summary": "Healthz",
-        "description": "Liveness: the process is up. Touches no dependency, so it answers even when\n/readyz fails. Names the profile, so the UI can show the demo home and banner.",
+        "description": "Liveness: the process is up. Touches no dependency, so it answers even when\n/readyz fails. Names the profile, so the UI can show the demo home and banner.\n\nAlso says how a new board would run here (issue #251): the configured mode and the\ngenerator and judge tiers, from the config files and the REFDESK_*_TIER overrides —\nthe same reads default_reasoner makes, through reasoning_tiers, so the indicator\ncannot disagree with what actually runs. A config it cannot read leaves the mode\nunset rather than failing: liveness never depends on a config file being loadable.\nIn the demo profile there is no configured tier to name: nothing runs here, every\nboard is a recording.",
         "operationId": "healthz_healthz_get",
         "responses": {
           "200": {
@@ -2020,6 +2020,39 @@
             "title": "Profile",
             "description": "Deployment profile (ADR-025); `demo` is read-only",
             "default": "full"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How a new board would run here (issue #251). In the demo profile always `recorded`; None when it cannot be derived"
+          },
+          "generator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The configured generator tier; None for retrieval-only or demo"
+          },
+          "judge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TierInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The configured judge tier (ADR-021); None if none can be chosen"
           }
         },
         "additionalProperties": false,
@@ -2945,6 +2978,18 @@
         "title": "RunEvent",
         "description": "One line of a run's events.jsonl (PRD 10.2 run log, issue #156). The brief is\nredacted before the line is written."
       },
+      "RunMode": {
+        "type": "string",
+        "enum": [
+          "recorded",
+          "mock",
+          "local",
+          "cloud",
+          "retrieval_only"
+        ],
+        "title": "RunMode",
+        "description": "How a board's brief was answered (the machine code; the words are the templates\nbelow). `recorded` is the demo profile only: its runs are replays, not live."
+      },
       "RunSummary": {
         "properties": {
           "run_id": {
@@ -3048,6 +3093,17 @@
             ],
             "title": "Saved At",
             "description": "When the shortlist last changed"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How this board's brief was answered (issue #251); None if not derivable"
           }
         },
         "additionalProperties": false,
@@ -3210,6 +3266,39 @@
             ],
             "title": "Name",
             "description": "The board's name (issue #234). New boards are named from the run ID, never the brief; rename with POST /runs/{run_id}/name"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How this board's brief was answered (issue #251): recorded, mock, local, cloud or retrieval_only, from sent_to and the providers config. None when it cannot be derived, so no indicator is shown rather than a wrong one"
+          },
+          "cloud_providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cloud Providers",
+            "description": "The cloud providers among sent_to (issue #251), for the cloud line",
+            "default": []
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "When the run started (issue #251, the recorded line's date)"
           },
           "events": {
             "items": {
@@ -3438,6 +3527,50 @@
         ],
         "title": "StopReason",
         "description": "Why a run ended early (PRD 10.2). The value is the machine code; `banner` is the\nStopBanner title."
+      },
+      "TierInfo": {
+        "properties": {
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "cloud": {
+            "type": "boolean",
+            "title": "Cloud",
+            "description": "keep_local would refuse this tier (FR-11)"
+          },
+          "mock": {
+            "type": "boolean",
+            "title": "Mock",
+            "description": "A mock provider: its answers are test text, not real models"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tier",
+          "provider",
+          "model",
+          "cloud",
+          "mock"
+        ],
+        "title": "TierInfo",
+        "description": "A configured LLM tier, for the run-mode indicator (issue #251). Names only: never\na base URL, an API key or an env var name — this endpoint is public and unauthenticated."
       },
       "UsageMode": {
         "type": "string",

@@ -530,6 +530,42 @@
   margin-left: auto;
 }
 
+/* The board's run mode (issue 251): how this board's brief was answered, in the fixed
+   wording, on the strip and under the header while the run works. */
+.rd-board-strip-mode,
+.rd-board-mode {
+  color: var(--color-ink-muted);
+}
+
+.rd-board-mode {
+  max-width: 1200px;
+  margin: 0 auto var(--space-4);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-board-mode--mock {
+  color: var(--color-warn);
+}
+
+/* The Mock tag (issue 251): a small warning-toned tag on a mock board's strip and its
+   Boards card, so test answers are never mistaken for a real result. */
+.rd-tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-warn);
+  border-radius: var(--radius-sm);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  font-family: var(--type-label-family);
+  font-size: var(--type-label-size);
+  font-weight: var(--type-label-weight);
+  letter-spacing: var(--type-label-tracking, normal);
+  text-transform: uppercase;
+  vertical-align: 0.1em;
+}
+
 /* S1 New board, the landing page (issue 230). One prompt with one action; everything else
    is quieter. Spacing scales with the screen height so the page fits without scrolling. */
 .rd-landing {

@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RunSummary } from "../api/types";
+import { MODE_MOCK_TAG } from "../generated/wording";
 import { BoardsScreen } from "./BoardsScreen";
 import { SettingsScreen } from "./SettingsScreen";
 
@@ -83,6 +84,19 @@ describe("S10 Boards", () => {
     expect(await screen.findByText("Mid-Autumn tin")).toBeTruthy();
     const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/name"));
     expect(JSON.parse(String(call![1]!.body))).toEqual({ name: "Mid-Autumn tin" });
+  });
+
+  it("tags a mock board's card, and leaves real boards untagged (issue 251)", async () => {
+    api([
+      row({ name: "Mock answers", mode: "mock" }),
+      row({ run_id: "run-2", name: "Real answers", mode: "local" }),
+    ]);
+    render(<BoardsScreen onOpenBoard={vi.fn()} />);
+    await screen.findByText("Mock answers");
+    const mockCard = screen.getByText("Mock answers").closest("li") as HTMLElement;
+    const realCard = screen.getByText("Real answers").closest("li") as HTMLElement;
+    expect(within(mockCard).getByText(MODE_MOCK_TAG)).toBeTruthy();
+    expect(within(realCard).queryByText(MODE_MOCK_TAG)).toBeNull();
   });
 });
 

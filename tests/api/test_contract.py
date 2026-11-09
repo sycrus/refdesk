@@ -84,8 +84,24 @@ class TestSpec:
 
 
 class TestLiveEndpoints:
-    def test_healthz_is_live(self, client):
-        assert client.get("/healthz").json() == {"status": "ok", "profile": "full"}
+    def test_healthz_is_live(self, client, monkeypatch):
+        # The committed default (config/retrieval.yaml) runs the mock server; with no env
+        # override /healthz reports it with its run mode (issue #251).
+        monkeypatch.delenv("REFDESK_GENERATOR_TIER", raising=False)
+        monkeypatch.delenv("REFDESK_JUDGE_TIER", raising=False)
+        assert client.get("/healthz").json() == {
+            "status": "ok",
+            "profile": "full",
+            "mode": "mock",
+            "generator": {
+                "tier": "mock", "provider": "mock", "model": "mock-1",
+                "cloud": False, "mock": True,
+            },
+            "judge": {
+                "tier": "mock-judge", "provider": "mock-judge", "model": "mock-1",
+                "cloud": False, "mock": True,
+            },
+        }
 
     def test_readyz_reports_the_three_dependency_checks(self, tmp_path, monkeypatch, client):
         # Implemented (#168): with a healthy service over a temporary store it is ready.

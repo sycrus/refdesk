@@ -13,7 +13,7 @@
 // ?run=<id>&stage=brief and ?run=<id>&stage=search.
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, createBoard, getHealth, getRun } from "./api/client";
-import type { BoardItem, RunView } from "./api/types";
+import type { BoardItem, Health, RunView } from "./api/types";
 import { NewBoard } from "./screens/NewBoard";
 import { ApproveScreen } from "./screens/ApproveScreen";
 import { HistoryScreen, RunAudit } from "./screens/HistoryScreen";
@@ -22,6 +22,7 @@ import { RunScreen } from "./screens/RunScreen";
 import { TermsScreen } from "./screens/TermsScreen";
 import { FOOTER_LINE, TERMS_TITLE } from "./content/terms";
 import { DEMO_BANNER, DEMO_BANNER_MORE } from "./content/demo";
+import { appModeLine, boardModeLine, isMockBoard, MOCK_TAG } from "./content/modes";
 import { DemoContext } from "./demo";
 import { DemoHome } from "./screens/DemoHome";
 import { BriefStage, SearchStage } from "./screens/StageScreens";
@@ -75,13 +76,15 @@ export function App() {
   const [minimised, setMinimised] = useState<boolean>(storedMinimised);
   const [error, setError] = useState<string | null>(null);
   // null until /healthz answers; a failed check is treated as the full profile.
-  const [profile, setProfile] = useState<"full" | "demo" | null>(null);
-  const demo = profile === "demo";
+  const [health, setHealth] = useState<Health | null>(null);
+  const demo = health?.profile === "demo";
 
   useEffect(() => {
     getHealth()
-      .then((health) => setProfile(health.profile === "demo" ? "demo" : "full"))
-      .catch(() => setProfile("full"));
+      .then(setHealth)
+      .catch(() =>
+        setHealth({ status: "ok", profile: "full", mode: null, generator: null, judge: null }),
+      );
   }, []);
 
   useEffect(() => {
@@ -176,6 +179,9 @@ export function App() {
 
   // Which stage the open screen belongs to, for the panel's "you are here".
   const board = runId && panelRun && panelRun.run_id === runId ? panelRun : null;
+  // How this board was made (issue 251): the recorded line replaces "this machine" in the
+  // demo, where "this machine" would read as the visitor's own.
+  const modeLine = board ? boardModeLine(board) : null;
   let currentKey: StageKey | null = null;
   if (runId) {
     if (stage) currentKey = stage;
@@ -268,6 +274,7 @@ export function App() {
         <StagePanel
           minimised={minimised}
           onToggle={toggleMinimised}
+          appMode={health ? appModeLine(health) : null}
           links={[
             {
               key: "new",
@@ -317,15 +324,17 @@ export function App() {
         <div className="rd-shell-main">
       <main>
         {/* Search and check and the board show the full stop banner themselves. */}
-        {board && (stage === "brief" || approving || reviewing) && (board.stop_banner || board.keep_local) && (
+        {board && (stage === "brief" || approving || reviewing) && (board.stop_banner || board.keep_local || modeLine) && (
           <div className="rd-board-strip" role="group" aria-label="This board">
+            {isMockBoard(board) && <span className="rd-tag rd-tag--mock">{MOCK_TAG}</span>}
             {board.stop_banner && (
               <span className="rd-board-strip-stop">
                 <strong>{board.stop_banner}</strong>
                 {!board.read_only && " · Nothing was exported"}
               </span>
             )}
-            {board.keep_local && <span className="rd-board-strip-local">This brief stays on this machine</span>}
+            {modeLine && <span className="rd-board-strip-mode">{modeLine}</span>}
+            {!demo && board.keep_local && <span className="rd-board-strip-local">This brief stays on this machine</span>}
           </div>
         )}
         {error && (
@@ -368,7 +377,7 @@ export function App() {
             itemId={itemId}
             onCloseItem={() => open(runId)}
           />
-        ) : profile === null ? (
+        ) : health === null ? (
           <p role="status">Loading…</p>
         ) : (
           <>

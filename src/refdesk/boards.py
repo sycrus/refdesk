@@ -76,6 +76,7 @@ from refdesk.checkpoints import (
     ResumeLog,
     checkpointed_search,
 )
+from refdesk.llm.config import ProvidersConfig
 from refdesk.loop import LoopConfig, LoopController, LoopResult
 from refdesk.provenance import open_image_url, rights_columns
 from refdesk.rationale import field_value
@@ -92,6 +93,7 @@ from refdesk.wording import (
     NOT_LEGAL_ADVICE,
     OPINION_FLAGGED,
     AttributionStatus,
+    RunMode,
     StopReason,
 )
 
@@ -159,8 +161,12 @@ class CapRaiseRecord:
 class RunStore:
     """Run state in SQLite. One connection per call (see the module note on threads)."""
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, annotate: Callable[[RunView], None] | None = None):
         self.path = Path(path)
+        # The run-mode stamp (issue #251), wired by default_service with the providers
+        # config and the profile. Deriving at the store means every reader agrees: the
+        # board methods, the history and the demo's baked-in runs.
+        self._annotate = annotate
         self.path.parent.mkdir(parents=True, exist_ok=True)
         db = self._connect()
         try:
@@ -174,31 +180,55 @@ class RunStore:
         return sqlite3.connect(self.path)
 
     def save(self, view: RunView, request: BoardRequest | None = None) -> None:
+        # Stamp the caller's object in place, before the rebind below, so a board method
+        # that saves and returns the same view returns it with its mode.
+        if self._annotate is not None:
+            self._annotate(view)
         now = _now()
-        if request is None and view.name is None:
-            # The loop rebuilds the view as it runs; the board's name is not the loop's to
-            # drop (issue #234). A save without a name keeps the stored one.
-            current = self.get(view.run_id)
-            if current is not None and current.name:
-                view = view.model_copy(update={"name": current.name})
-        stored = view.model_dump_json(exclude={"events"})  # events live in events.jsonl
-        with self._connect() as db:
-            if request is None:
+        if request is None:
+            # The loop rebuilds the view as it runs; the board's name and start time are
+            # not the loop's to drop (issues #234, #251). A save without them keeps the
+            # stored ones, on the caller's object.
+            if view.name is None or view.created_at is None:
+                current = self.get(view.run_id)
+                if current is not None:
+                    if view.name is None and current.name:
+                        view.name = current.name
+                    if view.created_at is None and current.created_at:
+                        view.created_at = current.created_at
+            stored = view.model_dump_json(exclude={"events"})  # events live in events.jsonl
+            with self._connect() as db:
                 db.execute(
                     "UPDATE runs SET view = ?, updated_at = ? WHERE run_id = ?",
                     (stored, now, view.run_id),
                 )
-            else:
+        else:
+            stored = view.model_dump_json(exclude={"events"})  # events live in events.jsonl
+            with self._connect() as db:
                 db.execute(
                     "INSERT INTO runs (run_id, created_at, updated_at, request, view) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (view.run_id, now, now, request.model_dump_json(), stored),
                 )
+                # The created view carries its start time at once (issue #251, the
+                # recorded line's date); a read would stamp the same value.
+                view.created_at = datetime.fromisoformat(now)
 
     def get(self, run_id: str) -> RunView | None:
         with self._connect() as db:
-            row = db.execute("SELECT view FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-        return RunView.model_validate_json(row[0]) if row else None
+            row = db.execute(
+                "SELECT created_at, view FROM runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+        if row is None:
+            return None
+        view = RunView.model_validate_json(row[1])
+        # created_at is a column, not a view field; stamped here so the board screen can
+        # show the recorded date (issue #251). Rows written before a field existed (name,
+        # mode) are filled by the same defaults the list uses.
+        view.created_at = datetime.fromisoformat(row[0])
+        if self._annotate is not None:
+            self._annotate(view)
+        return view
 
     def cancel(self, run_id: str) -> None:
         with self._connect() as db:
@@ -271,7 +301,13 @@ class RunStore:
             rows = db.execute(
                 "SELECT created_at, view FROM runs ORDER BY created_at DESC, rowid DESC"
             ).fetchall()
-        return [(created, RunView.model_validate_json(view)) for created, view in rows]
+        views = []
+        for created, raw in rows:
+            view = RunView.model_validate_json(raw)
+            if self._annotate is not None:
+                self._annotate(view)
+            views.append((created, view))
+        return views
 
     def interrupted_ids(self) -> list[str]:
         """Runs whose stored view is not terminal — the runs a restarted process should
@@ -703,6 +739,50 @@ def cover_images(view: RunView, limit: int = 4) -> list[CoverImage]:
         if len(cover) == limit:
             break
     return cover
+
+
+def run_mode(sent_to: list[str], providers: ProvidersConfig | None) -> RunMode | None:
+    """How a run's brief was answered (issue #251), from the providers it actually used
+    (`sent_to` holds provider names) and their nature in providers.yaml. Cloud wins over
+    mock, mock over local: state the strongest fact first. Nothing sent means no model
+    ran: retrieval only. A provider the config no longer names cannot be classified —
+    None, so the UI shows no indicator rather than one that might be wrong.
+
+    What breaks without it: the UI would have to guess where a brief went from provider
+    names, and a guessed trust statement is worse than none."""
+    if not sent_to:
+        return RunMode.RETRIEVAL_ONLY
+    if providers is None:
+        return None
+    natures = [providers.providers.get(name) for name in sent_to]
+    if any(n is None for n in natures):
+        return None
+    if any(n.cloud for n in natures):
+        return RunMode.CLOUD
+    if any(n.mock for n in natures):
+        return RunMode.MOCK
+    return RunMode.LOCAL
+
+
+def cloud_providers(sent_to: list[str], providers: ProvidersConfig | None) -> list[str]:
+    """The cloud providers among a run's sent_to (issue #251): the names for the cloud
+    line. Unknown names are skipped; they cannot be called cloud."""
+    if providers is None:
+        return []
+    return [n for n in sent_to if (p := providers.providers.get(n)) is not None and p.cloud]
+
+
+def reasoning_tiers(settings: dict) -> tuple[str | None, str]:
+    """The configured generator tier (None: retrieval-only boards) and the judge tier
+    spec ("auto" resolves by family, ADR-021). One source for `default_reasoner` and
+    /healthz (issue #251), so the indicator cannot disagree with what actually runs."""
+    import os
+
+    generator = os.environ.get("REFDESK_GENERATOR_TIER") or settings.get("generator_tier") or None
+    if generator == "none":
+        generator = None
+    judge = os.environ.get("REFDESK_JUDGE_TIER") or settings.get("judge_tier", "auto")
+    return generator, judge
 
 
 def pack_summary(items: list[BoardItem]) -> PackSummary:
@@ -1190,6 +1270,7 @@ class BoardService:
                 stage=board_stage(view),
                 cover=cover_images(view),
                 saved_at=view.saved_at,
+                mode=view.mode,
             )
             for created, view in self.runs.history()
         ]
@@ -1469,6 +1550,7 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
 
     import yaml
 
+    from refdesk.api.profile import get_profile
     from refdesk.retrieval.registry import build_retriever
     from refdesk.store import Store
 
@@ -1491,8 +1573,17 @@ def default_service(db_path: str | Path = "data/refdesk.sqlite") -> BoardService
         def check(conditions: dict[str, str]) -> None:
             check_conditions(conditions, combined_config)
 
+    # The run-mode stamp (issue #251): recorded in the demo profile, else derived from
+    # each run's own sent_to and providers.yaml.
+    providers = ProvidersConfig.load("config/providers.yaml")
+    demo = get_profile() == "demo"
+
+    def annotate(view: RunView) -> None:
+        view.mode = RunMode.RECORDED if demo else run_mode(view.sent_to, providers)
+        view.cloud_providers = cloud_providers(view.sent_to, providers)
+
     return BoardService(
-        RunStore(db_path),
+        RunStore(db_path, annotate=annotate),
         load_records,
         lambda records: build_retriever(name, records),
         name,
@@ -1509,8 +1600,8 @@ def default_reasoner(settings: dict) -> Reasoner | None:
     from refdesk.llm.config import ProvidersConfig
     from refdesk.llm.model_manager import ModelManager, OllamaBackend, load_specs
 
-    tier = os.environ.get("REFDESK_GENERATOR_TIER") or settings.get("generator_tier")
-    if not tier or tier == "none":
+    generator, judge = reasoning_tiers(settings)
+    if generator is None:
         return None
     specs = load_specs("config/models.yaml")
     manager = ModelManager(specs, {"ollama": OllamaBackend()})
@@ -1521,8 +1612,8 @@ def default_reasoner(settings: dict) -> Reasoner | None:
 
     return Reasoner(
         ProvidersConfig.load("config/providers.yaml"),
-        generator_tier=tier,
-        judge_tier=os.environ.get("REFDESK_JUDGE_TIER") or settings.get("judge_tier", "auto"),
+        generator_tier=generator,
+        judge_tier=judge,
         ensure_model=ensure,
         prompts=settings.get("prompts"),
     )
