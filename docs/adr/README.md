@@ -31,3 +31,4 @@ The seed list is in `docs/prd.md`, Section 19 (ADR-001 to ADR-021). Drafts marke
 | [023](ADR-023-eval-corpus-snapshots.md) | Eval corpus snapshots: golden sets pin an ID list; the store keeps growing | proposed (reasoning [Joe]) |
 | [024](ADR-024-rescope-for-applied-ai-roles.md) | Re-scope the demonstration goals toward applied AI work (park kind, CD, drills, nightly self-hosted CI, Kev-4B fine-tune) | accepted |
 | [025](ADR-025-hosted-demo-container.md) | Two-level demo: the #167 container on recorded runs on a Render free web service, plus live sessions on the owner's machine | accepted |
+| [026](ADR-026-compact-status-marks.md) | Compact status marks on cards, full wording as a setting | proposed (reasoning [Joe]) |
