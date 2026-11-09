@@ -22,6 +22,7 @@ PRD_13A = {
     ("get", "/runs"),
     ("get", "/runs/{run_id}"),
     ("post", "/runs/{run_id}/shortlist"),  # issue #231
+    ("post", "/runs/{run_id}/name"),  # issue #234
     ("post", "/runs/{run_id}/review"),
     ("post", "/runs/{run_id}/cap"),
     ("post", "/runs/{run_id}/cancel"),
