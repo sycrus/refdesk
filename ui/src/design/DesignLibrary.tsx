@@ -94,6 +94,18 @@ const BLOCKED: Gate[] = [
 
 const EXPORTED: Gate[] = IN_REVIEW.map((gate) => ({ ...gate, state: "passed", status_text: "Done." }));
 
+// The type scale from design/tokens.json, with sample text (issue 228).
+const TYPE_STYLES: [string, string][] = [
+  ["logo", "RefDesk"],
+  ["display-l", "What do you need references for?"],
+  ["display-m", "Approve the board"],
+  ["title", "Mid-Autumn tin"],
+  ["body", "Describe the brief. RefDesk finds open museum works and shows the record behind each one."],
+  ["body-s", "Moodboards, palette, mood. Shows every work, whatever its rights."],
+  ["label", "Pick up where you left off"],
+  ["mono", "met:436535 · run-2026-11-09"],
+];
+
 export function DesignLibrary() {
   const [theme, setTheme] = useTheme();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -120,6 +132,27 @@ export function DesignLibrary() {
           ))}
         </fieldset>
       </header>
+
+      <Section id="type" title="Wordmark and type scale">
+        <p className="dl-note">Only these sizes are used (a test fails on any other). Cal Sans is for the wordmark alone.</p>
+        {TYPE_STYLES.map(([name, sample]) => (
+          <State key={name} name={name}>
+            <p
+              style={{
+                margin: 0,
+                fontFamily: `var(--type-${name}-family)`,
+                fontSize: `var(--type-${name}-size)`,
+                lineHeight: `var(--type-${name}-line)`,
+                fontWeight: `var(--type-${name}-weight)` as unknown as number,
+                letterSpacing: `var(--type-${name}-tracking, normal)`,
+                textTransform: name === "label" ? "uppercase" : undefined,
+              }}
+            >
+              {sample}
+            </p>
+          </State>
+        ))}
+      </Section>
 
       <Section id="button" title="Button">
         <State name="Primary">

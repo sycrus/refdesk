@@ -338,11 +338,14 @@
   padding: var(--space-4) var(--space-4) 0;
 }
 
+/* The wordmark (issue #228): Cal Sans, self-hosted, used for nothing else. */
 .rd-app-brand {
   margin-right: var(--space-2);
-  font-family: var(--type-display-m-family);
-  font-size: var(--type-title-size);
-  font-weight: 600;
+  font-family: var(--type-logo-family);
+  font-size: var(--type-logo-size);
+  line-height: var(--type-logo-line);
+  font-weight: var(--type-logo-weight);
+  letter-spacing: 0.01em;
   color: var(--color-ink);
 }
 

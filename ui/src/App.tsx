@@ -131,7 +131,7 @@ export function App() {
         </p>
       )}
       <nav className="rd-app-nav" aria-label="refdesk">
-        <span className="rd-app-brand">refdesk</span>
+        <span className="rd-app-brand">RefDesk</span>
         {navLink(
           window.location.pathname,
           demo ? "Example boards" : "New board",
