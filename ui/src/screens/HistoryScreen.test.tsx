@@ -21,6 +21,10 @@ function summary(overrides: Partial<RunSummary> = {}): RunSummary {
     sent_to: ["mock", "mock-judge"],
     approver: null,
     read_only: false,
+    name: "Board 1",
+    stage: "shortlist",
+    cover: [],
+    saved_at: null,
     ...overrides,
   };
 }

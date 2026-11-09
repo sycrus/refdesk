@@ -85,6 +85,10 @@ export function shortlistRun(runId: string, request: ShortlistRequest): Promise<
   return post(`/runs/${encodeURIComponent(runId)}/shortlist`, request);
 }
 
+export function renameBoard(runId: string, name: string): Promise<RunView> {
+  return post(`/runs/${encodeURIComponent(runId)}/name`, { name });
+}
+
 export function raiseCap(runId: string, request: { new_cap_usd: number; raised_by: string }): Promise<RunView> {
   return post(`/runs/${encodeURIComponent(runId)}/cap`, request);
 }

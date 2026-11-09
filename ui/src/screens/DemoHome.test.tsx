@@ -33,6 +33,7 @@ function item(id: string, status: AttributionStatus = AttributionStatus.VERIFIED
 function run(id: string, brief: string, items: BoardItem[], usage: "reference_only" | "reproduction"): RunView {
   return {
     run_id: id,
+    name: `Board ${id.replace("run-", "")}`,
     request: { brief, usage_mode: usage, target_items: 12 },
     state: "done",
     gates: [{ id: "G4", state: "pending", status_text: "Waiting for review.", actor: "approver" }],
@@ -155,7 +156,7 @@ describe("App shell (issue 229)", () => {
     render(<App />);
     const stages = await screen.findByRole("list", { name: "Stages of this board" });
     expect(within(stages).getByRole("link", { name: /^Shortlist/ }).getAttribute("aria-current")).toBe("step");
-    expect(screen.getByText("This board · Boats at night for")).toBeTruthy();
+    expect(screen.getByText("This board · Board boats")).toBeTruthy(); // the board's name, not its brief (issue 234)
   });
 
   it("opens the read-only Brief stage from the panel", async () => {

@@ -17,7 +17,9 @@ export type IconName =
   | "verify"
   | "sign"
   | "export"
-  | "chevrons";
+  | "chevrons"
+  | "boards"
+  | "settings";
 
 const PATHS: Record<IconName, string> = {
   check: "M3.5 8.5l3 3 6-7",
@@ -35,6 +37,8 @@ const PATHS: Record<IconName, string> = {
   sign: "M2.5 10.5c2 0 2.5-5 4-5s0 5 2 5 2-2.5 3.5-2.5 1.5 2 2 2 M2.5 13.5h11",
   export: "M8 2.5V10 M5 5.5l3-3 3 3 M3.5 9.5v4h9v-4",
   chevrons: "M9 4L5 8l4 4 M13 4L9 8l4 4",
+  boards: "M2.5 5h8v8.5h-8z M5 2.5h8.5V11",
+  settings: "M8 6a2 2 0 1 0 0.01 0z M8 1.75v2 M8 12.25v2 M1.75 8h2 M12.25 8h2 M3.6 3.6l1.4 1.4 M11 11l1.4 1.4 M3.6 12.4L5 11 M11 5l1.4-1.4",
 };
 
 export function Icon({ name }: { name: IconName }) {

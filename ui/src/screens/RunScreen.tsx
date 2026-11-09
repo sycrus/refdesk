@@ -265,7 +265,7 @@ export function RunScreen({
           <input id={operatorId} value={operator} onChange={(event) => setOperator(event.target.value)} />
           <p role="status">
             {`${keptCount} of ${run.items.length} kept.`}
-            {run.saved_at && ` Saved ${new Date(run.saved_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`}
+            {run.saved_at && ` Saved automatically · ${new Date(run.saved_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`}
           </p>
           {shortlistError && (
             <p className="rd-error" role="alert">

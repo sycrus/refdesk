@@ -15,6 +15,7 @@ import { Button } from "../components/Button";
 import { showsImage } from "../components/EvidenceCard";
 import { safeUrl } from "../components/safeUrl";
 import { LANDING_EXAMPLES } from "../content/landing";
+import { type BoardStage, STAGE_LABEL } from "../content/boards";
 import {
   LANDING_DEMO_REASON,
   LANDING_LEAD,
@@ -83,9 +84,35 @@ export interface NewBoardProps {
   onCreated: (runId: string) => void;
   onOpenRun?: (runId: string) => void;
   onAllBoards?: () => void;
+  leftRunId?: string | null; // the board just left, to say where it was saved (issue 234)
 }
 
-export function NewBoard({ onCreated, onOpenRun, onAllBoards }: NewBoardProps) {
+// "Saved as a draft at <stage>": the name and stage come from the run list (GET /runs).
+function useLeftNote(runId: string | null | undefined): string | null {
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!runId) {
+      setNote(null);
+      return;
+    }
+    let cancelled = false;
+    listRuns()
+      .then((rows) => {
+        const row = rows.find((r) => r.run_id === runId);
+        if (!cancelled && row && !row.read_only && row.stage !== "cancelled") {
+          setNote(`“${row.name}” is saved as a draft: ${STAGE_LABEL[row.stage as BoardStage] ?? row.stage}.`);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [runId]);
+  return note;
+}
+
+export function NewBoard({ onCreated, onOpenRun, onAllBoards, leftRunId }: NewBoardProps) {
+  const leftNote = useLeftNote(leftRunId);
   const demo = useDemo();
   const [brief, setBrief] = useState("");
   const [usage, setUsage] = useState<UsageMode>("reference_only");
@@ -124,6 +151,22 @@ export function NewBoard({ onCreated, onOpenRun, onAllBoards }: NewBoardProps) {
 
   return (
     <section className="rd-landing" aria-labelledby="landing-title">
+      {leftNote && (
+        <p className="rd-landing-left" role="status">
+          {leftNote}{" "}
+          {onAllBoards && (
+            <a
+              href="?boards=1"
+              onClick={(event) => {
+                event.preventDefault();
+                onAllBoards();
+              }}
+            >
+              Find it in Boards
+            </a>
+          )}
+        </p>
+      )}
       <h1 id="landing-title" className="rd-landing-title">
         {LANDING_QUESTION}
       </h1>
@@ -277,7 +320,7 @@ export function NewBoard({ onCreated, onOpenRun, onAllBoards }: NewBoardProps) {
             {onAllBoards && (
               <a
                 className="rd-landing-all"
-                href="?history=1"
+                href="?boards=1"
                 onClick={(event) => {
                   event.preventDefault();
                   onAllBoards();

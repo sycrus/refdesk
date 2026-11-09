@@ -25,6 +25,9 @@ import { DEMO_BANNER, DEMO_BANNER_MORE } from "./content/demo";
 import { DemoContext } from "./demo";
 import { DemoHome } from "./screens/DemoHome";
 import { BriefStage, SearchStage } from "./screens/StageScreens";
+import { BoardsScreen } from "./screens/BoardsScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
+import type { BoardStage } from "./content/boards";
 import { StagePanel, type StageKey } from "./components/StagePanel";
 
 const PANEL_KEY = "refdesk-panel";
@@ -49,6 +52,9 @@ const currentApprove = () => param("approve") === "1";
 const currentHistory = () => param("history") === "1";
 const currentAudit = () => param("audit");
 const currentTerms = () => param("terms") === "1";
+// Boards (S10) and Settings (S9) are ?boards=1 and ?settings=1 (issue 234).
+type Page = "boards" | "settings" | null;
+const currentPage = (): Page => (param("boards") === "1" ? "boards" : param("settings") === "1" ? "settings" : null);
 const currentStage = (): "brief" | "search" | null => {
   const stage = param("stage");
   return stage === "brief" || stage === "search" ? stage : null;
@@ -62,6 +68,8 @@ export function App() {
   const [history, setHistory] = useState<boolean>(currentHistory);
   const [auditId, setAuditId] = useState<string | null>(currentAudit);
   const [terms, setTerms] = useState<boolean>(currentTerms);
+  const [page, setPage] = useState<Page>(currentPage);
+  const [leftRunId, setLeftRunId] = useState<string | null>(null);
   const [stage, setStage] = useState<"brief" | "search" | null>(currentStage);
   const [panelRun, setPanelRun] = useState<RunView | null>(null);
   const [minimised, setMinimised] = useState<boolean>(storedMinimised);
@@ -86,6 +94,7 @@ export function App() {
       setAuditId(currentAudit());
       setTerms(currentTerms());
       setStage(currentStage());
+      setPage(currentPage());
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -153,6 +162,9 @@ export function App() {
           ? `&${screen}=1`
           : "";
     show(id ? `?run=${encodeURIComponent(id)}${extra}` : window.location.pathname);
+    // Leaving a board for New board: say where it was saved (issue 234).
+    setLeftRunId(!id && runId ? runId : null);
+    setPage(null);
     setRunId(id);
     setItemId(item);
     setReviewing(screen === "review");
@@ -187,16 +199,37 @@ export function App() {
     else if (key === "approve" || key === "export") open(runId, null, "approve");
     else open(runId);
   }
-  const boardName = board?.request?.brief ? board.request.brief.split(/\s+/).slice(0, 4).join(" ") : "";
+  const boardName = board?.name ?? "";
 
   function openHistory(audit: string | null = null) {
     show(audit ? `?audit=${encodeURIComponent(audit)}` : "?history=1");
+    setPage(null);
     setRunId(null);
     setItemId(null);
     setReviewing(false);
     setApproving(false);
     setHistory(audit === null);
     setAuditId(audit);
+  }
+
+  function openPage(next: "boards" | "settings") {
+    show(`?${next}=1`);
+    setPage(next);
+    setRunId(null);
+    setItemId(null);
+    setReviewing(false);
+    setApproving(false);
+    setStage(null);
+    setHistory(false);
+    setAuditId(null);
+  }
+
+  // Opening a board from Boards (issue 234): a draft opens on its Shortlist, where the
+  // work is picked; the stage panel shows how far its gates have got. An approved or
+  // exported board opens at Approve, which has its export or receipt.
+  function openBoardAt(id: string, at: BoardStage) {
+    if (at === "export" || at === "exported") open(id, null, "approve");
+    else open(id);
   }
 
   async function moreLikeThis(run: RunView, item: BoardItem) {
@@ -241,8 +274,24 @@ export function App() {
               label: demo ? "Example boards" : "New board",
               icon: "plus",
               href: window.location.pathname,
-              current: !runId && !history && !auditId && !terms,
+              current: !runId && !history && !auditId && !terms && !page,
               onOpen: () => open(null),
+            },
+            {
+              key: "boards",
+              label: "Boards",
+              icon: "boards",
+              href: "?boards=1",
+              current: !terms && page === "boards",
+              onOpen: () => openPage("boards"),
+            },
+            {
+              key: "settings",
+              label: "Settings",
+              icon: "settings",
+              href: "?settings=1",
+              current: !terms && page === "settings",
+              onOpen: () => openPage("settings"),
             },
             {
               key: "history",
@@ -286,6 +335,10 @@ export function App() {
         )}
         {terms ? (
           <TermsScreen />
+        ) : page === "boards" ? (
+          <BoardsScreen onOpenBoard={openBoardAt} />
+        ) : page === "settings" ? (
+          <SettingsScreen />
         ) : auditId ? (
           <RunAudit runId={auditId} onBack={() => openHistory()} onOpenBoard={(id) => open(id)} />
         ) : history ? (
@@ -319,7 +372,7 @@ export function App() {
           <p role="status">Loading…</p>
         ) : (
           <>
-            <NewBoard onCreated={open} onOpenRun={(id) => open(id)} onAllBoards={() => openHistory()} />
+            <NewBoard onCreated={open} onOpenRun={(id) => open(id)} onAllBoards={() => openPage("boards")} leftRunId={leftRunId} />
             {demo && <DemoHome onOpenRun={(id) => open(id)} hero={false} />}
           </>
         )}

@@ -1088,7 +1088,9 @@ class BoardService:
         events = [
             e.model_copy(update={"recorded": None}) for e in read_events(self.events_path(run_id))
         ]
-        return view.model_copy(update={"events": events})
+        # A board stored before names existed gets the same default the list uses (#234).
+        name = view.name or default_name(run_id)
+        return view.model_copy(update={"events": events, "name": name})
 
     def history(self) -> list[RunSummary]:
         """The S7 runs list (issue #159), newest first. Read-only. The brief is never

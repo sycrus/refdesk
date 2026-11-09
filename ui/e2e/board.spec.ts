@@ -240,7 +240,7 @@ test("S7 lists past runs, opens one run's events, and passes axe", async ({ page
   await axe();
 
   await row.getByRole("link", { name: `Events for ${runId}` }).click();
-  await expect(page).toHaveURL(new RegExp(`\\?audit=${runId}`));
+  await expect(page).toHaveURL(new RegExp(`[?]audit=${runId}`));
   const log = page.getByRole("region", { name: "Run audit log" });
   await expect(log.getByRole("listitem").first()).toBeVisible();
   await expect(page.getByText("mock, mock-judge")).toBeVisible();
@@ -280,6 +280,40 @@ test("the stage panel opens an earlier stage and returns to the shortlist", asyn
   await stages.getByRole("link", { name: /^Shortlist/ }).click();
   await expect(page.getByRole("list", { name: "References" })).toBeVisible();
   await expect(stages.getByText("Export: pending (G5). Not reached yet.")).toBeAttached();
+});
+
+// Issue 234: leave a board mid-shortlist, find it on Boards, reopen it at the Shortlist
+// with the kept works intact. Its name comes from the run ID, never the brief.
+test("leave a board mid-shortlist, find it on Boards, reopen it with its kept works", async ({ page }) => {
+  await newBoard(page, "oil");
+  const runId = new URL(page.url()).searchParams.get("run") ?? "";
+  await page.getByLabel("Your name (recorded with what you keep)").fill("Joe");
+  await page.getByRole("list", { name: "References" }).getByRole("button", { name: /^Keep / }).first().click();
+  await expect(page.getByText(/^1 of 3 kept\. Saved automatically/)).toBeVisible();
+
+  await page.getByRole("navigation", { name: "refdesk" }).getByRole("link", { name: "New board" }).click();
+  const name = `Board ${runId.replace("run-", "").slice(0, 6)}`;
+  await expect(page.getByRole("status").filter({ hasText: `“${name}” is saved as a draft: ready to approve.` })).toBeVisible();
+
+  await page.getByRole("link", { name: "Find it in Boards" }).click();
+  await expect(page.getByRole("heading", { name: "Boards", level: 1 })).toBeVisible();
+  const card = page.getByRole("list", { name: "Boards" }).getByRole("listitem").filter({ hasText: name });
+  await expect(card.getByText("Draft · ready to approve")).toBeVisible(); // one verified work kept
+  await expect(card).not.toContainText("oil"); // the brief never appears in the list
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(
+      axe.violations
+        .filter((v) => v.impact === "serious" || v.impact === "critical")
+        .map((v) => `${v.id}: ${v.nodes.map((n) => n.failureSummary).join("; ")}`),
+    ).toEqual([]);
+  }
+
+  await card.getByRole("link").click();
+  await expect(page).toHaveURL(new RegExp(`[?]run=${runId}$`)); // a draft opens on its Shortlist
+  await expect(page.getByText(/^1 of 3 kept\. Saved automatically/)).toBeVisible();
+  await expect(page.getByRole("list", { name: "References" }).getByRole("button", { pressed: true })).toHaveCount(1);
 });
 
 // S6 Approve and export (issue 101): the ConfirmDialog, the irreversible export, the receipt.
