@@ -1,0 +1,723 @@
+<!-- Clickable mock-up of the image-first UI (issue #226, reviewed by Joe on 2026-11-09).
+     A visual reference for PRD 8A and 8B, not product code: images are generated placeholders,
+     and every title, maker and record field is an example, not a real record.
+     Colours are copied from design/tokens.json; the app itself uses the generated token CSS.
+     Open the file in a browser. Nothing runs or is sent anywhere. -->
+<title>refdesk Board Mock-up</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cal+Sans&family=Inter:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&family=JetBrains+Mono&display=swap">
+<style>
+/* Layout: thin gate rail + image-led masonry grid; detail lives in a lightbox overlay. Tokens copied from design/tokens.json. */
+:root{
+  --paper:#F7F4EE;--card:#FFFFFF;--sunken:#EDE8DF;--ink:#1E1A16;--ink-muted:#5C554B;
+  --line:#D8D1C4;--line-strong:#7A7266;--accent:#0E5A60;--accent-hover:#0A474C;--on-accent:#FFFFFF;
+  --accent-soft:#DDEDEE;--ok:#1D6B3F;--ok-soft:#E0F0E6;--warn:#7A4E00;--warn-soft:#FAEBC8;
+  --danger:#9A2B2B;--danger-soft:#F6DFDF;--focus:#0E5A60;--scrim:rgba(18,16,13,.92);--scrim-ink:#F2EDE4;
+  --display:"Newsreader",Georgia,serif;--sans:"Inter",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;--logo:"Cal Sans","Inter",system-ui,sans-serif;
+  --rail:248px;--r:6px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#161411;--card:#201D19;--sunken:#0F0E0C;--ink:#F2EDE4;--ink-muted:#B5AC9E;--line:#38332C;--line-strong:#8C8374;
+  --accent:#6CC4CA;--accent-hover:#8FD6DB;--on-accent:#08201F;--accent-soft:#123436;--ok:#7FD3A1;--ok-soft:#14301F;
+  --warn:#EDB654;--warn-soft:#3A2B0A;--danger:#F2A0A0;--danger-soft:#3D1818;--focus:#8FD6DB;--scrim:rgba(6,5,4,.94);color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#161411;--card:#201D19;--sunken:#0F0E0C;--ink:#F2EDE4;--ink-muted:#B5AC9E;--line:#38332C;--line-strong:#8C8374;
+  --accent:#6CC4CA;--accent-hover:#8FD6DB;--on-accent:#08201F;--accent-soft:#123436;--ok:#7FD3A1;--ok-soft:#14301F;
+  --warn:#EDB654;--warn-soft:#3A2B0A;--danger:#F2A0A0;--danger-soft:#3D1818;--focus:#8FD6DB;--scrim:rgba(6,5,4,.94);color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/22px var(--sans)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.app{display:flex;min-height:100%}
+
+/* Gate rail */
+/* The rail always takes its own space. Minimised, it keeps one icon per stage; the state stays readable from the node style and its pip. */
+:root.min{--rail:56px}
+.rail{position:sticky;top:env(safe-area-inset-top,0px);height:100vh;width:var(--rail);flex:none;z-index:20;transition:width .18s ease}
+.rail-inner{height:100%;background:var(--card);border-right:1px solid var(--line);overflow:hidden auto;display:flex;flex-direction:column;padding:12px 0 12px max(0px,env(safe-area-inset-left,0px))}
+#steps{display:flex;flex-direction:column}
+.min .step-text,.min .nor span,.min .brand span{display:none}
+.min #tog svg{transform:scaleX(-1)}
+.node svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.node{position:relative}
+.pip{position:absolute;right:-5px;bottom:-5px;width:13px;height:13px;border-radius:50%;display:grid;place-items:center;font-size:8px;line-height:1;border:1.5px solid var(--card)}
+.pip.ok{background:var(--ok);color:var(--card)}
+.pip.lock{background:var(--danger);color:var(--card);border-radius:3px}
+.pip svg{width:8px;height:8px;stroke-width:3}
+.brand{font:400 22px/28px var(--logo);letter-spacing:.01em;padding:0 16px 12px;white-space:nowrap}
+.brand b{display:inline-block;min-width:24px;text-align:center;font-weight:400}
+:root:not(.min) .brand b{min-width:0;text-align:left}
+.step{display:flex;gap:12px;align-items:flex-start;width:100%;padding:8px 16px;border:0;background:none;text-align:left;cursor:pointer;white-space:nowrap}
+.step:disabled{cursor:default}
+.step[aria-current]{background:var(--accent-soft)}
+.rail-sep{margin:8px 16px 4px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.min .rail-sep span{display:none}
+.saved{font-size:13px;color:var(--ink-muted);display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.saved b{color:var(--ok);font-weight:600}
+.toast{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:30;max-width:min(400px,calc(100% - 32px));background:var(--ink);color:var(--paper);border-radius:var(--r);padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.toast button{border:1px solid currentColor;background:none;color:inherit;border-radius:var(--r);padding:3px 10px;cursor:pointer;font-size:13px}
+.page-h{font:500 30px/36px var(--display);margin:0 0 4px}
+/* Every board card gets the same size: equal rows, a fixed-ratio cover, a two-line title slot, and the saved line pinned to the bottom. */
+.boards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));grid-auto-rows:1fr;gap:16px;margin-top:16px}
+.boards li{display:flex;min-width:0}
+.bcard-btn{position:relative;display:flex;flex-direction:column;width:100%;height:100%;padding:0;border:1px solid var(--line);border-radius:var(--r);background:var(--card);text-align:left;cursor:pointer;overflow:hidden}
+.bcard-btn:hover{border-color:var(--line-strong)}
+.mosaic{flex:none;width:100%;aspect-ratio:4/3;overflow:hidden;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:2px;background:var(--line)}
+.mosaic>*{width:100%;height:100%;min-width:0;min-height:0;object-fit:cover;display:block;background:var(--sunken)}
+.bmeta{flex:1;display:flex;flex-direction:column;gap:4px;padding:10px 12px 12px;min-width:0}
+.bmeta .t-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px}
+.bmeta .note{margin-top:auto;padding-top:4px}
+.bstate{display:inline-flex;gap:6px;align-items:center;font-size:13px;font-weight:600}
+.bstate svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.bstate.warn{color:var(--warn)}.bstate.lock{color:var(--ink-muted)}
+.here{position:absolute;top:8px;left:8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:4px}
+.field textarea,.field select{font:inherit;padding:6px 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--paper);color:var(--ink);resize:vertical}
+.node{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;border:1.5px solid var(--line-strong);color:var(--ink-muted);background:var(--card)}
+.node.passed{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.node.active{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.node.locked{border-style:dashed}
+.step-text{display:flex;flex-direction:column;min-width:0}
+.step-name{font-weight:600;font-size:13px;line-height:24px}
+.step-meta{font-size:13px;line-height:19px;color:var(--ink-muted)}
+.gid{font:13px var(--mono);color:var(--ink-muted)}
+/* Timeline connector: dotted between stages, solid green below a stage that is done. Centred on the 24px node (16px padding + 12px). */
+#steps .step{position:relative}
+#steps .step:not(:first-child)::before{content:"";position:absolute;left:27px;top:0;height:8px;border-left:2px dotted var(--line-strong)}
+#steps .step:not(:last-child)::after{content:"";position:absolute;left:27px;top:32px;bottom:0;border-left:2px dotted var(--line-strong)}
+#steps .step.done::after,#steps .step.done+.step::before,#steps .step.done+.nor::after{border-left-style:solid;border-color:var(--ok)}
+.nor{position:relative}
+.nor::after{content:"";position:absolute;left:27px;top:0;bottom:0;border-left:2px dotted var(--line-strong)}
+.node.open{border-color:var(--accent);color:var(--accent)}
+/* Landing hierarchy: 1 headline, 2 the prompt (largest object), 3 usage switch, 4 examples, 5 resume. Space between groups does the grouping. */
+.hero{max-width:680px;margin:clamp(8px,9vh,112px) auto 0;display:flex;flex-direction:column;text-align:center}
+/* Landing fits one screen: spacing scales with viewport height, and the bottom padding reserved for the action bar is dropped. */
+main.landing{padding-block:16px;display:flex;flex-direction:column}
+main.landing #view{flex:1;display:flex;flex-direction:column}
+main.landing .hero{flex:1;width:100%}
+/* The resume row sits at the foot of the screen; the space above it grows with the screen. */
+main.landing .resume{margin-top:auto}
+.go:disabled{background:var(--sunken);color:var(--ink-muted);opacity:1}
+@media (max-height:640px){main.landing{padding-block:8px}.hero{margin-top:4vh}.hero-sub{margin-top:6px}.resume{margin-top:12px}}
+@media (max-width:720px){.hero{margin-top:8px}.hero-sub{margin-bottom:16px}.suggest .sg:nth-of-type(n+2){display:none}.resume{margin-top:12px}main.landing{padding-block:8px}}
+.hero-h{font:500 clamp(30px,5.2vh,44px)/1.1 var(--display);margin:0;text-wrap:balance}
+.hero-sub{margin:10px auto clamp(24px,8vh,80px);max-width:48ch;color:var(--ink-muted);font-size:15px}
+/* Usage switch and its hint share one tray, so the hint reads as part of the choice. */
+.usage{border:0;margin:0 0 clamp(16px,3.6vh,32px);padding:8px 6px 10px;align-self:center;display:flex;flex-direction:column;align-items:center;background:var(--sunken);border-radius:20px;min-width:0;max-width:100%}
+.useg{display:inline-flex;flex-wrap:wrap;justify-content:center;padding:0;border-radius:999px;gap:2px}
+.useg input{position:absolute;opacity:0;pointer-events:none}
+.useg label{padding:5px 14px;border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;color:var(--ink-muted)}
+.useg input:checked+label{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.useg input:focus-visible+label{outline:2px solid var(--focus);outline-offset:1px}
+.use-hint{margin:7px 14px 0;font-size:13px;line-height:19px;color:var(--ink-muted)}
+.prompt{background:var(--card);border:1px solid var(--line-strong);border-radius:14px;padding:12px 12px 10px 14px;text-align:left;box-shadow:0 6px 24px rgba(0,0,0,.06);display:flex;flex-direction:column;gap:8px}
+.prompt:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.prompt textarea{border:0;background:none;resize:none;font:400 15px/22px var(--sans);color:var(--ink);outline:none;width:100%;padding:0}
+.prompt-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--line);border-radius:15px;font-size:13px;background:var(--paper);color:var(--ink);cursor:pointer}
+.chip select,.chip input[type=text]{border:0;background:none;font:inherit;color:inherit;padding:0;outline:none}
+/* Options: the conditions, avoid list, anchor work and count from the old S1 form, folded into the prompt. Hidden by default; a count shows how many are set. */
+.adv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px;padding:12px 0 6px;margin-top:4px;border-top:1px solid var(--line)}
+.adv .wide2{grid-column:span 2}
+.adv label{display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:19px;color:var(--ink-muted);text-align:left;min-width:0}
+.adv input{font:inherit;font-size:15px;line-height:22px;color:var(--ink);padding:5px 8px;border:1px solid var(--line-strong);border-radius:8px;background:var(--paper);min-width:0;width:100%}
+@media (max-width:720px){.adv{grid-template-columns:1fr 1fr}}
+.opt-tog{cursor:pointer;gap:5px}
+.opt-tog[aria-expanded="true"]{color:var(--ink)}
+.opt-tog[aria-expanded="true"] .chev{display:inline-block;transform:rotate(180deg)}
+.cnt{background:var(--accent);color:var(--on-accent);border-radius:999px;padding:0 6px;font-size:12px;line-height:16px;font-weight:600}
+.chip input.capin{width:36px;border-bottom:1px dashed var(--line-strong)}
+/* Options inside the prompt are quiet text, not filled pills, so the brief and the button carry the box. The keep-local state stays visible. */
+.chip,.chip:has(input[type=checkbox]:checked){background:none;border-color:transparent;color:var(--ink-muted);padding:0 4px;font-size:13px;height:28px}
+.chip input[type=checkbox]{accent-color:var(--accent);margin:0;width:13px;height:13px}
+.opts{gap:10px}
+.chip:focus-within{outline:2px solid var(--focus);outline-offset:1px}
+
+.go{border-radius:10px;padding:8px 18px}
+.suggest{display:flex;flex-wrap:wrap;gap:4px 18px;justify-content:center;align-items:baseline;margin-top:18px;font-size:13px}
+.suggest .sg:nth-of-type(n+3){display:none}
+
+.sg{border:0;background:none;padding:2px 0;font-size:13px;cursor:pointer;color:var(--ink-muted);text-decoration:none;text-underline-offset:3px}
+.sg:hover,.sg:focus-visible{color:var(--ink);text-decoration:underline}
+.resume{display:flex;flex-wrap:wrap;gap:12px;align-items:center;text-align:left;border-top:1px solid var(--line);padding-top:10px;margin-top:clamp(20px,7vh,72px)}
+.prompt textarea{min-height:48px}
+.suggest{margin-top:clamp(16px,4vh,36px);margin-bottom:clamp(24px,6vh,72px)}
+.resume img{width:32px;height:32px;object-fit:cover;border-radius:4px}
+.resume .btn{padding:4px 10px;font-size:13px;font-weight:500}
+.resume #nb-all{border:0;padding:4px 2px;color:var(--ink-muted)}
+.resume #nb-all:hover{color:var(--ink);text-decoration:underline}
+
+.resume .t-title{font-size:13px;line-height:19px}
+
+.resume{gap:10px}
+/* Resume row: centred on the page axis like everything above it; one pill opens the draft, a text link opens all boards. */
+.hero .resume{flex-direction:column;align-items:center;gap:8px;text-align:center;border-top:0;padding-top:0}
+.resume-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:center;max-width:100%}
+.resume-card{display:inline-flex;align-items:center;gap:10px;padding:4px 14px 4px 4px;border:1px solid var(--line);border-radius:999px;background:var(--card);cursor:pointer;color:var(--ink);font-size:13px;line-height:19px;max-width:100%;min-width:0}
+.resume-card:hover{border-color:var(--line-strong)}
+.hero .resume-card img{width:28px;height:28px;border-radius:50%;object-fit:cover;flex:none}
+.resume-card .t-title{font-size:13px;font-weight:600;white-space:nowrap}
+.resume-card .note{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.resume-card .arr{color:var(--accent);font-weight:600}
+.link{border:0;background:none;padding:4px 2px;color:var(--ink-muted);font-size:13px;cursor:pointer}
+.link:hover,.link:focus-visible{color:var(--ink);text-decoration:underline}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (max-width:560px){.hero-h{font-size:30px;line-height:36px}.prompt-row .go{width:100%}}
+.meter{height:8px;background:var(--sunken);border-radius:4px;overflow:hidden}
+.meter span{display:block;height:100%;background:var(--danger)}
+.events{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.events li{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px;font-size:15px}
+.events time{font:13px/22px var(--mono);color:var(--ink-muted)}
+.events .stop{color:var(--danger);font-weight:600}
+.rec.wide{font-size:15px;gap:6px 16px}
+.nor{margin:0;padding:6px 16px;display:flex;align-items:center;gap:12px;white-space:nowrap;color:var(--danger);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.nor::before{content:"";flex:none;width:24px;border-top:2px dashed var(--danger)}
+.rail-foot{margin-top:auto;padding:8px 0;white-space:nowrap;display:flex;flex-direction:column;gap:8px}
+.rail-foot .pin{margin-left:16px;align-self:flex-start}
+.opt-group{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.opt-group legend{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);padding:0;margin-bottom:4px}
+.opt{display:grid;grid-template-columns:auto minmax(0,1fr) 150px;gap:12px 16px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:var(--r);cursor:pointer;font-size:15px}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.opt .tile{margin:0}
+.theme-row{display:flex;flex-wrap:wrap;gap:8px}
+.opt.small{grid-template-columns:auto auto;flex:1 1 140px;justify-content:start}
+.swatch{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid var(--line-strong);vertical-align:-2px;margin-right:6px}
+.opt .tile-btn{cursor:default}
+@media (max-width:560px){.opt{grid-template-columns:auto minmax(0,1fr)}.opt .tile{grid-column:2;max-width:180px}}
+.pin{border:1px solid var(--line-strong);background:none;border-radius:var(--r);font-size:12px;padding:2px 8px;cursor:pointer}
+
+/* Main */
+main{flex:1;min-width:0;padding-block:16px 96px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.status{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:13px;line-height:19px;padding:8px 12px;border-radius:var(--r);background:var(--warn-soft);color:var(--ink);margin-bottom:12px}
+.status strong{color:var(--warn)}
+.status .local{margin-left:auto;display:inline-flex;gap:6px;align-items:center}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;margin-bottom:16px}
+.brief{font:500 30px/36px var(--display);margin:0;flex:1 1 280px;text-wrap:balance}
+.ctl{display:flex;flex-direction:column;gap:4px}
+.ctl-label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted)}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden}
+.seg button{border:0;background:var(--card);padding:4px 10px;font-size:13px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.compare{font-size:13px;color:var(--ink-muted);max-width:60ch;margin:-8px 0 16px}
+
+/* Grid */
+.grid{columns:4 220px;column-gap:12px}
+.tile{break-inside:avoid;margin:0 0 12px;position:relative;background:var(--card);border-radius:var(--r);border:1px solid var(--line);overflow:hidden}
+.tile.kept{outline:2px solid var(--accent);outline-offset:-1px}
+.tile.dropped{opacity:.35}
+.tile-btn{display:block;width:100%;padding:0;border:0;background:var(--sunken);cursor:zoom-in;position:relative}
+.tile-btn img{display:block;width:100%;height:auto}
+.noimg{display:grid;place-items:center;aspect-ratio:4/3;padding:16px;text-align:center;font-size:13px;color:var(--ink-muted);gap:4px}
+.cap{position:absolute;inset:auto 0 0 0;padding:24px 10px 8px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#F7F4EE;text-align:left;font-size:12px;line-height:16px;opacity:0;transition:opacity .15s}
+.tile-btn:hover .cap,.tile-btn:focus-visible .cap{opacity:1}
+.d-captions .cap,.d-full .cap{display:none}
+.meta{display:none;padding:8px 10px 10px;gap:6px;flex-direction:column}
+.d-captions .meta,.d-full .meta{display:flex}
+.t-title{font-weight:600;font-size:13px;line-height:18px}
+.t-maker{font-size:13px;line-height:19px;color:var(--ink-muted)}
+.why{display:none;font-size:13px;line-height:19px}
+.d-full .why{display:block}
+.chips{display:none;flex-wrap:wrap;gap:4px}
+.d-full .chips{display:flex}
+.ev{font:13px/19px var(--mono);background:var(--sunken);border-radius:4px;padding:1px 6px;color:var(--ink-muted)}
+.keepbar{position:absolute;top:8px;right:8px;display:flex;gap:4px}
+.kbtn{width:30px;height:30px;border-radius:50%;border:1px solid rgba(0,0,0,.2);background:var(--card);cursor:pointer;display:grid;place-items:center;opacity:0;transition:opacity .15s}
+.tile:hover .kbtn,.tile:focus-within .kbtn,.kbtn[aria-pressed="true"]{opacity:1}
+.kbtn[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+@media (hover:none){.kbtn{opacity:1}}
+
+/* Badges: option A (compact marks) */
+.marks{position:absolute;left:8px;bottom:8px;display:flex;gap:4px;pointer-events:none}
+.d-captions .marks,.d-full .marks{position:static;padding:0}
+.mark{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px 0 3px;border-radius:11px;font-size:12px;font-weight:600;background:var(--card);border:1px solid var(--line);color:var(--ink)}
+.mark i{font-style:normal;width:16px;height:16px;display:grid;place-items:center;font-size:11px;line-height:1;color:var(--card)}
+.mark.ok i{background:var(--ok);border-radius:50%}
+.mark.warn{background:var(--warn-soft);border-color:var(--warn)}
+.mark.warn i{background:var(--warn);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);font-size:10px}
+.mark.danger{background:var(--danger-soft);border-color:var(--danger)}
+.mark.danger i{background:var(--danger);border-radius:3px}
+/* Badges: option B (full fixed wording) */
+.badges{display:flex;flex-direction:column;gap:4px;padding:8px 10px 0}
+.d-captions .badges,.d-full .badges{padding:0}
+.badge{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:13px;line-height:19px;font-weight:500;padding:3px 8px 3px 4px;border-radius:4px}
+.badge i{font-style:normal;width:16px;height:16px;display:grid;place-items:center;font-size:11px;color:var(--card)}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}.badge.ok i{background:var(--ok);border-radius:50%}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}.badge.warn i{background:var(--warn);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);font-size:10px}
+.badge.danger{background:var(--danger-soft);color:var(--danger)}.badge.danger i{background:var(--danger);border-radius:3px}
+.tile .badges{padding-bottom:10px}
+.d-captions .tile .badges,.d-full .tile .badges{padding-bottom:0}
+
+/* Action bar */
+.actionbar{position:fixed;right:0;bottom:0;left:0;display:flex;justify-content:flex-end;align-items:center;gap:16px;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) calc(var(--rail) + 16px);background:var(--card);border-top:1px solid var(--line);z-index:10;font-size:13px}
+.btn{border:0;border-radius:var(--r);padding:8px 16px;font-weight:600;cursor:pointer;background:var(--accent);color:var(--on-accent)}
+.btn:hover{background:var(--accent-hover)}
+.btn.ghost{background:none;color:var(--ink);border:1px solid var(--line-strong)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* Approve panel */
+.panel{max-width:640px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:24px;display:flex;flex-direction:column;gap:16px}
+.panel h2{font:500 30px/36px var(--display);margin:0}
+.panel p{margin:0;max-width:65ch}
+.ag{display:flex;flex-direction:column;gap:8px}
+.ag-h{display:flex;align-items:center;gap:8px;margin:0;font:inherit}
+.ag-n{font-variant-numeric:tabular-nums;font-weight:600;font-size:15px}
+.thumbs{display:flex;flex-wrap:wrap;gap:10px;padding-top:6px}
+.th{position:relative;width:88px;height:88px;padding:0;border:0;border-radius:4px;background:var(--sunken);cursor:zoom-in}
+.th img{width:100%;height:100%;object-fit:cover;border-radius:4px;display:block}
+.th.danger img{filter:grayscale(1);opacity:.5}
+.th-none{display:grid;place-items:center;width:100%;height:100%;color:var(--ink-muted)}
+.th-none svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2}
+.th-mark{position:absolute;right:-6px;top:-6px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;border:2px solid var(--card)}
+.th-mark.ok{background:var(--ok);color:var(--card)}
+.th-mark.rev{background:var(--accent);color:var(--on-accent)}
+.th-mark.danger{background:var(--danger);color:var(--card);border-radius:6px}
+.th-mark svg,.mark i svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.mark.rev{background:var(--accent-soft);border-color:var(--accent)}
+.mark.rev i{background:var(--accent);border-radius:50%;color:var(--on-accent)}
+.ag-h .mark{font-size:12px;height:24px}
+.counts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:15px}
+.counts dd{margin:0;font-variant-numeric:tabular-nums}
+.ack{display:flex;gap:8px;align-items:flex-start;font-size:15px}
+.field{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.field input{font:inherit;padding:6px 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--paper);max-width:280px}
+.note{font-size:13px;line-height:19px;color:var(--ink-muted)}
+
+/* Lightbox */
+.lb{position:fixed;inset:0;z-index:50;background:var(--scrim);color:var(--scrim-ink);display:flex}
+.lb-stage{flex:1;min-width:0;position:relative;display:grid;place-items:center;overflow:hidden;padding:56px 64px calc(56px + env(safe-area-inset-bottom,0px))}
+.lb-stage img{max-width:100%;max-height:100%;object-fit:contain;transition:transform .2s;cursor:zoom-in;user-select:none;-webkit-user-drag:none}
+.lb-stage.zoomed img{cursor:grab}
+.lb-top{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:16px;right:16px;display:flex;gap:8px;align-items:center;font-size:13px}
+.lb-top .sp{flex:1}
+.lbtn{border:1px solid rgba(242,237,228,.35);background:rgba(0,0,0,.35);color:var(--scrim-ink);border-radius:var(--r);padding:5px 10px;cursor:pointer;font-size:13px}
+.lbtn[aria-pressed="true"]{background:var(--scrim-ink);color:#161411}
+.lbtn kbd{font:13px var(--mono);opacity:.7;margin-left:4px}
+.nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;background:rgba(0,0,0,.35);color:var(--scrim-ink);font-size:24px;cursor:pointer;border-radius:var(--r)}
+.nav.prev{left:12px}.nav.next{right:12px}
+.lb-bottom{position:absolute;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:16px;right:16px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px}
+.lb-marks{display:flex;gap:4px}
+.info{width:min(380px,100%);flex:none;background:var(--card);color:var(--ink);overflow:auto;padding:24px;display:flex;flex-direction:column;gap:16px}
+.info h3{font:500 30px/36px var(--display);margin:0}
+.info h4{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);margin:0 0 4px}
+.info p{margin:0}
+.rec{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;margin:0}
+.rec dt{color:var(--ink-muted)}.rec dd{margin:0}
+.ex{font-size:13px;color:var(--ink-muted);border:1px dashed var(--line-strong);border-radius:4px;padding:4px 8px}
+@media (max-width:720px){
+  .app{flex-direction:column}
+  .rail{position:static;height:auto;width:auto}
+  .rail-inner{height:auto;flex-direction:row;align-items:center;overflow-x:auto;padding:8px;border-right:0;border-bottom:1px solid var(--line)}
+  #steps{flex-direction:row;align-items:center}
+  #steps .step::before,#steps .step::after,.nor::after{display:none}
+  .brand,.step-meta,.step-text,#tog{display:none}
+  .rail-foot{flex-direction:row;margin:0 0 0 auto;padding:0}
+  .step{padding:4px 8px;width:auto}.nor{padding:0 4px}.nor::before{width:12px}.nor span{display:none}
+  .actionbar{padding-left:max(16px,env(safe-area-inset-left,0px))}
+  .lb{flex-direction:column}.info{width:100%;max-height:50%}
+  .lb-stage{padding:56px 8px 64px}.nav{width:36px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app">
+  <nav class="rail" id="rail" aria-label="Board stages">
+    <div class="rail-inner">
+      <div class="brand" aria-label="RefDesk"><b>R</b><span>efDesk</span></div>
+      <button class="step" id="to-new" title="New board"><span class="node" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="step-text"><span class="step-name">New board</span></span></button>
+      <button class="step" id="to-boards" title="Boards"><span class="node" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg></span><span class="step-text"><span class="step-name">Boards</span><span class="step-meta">4 boards, saved automatically</span></span></button>
+      <div class="rail-sep" id="sep"><span>This board · Mid-Autumn tin</span></div>
+      <div id="steps"></div>
+      <div class="rail-foot"><button class="step" id="to-settings" aria-label="Settings" title="Settings"><span class="node" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="step-text"><span class="step-name">Settings</span></span></button><button class="step" id="tog" aria-expanded="true"><span class="node" aria-hidden="true" style="border-color:transparent"><svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/><path d="M20 6l-6 6 6 6"/></svg></span><span class="step-text"><span class="step-name">Minimise</span></span></button></div>
+    </div>
+  </nav>
+
+  <main id="main">
+    <div class="status" role="status" id="statusbar">
+      <strong>Stopped: budget cap reached</strong>
+      <span>14 of 16 found · $0.050 of $0.050 · Nothing was exported</span>
+      <span class="local">● This brief stays on this machine</span>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <h1 class="brief">“Mid-Autumn tin, festive but not red and gold”</h1>
+      <span class="saved" id="saved" aria-live="polite"></span>
+      <div class="ctl" id="dens-ctl"><span class="ctl-label" id="lb-dens">Show</span>
+        <div class="seg" role="group" aria-labelledby="lb-dens">
+          <button data-d="images">Images</button><button data-d="captions">Captions</button><button data-d="full">Full</button>
+        </div></div>
+    </div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div class="actionbar" id="actionbar"></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Image view" hidden>
+  <div class="lb-stage" id="lb-stage">
+    <div class="lb-top">
+      <span id="lb-count"></span><span class="sp"></span>
+      <button class="lbtn" id="lb-zoom" aria-pressed="false">Zoom<kbd>Z</kbd></button>
+      <button class="lbtn" id="lb-info" aria-pressed="false">ⓘ Details<kbd>I</kbd></button>
+      <button class="lbtn" id="lb-close">Close<kbd>Esc</kbd></button>
+    </div>
+    <button class="nav prev" id="lb-prev" aria-label="Previous work">‹</button>
+    <div id="lb-img" style="display:contents"></div>
+    <button class="nav next" id="lb-next" aria-label="Next work">›</button>
+    <div class="lb-bottom">
+      <div class="lb-marks" id="lb-marks"></div>
+      <button class="lbtn" id="lb-keep" aria-pressed="false">Keep<kbd>K</kbd></button>
+      <button class="lbtn" id="lb-drop" aria-pressed="false">Drop<kbd>D</kbd></button>
+    </div>
+  </div>
+  <aside class="info" id="lb-panel" hidden aria-label="Evidence"></aside>
+</div>
+
+<script>
+(function(){
+// Fixed wording, copied from ui/src/generated/wording.ts.
+const W={attr:{verified:"Attribution verified from record",check:"Needs human check"},
+  rights:{open:"Open (as stated by source)",unverified:"Unverified",permission:"Permission required"}};
+const tone={verified:"ok",check:"warn",open:"ok",unverified:"warn",permission:"danger"};
+const glyph={ok:"✓",warn:"?",danger:"🔒"};
+
+// Example items. Placeholders only: no real works, makers or records.
+const ITEMS=[
+ {r:.75,hue:[222,40,28],a:"verified",ri:"open",why:"Full moon over water in indigo and silver. Festive mood without red or gold.",ev:["motif: moon","palette: indigo"]},
+ {r:1.35,hue:[198,35,70],a:"verified",ri:"open",why:"Lanterns as soft pale shapes; the night setting carries the festival.",ev:["subject: lanterns","period: 19th c."]},
+ {r:1,hue:[160,25,40],a:"check",ri:"open",why:"Rabbit motif linked to the moon legend.",ev:["motif: rabbit"],reason:"The judge could not confirm the maker named in the rationale."},
+ {r:.66,hue:[40,30,80],a:"verified",ri:"open",why:"Pale ground and fine linework suit a printed tin surface.",ev:["medium: woodblock print"]},
+ {r:1.2,hue:[260,30,35],a:"verified",ri:"unverified",why:"Night garden scene with osmanthus blossoms.",ev:["motif: osmanthus"],reason:"The source rights field is empty."},
+ {r:.8,hue:[190,45,45],a:"verified",ri:"open",why:"Repeating wave border that would wrap around a tin.",ev:["pattern: waves","object: textile"]},
+ {r:1.5,hue:[30,15,55],a:"check",ri:"open",why:"Family gathering under the moon.",ev:["subject: gathering"],reason:"Date in the rationale is not in the record."},
+ {r:1,hue:[210,20,85],a:"verified",ri:"permission",why:"Moon-viewing scene; strong composition.",ev:["subject: moon viewing"],reason:"The source marks this work as permission required."},
+ {r:.7,hue:[175,30,30],a:"verified",ri:"open",why:"Deep teal and cream, festive but cool.",ev:["palette: teal"]},
+ {r:1.25,hue:[230,50,60],a:"verified",ri:"open",why:"Round mooncake-like medallion in blue glaze.",ev:["object: dish","glaze: blue"]},
+ {r:.9,hue:[50,25,65],a:"verified",ri:"open",why:"Clouds drawn as ribbons; good secondary pattern.",ev:["motif: clouds"]},
+ {r:1.4,hue:[205,35,22],a:"check",ri:"unverified",why:"Night river with boats and small lights.",ev:["subject: river"],reason:"Attribution is inferred, and the rights field is missing."},
+ {r:.8,hue:[150,20,75],a:"verified",ri:"open",why:"Celadon tones, a quiet alternative to red.",ev:["glaze: celadon"]},
+ {r:1.1,hue:[240,25,45],a:"verified",ri:"open",why:"Hare and grasses in silver ink.",ev:["motif: hare","ink: silver"]}
+];
+// Placeholder images drawn on canvas; real boards show the museum's own image.
+function rnd(seed){let s=seed*9301+49297;return()=>((s=(s*9301+49297)%233280)/233280)}
+function paint(it,i){
+  const w=600,h=Math.round(w*it.r),c=document.createElement("canvas");c.width=w;c.height=h;const g=c.getContext("2d"),R=rnd(i+3),[H,S,L]=it.hue;
+  g.fillStyle=`hsl(${H} ${S}% ${L}%)`;g.fillRect(0,0,w,h);
+  for(let k=0;k<7;k++){const x=R()*w,y=R()*h,rad=40+R()*w*.4;const gr=g.createRadialGradient(x,y,0,x,y,rad);
+    const l2=Math.max(8,Math.min(92,L+(R()-.5)*50));gr.addColorStop(0,`hsla(${H+(R()-.5)*40} ${S+10}% ${l2}% / .85)`);gr.addColorStop(1,`hsla(${H} ${S}% ${l2}% / 0)`);g.fillStyle=gr;g.fillRect(0,0,w,h)}
+  g.fillStyle=`hsla(45 30% 92% / .9)`;g.beginPath();g.arc(w*(.25+R()*.5),h*(.2+R()*.3),w*(.08+R()*.08),0,7);g.fill();
+  g.strokeStyle=`hsla(${H} 20% ${L>50?20:85}% / .35)`;g.lineWidth=2;
+  for(let k=0;k<5;k++){g.beginPath();const y=h*(.6+k*.07);g.moveTo(0,y);for(let x=0;x<=w;x+=20)g.lineTo(x,y+Math.sin(x/40+k)*6);g.stroke()}
+  return c.toDataURL("image/jpeg",.82);
+}
+ITEMS.forEach((it,i)=>{it.id=i;it.n=String(i+1).padStart(2,"0");it.src=it.ri==="permission"?null:paint(it,i);it.kept=null;});
+[0,1,2,3,5,9,11,13].forEach(i=>ITEMS[i].kept=true);
+
+let savedBadge="a";try{savedBadge=localStorage.getItem("refdesk-badge")==="b"?"b":"a"}catch(e){}
+let savedTheme="system";try{const t=localStorage.getItem("refdesk-theme");if(t==="light"||t==="dark")savedTheme=t}catch(e){}
+function setTheme(t){S.theme=t;const r=document.documentElement;if(t==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);
+  try{localStorage.setItem("refdesk-theme",t)}catch(e){}}
+const S={view:"new",boardOpen:false,savedAt:"14:06",saving:false,theme:savedTheme,stage:"shortlist",reached:2,badge:savedBadge,density:null,pinned:false,lb:null,info:false,zoom:false,decided:{},ack:false,name:""};
+const svg=p=>`<svg viewBox="0 0 24 24" aria-hidden="true">${p}</svg>`;
+const ICON={
+ brief:svg('<path d="M4 20h4L19 9l-4-4L4 16z"/>'),
+ run:svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+ shortlist:svg('<rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/>'),
+ verify:svg('<path d="M6 3h9l4 4v14H6z"/><path d="M9 14l2 2 4-4"/>'),
+ approve:svg('<path d="M3 17c3 0 4-8 6-8s0 8 3 8 3-4 5-4 2 3 4 3"/><path d="M3 21h18"/>'),
+ export:svg('<path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 14v6h14v-6"/>')
+};
+const PIP_LOCK=svg('<rect x="5" y="11" width="14" height="10"/><path d="M8 11V7a4 4 0 018 0v4"/>');
+const STEPS=[
+ {k:"brief",g:"G0",n:"Brief",m:"Accepted · Joe · 13:52"},
+ {k:"run",g:"G1–G2",n:"Search and check",m:"Stopped at cap · $0.050"},
+ {k:"shortlist",g:"",n:"Shortlist",st:"",m:"Pick by eye"},
+ {k:"verify",g:"G3",n:"Verify",st:"",m:"Read the evidence"},
+ {k:"approve",g:"G4",n:"Approve",st:"",m:"Name and acknowledgement"},
+ "nor",
+ {k:"export",g:"G5",n:"Export",st:"locked",m:"Board becomes read-only",dis:true}
+];
+const order=["brief","run","shortlist","verify","approve"];
+const where=()=>order[S.reached];
+const $=id=>document.getElementById(id);
+const kept=()=>ITEMS.filter(i=>i.kept);
+const flagged=()=>kept().filter(i=>i.a!=="verified"||i.ri!=="open");
+const undecided=()=>flagged().filter(i=>!S.decided[i.id]);
+const dens=()=>S.density||(S.stage==="shortlist"?"images":"full");
+
+function stepsHTML(){
+  const cur=order.indexOf(S.stage);
+  return STEPS.map(s=>{
+    if(s==="nor")return `<div class="nor" title="Nothing below this line can be undone"><span>Point of no return</span></div>`;
+    let st=s.st,idx=order.indexOf(s.k);
+    if(idx>=0)st=idx===cur?"active":idx<S.reached?"passed":idx===S.reached?"open":"pending";
+    const sym=ICON[s.k]+(st==="passed"?'<span class="pip ok" aria-hidden="true">✓</span>':st==="locked"?`<span class="pip lock" aria-hidden="true">${PIP_LOCK}</span>`:"");
+    const meta=s.k==="verify"&&S.reached>3?`${flagged().length} checked · Joe`:s.k==="shortlist"&&S.reached>2?`${kept().length} kept`:s.m;
+    const can=!s.dis&&idx>=0&&idx<=S.reached;
+    if(st==="open")st="open";
+    return `<button class="step ${st==="passed"?"done":""}" data-k="${s.k}" title="${s.n}: ${st==="open"?"in progress":st||"pending"}" ${can?"":"disabled"} ${st==="active"&&!S.view?'aria-current="step"':""} aria-label="${s.n}: ${st||"pending"}">
+      <span class="node ${st}">${sym}</span><span class="step-text"><span class="step-name">${s.n} <span class="gid">${s.g}</span></span><span class="step-meta">${meta}</span></span></button>`;
+  }).join("");
+}
+function marksHTML(it){
+  const a=tone[it.a],r=tone[it.ri];
+  return `<span class="marks"><span class="mark ${a}" title="${W.attr[it.a]}" aria-label="${W.attr[it.a]}"><i aria-hidden="true">${glyph[a]}</i>Attribution</span><span class="mark ${r}" title="${W.rights[it.ri]}" aria-label="${W.rights[it.ri]}"><i aria-hidden="true">${glyph[r]}</i>Rights</span></span>`;
+}
+function badgesHTML(it){
+  const a=tone[it.a],r=tone[it.ri];
+  return `<span class="badges"><span class="badge ${a}"><i aria-hidden="true">${glyph[a]}</i>${W.attr[it.a]}</span><span class="badge ${r}"><i aria-hidden="true">${glyph[r]}</i>${W.rights[it.ri]}</span></span>`;
+}
+function imgHTML(it,cls=""){
+  return it.src?`<img class="${cls}" src="${it.src}" alt="Placeholder image for Example work ${it.n}" width="600" height="${Math.round(600*it.r)}">`
+   :`<span class="noimg"><span style="font-size:20px">🔒</span>No image shown<br>${W.rights.permission}</span>`;
+}
+function tileHTML(it){
+  const showMarks=S.badge==="a";
+  const keepState=S.stage==="verify"?(S.decided[it.id]||null):(it.kept?"keep":null);
+  return `<figure class="tile ${keepState==="keep"?"kept":""} ${keepState==="drop"?"dropped":""}">
+    <button class="tile-btn" data-open="${it.id}" aria-label="Open Example work ${it.n}">${imgHTML(it)}
+      <span class="cap">Example work ${it.n}<br>Maker name · date</span>
+      ${showMarks&&dens()==="images"?marksHTML(it):""}</button>
+    ${!showMarks&&dens()==="images"?badgesHTML(it):""}
+    <span class="keepbar"><button class="kbtn" data-keep="${it.id}" aria-pressed="${keepState==="keep"}" aria-label="Keep Example work ${it.n}">✓</button></span>
+    <figcaption class="meta"><span><span class="t-title">Example work ${it.n}</span><br><span class="t-maker">Maker name · date</span></span>
+      ${showMarks?marksHTML(it):badgesHTML(it)}
+      <span class="why">${it.why}</span>
+      ${it.reason&&dens()==="full"?`<span class="why" style="color:var(--warn)">${it.reason}</span>`:""}
+      <span class="chips">${it.ev.map(e=>`<span class="ev">${e}</span>`).join("")}</span></figcaption></figure>`;
+}
+const EYE=svg('<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>');
+function thumb(i,cls,icon,label){
+  return `<button class="th ${cls}" data-open="${i.id}" aria-label="Example work ${i.n}: ${label}" title="${label}${i.reason?" · "+i.reason:""}">${i.src?`<img src="${i.src}" alt="">`:`<span class="th-none">${PIP_LOCK}</span>`}<span class="th-mark ${cls}" aria-hidden="true">${icon}</span></button>`;}
+function approveHTML(){
+  const inc=kept().filter(i=>S.decided[i.id]!=="drop"&&i.ri!=="permission");
+  const open=inc.filter(i=>i.a==="verified"&&i.ri==="open"),rev=inc.filter(i=>!(i.a==="verified"&&i.ri==="open"));
+  const out=ITEMS.filter(i=>i.ri==="permission"||(i.kept&&S.decided[i.id]==="drop"));
+  const group=(cls,icon,label,list,why,per)=>`<div class="ag"><h3 class="ag-h"><span class="mark ${cls}"><i aria-hidden="true">${icon}</i>${label}</span><span class="ag-n">${list.length}</span></h3><p class="note">${why}</p>
+    <div class="thumbs">${list.map(i=>thumb(i,cls,per?per(i):icon,per?(i.ri==="permission"?W.rights.permission:"Dropped by you"):label)).join("")||'<span class="note">None</span>'}</div></div>`;
+  return `<section class="panel" aria-labelledby="ap-h" style="max-width:760px"><h2 id="ap-h">Approve the board</h2>
+   <p><strong>${inc.length} works</strong> go into the export. ${out.length} are left out.</p>
+   ${group("ok","✓",W.rights.open,open,"Attribution verified from record, and the source marks the rights as open.")}
+   ${group("rev",EYE,"Marked reviewed by you",rev,"These had a ? mark. You checked them in Verify and chose to keep them.")}
+   ${group("danger",PIP_LOCK,"Left out",out,"Not in the export: the source requires permission, or you dropped the work in Verify.",i=>i.ri==="permission"?PIP_LOCK:"✕")}
+   <p class="note">Rights are recorded as stated by each source. This is not legal advice.</p>
+   <label class="ack"><input type="checkbox" id="ack" ${S.ack?"checked":""}> I have checked the works marked for review and approve this board for export.</label>
+   <label class="field" for="apname">Your name<input id="apname" value="${S.name}" autocomplete="name"></label>
+   <p class="note">After export the board is read-only. A change makes a new version.</p></section>`;
+}
+function previewTile(opt){const it=ITEMS[2];
+  return `<div class="tile d-images" aria-hidden="true"><span class="tile-btn" style="display:block">${imgHTML(it)}${opt==="a"?marksHTML(it):""}</span>${opt==="b"?badgesHTML(it):""}</div>`;}
+function settingsHTML(){
+  const o=(v,name,text)=>`<label class="opt"><input type="radio" name="badge" value="${v}" id="badge-${v}" ${S.badge===v?"checked":""}><span><strong>${name}</strong><br>${text}</span>${previewTile(v)}</label>`;
+  return `<section class="panel" aria-labelledby="st-h" style="max-width:760px"><h2 id="st-h">Settings</h2>
+   <fieldset class="opt-group"><legend>Status on cards</legend>
+   ${o("a","Compact marks (default)","✓ verified or open, ? needs a check, lock for permission required. The full wording shows on hover, in the details panel and in the Full view.")}
+   ${o("b","Full wording","The fixed status wording under every image, in every view. Easier to read, more text while shortlisting.")}
+   </fieldset>
+   <p class="note">Either way, every card always shows both attribution and rights. Nothing is ever shown as verified unless it was.</p>
+   <fieldset class="opt-group"><legend>Appearance</legend>
+   <div class="theme-row">
+   ${[["system","Match my computer","linear-gradient(135deg,#F7F4EE 50%,#161411 50%)"],["light","Light","#F7F4EE"],["dark","Dark","#161411"]].map(([v,n,sw])=>`<label class="opt small"><input type="radio" name="theme" value="${v}" id="theme-${v}" ${S.theme===v?"checked":""}><span><span class="swatch" style="background:${sw}"></span>${n}</span></label>`).join("")}
+   </div></fieldset>
+   <p class="ex">Mock-up: these choices are saved in this browser only. In refdesk it would be a setting stored by the API.</p></section>`;}
+const STAGE_NAME={brief:"Brief",run:"Search and check",shortlist:"Shortlist",verify:"Verify",approve:"Approve"};
+function briefHTML(){
+  return `<section class="panel" aria-labelledby="br-h"><h2 id="br-h">Brief</h2>
+   <p style="font:600 20px/28px var(--sans)">“Mid-Autumn tin, festive but not red and gold”</p>
+   <dl class="rec wide"><dt>Use</dt><dd>As reference only</dd><dt>Stays on this machine</dt><dd>Yes</dd><dt>Spending cap</dt><dd>$0.050</dd><dt>Intake check</dt><dd>Accepted · Joe · 13:52</dd></dl>
+   <p class="note">The brief is fixed once the search has run, so the board always matches what was asked. To change it, start a new board from this brief.</p>
+   <div><button class="btn ghost" data-mock="Mock-up: this would open a new board with this brief filled in.">New board from this brief</button></div></section>`;
+}
+function runHTML(){
+  const ev=[["13:52","Search started on this machine"],["13:53","Searched 2 museum sources · 16 candidates"],["13:55","Wrote why each work fits · 14 works"],["13:57","A second model from another family checked each claim · 3 need a human check"],["13:58","Stopped: budget cap reached","stop"]];
+  return `<section class="panel" aria-labelledby="rn-h"><h2 id="rn-h">Search and check</h2>
+   <div><div style="display:flex;justify-content:space-between;font-size:15px;margin-bottom:6px"><span>Spent</span><span style="font-variant-numeric:tabular-nums">$0.050 of $0.050 cap</span></div><div class="meter" role="img" aria-label="Spent 100% of the cap"><span style="width:100%"></span></div></div>
+   <dl class="rec wide"><dt>Found</dt><dd>16 candidates</dd><dt>On the board</dt><dd>14 works</dd><dt>Need a human check</dt><dd>3</dd><dt>Exported</dt><dd>Nothing</dd></dl>
+   <ol class="events">${ev.map(([t,x,c])=>`<li><time>${t}</time><span class="${c||""}">${x}</span></li>`).join("")}</ol>
+   <p class="note">Raising the cap is recorded with your name and the time. The search resumes where it stopped and adds to this board.</p>
+   <div><button class="btn ghost" data-mock="Mock-up: this would ask for a new cap and your name.">Raise the cap and continue</button></div></section>`;
+}
+const ALERT=svg('<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/>');
+const BOARDS=[
+ {name:"Botanical wallpaper for a café",state:"draft",stage:"shortlist",when:"Yesterday",n:22,hues:[[120,25,40],[90,30,60],[150,20,30],[60,25,75]]},
+ {name:"Book cover: night river",state:"stopped",stage:"shortlist",when:"6 Nov",n:5,hues:[[230,40,20],[210,30,35],[250,25,45],[200,20,60]]},
+ {name:"Lunar New Year packaging, no red",state:"exported",when:"3 Nov",n:9,hues:[[200,30,30],[180,25,60],[220,35,45],[40,20,80]]}
+];
+function boardsHTML(){
+  BOARDS.forEach((b,bi)=>{b.covers=b.covers||b.hues.map((h,j)=>paint({r:1,hue:h},40+bi*4+j))});
+  const mosaic=srcs=>`<span class="mosaic" aria-hidden="true">${[0,1,2,3].map(k=>srcs[k]?`<img src="${srcs[k]}" alt="">`:`<span></span>`).join("")}</span>`;
+  const draft=st=>`<span class="bstate">${ICON[st]}Draft · at ${STAGE_NAME[st]}</span>`;
+  const here=`<li><button class="bcard-btn" data-board="cur">${mosaic(kept().filter(i=>i.src).map(i=>i.src))}<span class="bmeta"><span class="here">Open now</span><span class="t-title">Mid-Autumn tin</span>${draft(where())}<span class="bstate warn">${ALERT}Stopped: budget cap reached · partial board</span><span class="note">Saved ${S.savedAt} today · ${kept().length} kept</span></span></button></li>`;
+  const rest=BOARDS.map((b,bi)=>`<li><button class="bcard-btn" data-board="${bi}">${mosaic(b.covers)}<span class="bmeta"><span class="t-title">${b.name}</span>${b.state==="exported"?`<span class="bstate lock">${PIP_LOCK}Exported · read-only</span>`:draft(b.stage)}${b.state==="stopped"?`<span class="bstate warn">${ALERT}Stopped: budget cap reached · partial board</span>`:""}<span class="note">${b.state==="exported"?"Exported":"Saved"} ${b.when} · ${b.n} works</span></span></button></li>`).join("");
+  return `<h2 class="page-h">Boards</h2><p class="note">Every board saves as you work. Drafts open at the stage you left. An exported board is read-only; changing it makes a new version.</p>
+   <ul class="boards" style="list-style:none;padding:0">${here}${rest}</ul><p class="ex" style="margin-top:16px;align-self:flex-start;display:inline-block">Mock-up: example boards with placeholder images.</p>`;
+}
+/* Landing page: one prompt, front and centre, with one call to action. Options sit inside the prompt as chips; examples and the saved draft sit below it. */
+const USE_HINT={reference_only:"Moodboards, palette, mood. Shows every work, whatever its rights.",reproduction:"Packaging, print, web. Shows only works the museum marks as free to use."};
+const EXAMPLES=["Botanical wallpaper for a café, calm greens","Book cover: a night river, quiet and cold","Packaging with cranes, festive, no red"];
+function newHTML(){
+  const cover=kept().find(i=>i.src);
+  return `<section class="hero" aria-labelledby="nb-h">
+   <h2 id="nb-h" class="hero-h">What do you need references for?</h2>
+   <p class="hero-sub">Describe the brief. RefDesk finds open museum works and shows the record behind each one.</p>
+   <fieldset class="usage"><legend class="sr">How will you use these images?</legend>
+     <div class="useg">
+       <input type="radio" name="use" id="use-insp" value="reference_only" ${S.use!=="reproduction"?"checked":""}><label for="use-insp">For inspiration</label>
+       <input type="radio" name="use" id="use-pub" value="reproduction" ${S.use==="reproduction"?"checked":""}><label for="use-pub">In something you'll publish</label>
+     </div>
+     <p class="use-hint" id="use-hint" aria-live="polite">${USE_HINT[S.use==="reproduction"?"reproduction":"reference_only"]}</p>
+   </fieldset>
+   <form class="prompt" id="nb-form">
+     <label for="nb-brief" class="sr">Brief</label>
+     <textarea id="nb-brief" rows="2" placeholder="e.g. Mid-Autumn tin, festive but not red and gold"></textarea>
+     <div class="adv" id="nb-adv" ${S.adv?"":"hidden"}>
+       <label for="c-period">Period<input id="c-period" placeholder="e.g. 17th century"></label>
+       <label for="c-material">Material<input id="c-material" placeholder="e.g. oil"></label>
+       <label for="c-motif">Motif<input id="c-motif" placeholder="e.g. ships"></label>
+       <label for="c-dept">Department<input id="c-dept" placeholder="e.g. paintings"></label>
+       <label for="c-avoid" class="wide2">Avoid<input id="c-avoid" placeholder="Words or record IDs, e.g. red, met:436535"></label>
+       <label for="c-anchor">More like this work<input id="c-anchor" placeholder="Record ID"></label>
+       <label for="c-items">Works wanted<input id="c-items" type="number" min="1" max="50" value="12"></label>
+     </div>
+     <div class="prompt-row">
+       <div class="opts">
+         <label class="chip" for="nb-local"><input type="checkbox" id="nb-local" checked> Stays on this machine</label>
+         <label class="chip" for="nb-cap">Cap $<input type="text" id="nb-cap" class="capin" value="0.05" inputmode="decimal" aria-label="Spending cap in US dollars"></label>
+         <button type="button" class="chip opt-tog" id="nb-more" aria-expanded="${S.adv?"true":"false"}" aria-controls="nb-adv">Options<span class="cnt" id="nb-cnt" hidden></span><span aria-hidden="true" class="chev">▾</span></button>
+       </div>
+       <button class="btn go" id="nb-go" type="submit" disabled>Find references →</button>
+     </div>
+   </form>
+   <div class="suggest"><span class="ctl-label">Try an example</span>${EXAMPLES.map(x=>`<button type="button" class="sg" data-sg="${x}">${x}</button>`).join("")}</div>
+   <div class="resume"><span class="ctl-label">Pick up where you left off</span>
+     <div class="resume-row"><button class="resume-card" data-board="cur">${cover?`<img src="${cover.src}" alt="">`:""}<span class="t-title">Mid-Autumn tin</span><span class="note">Draft · at ${STAGE_NAME[where()]} · saved ${S.savedAt}</span><span class="arr" aria-hidden="true">→</span></button><button type="button" class="link" id="nb-all">All boards</button></div></div>
+  </section>`;
+}
+let toastT=null;
+function toast(msg,link){const t=$("toast");t.innerHTML=`<span>${msg}</span>${link?'<button id="toast-go">See all boards</button>':""}`;t.hidden=false;
+  if(link)$("toast-go").onclick=()=>{t.hidden=true;S.view="boards";S.boardOpen=false;render()};clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,7000);}
+function goNew(){const was=S.boardOpen;S.view="new";S.boardOpen=false;render();window.scrollTo(0,0);if(was)toast(`✓ “Mid-Autumn tin” is saved as a draft at ${STAGE_NAME[where()]}.`,true);}
+let saveT=null;
+function renderSave(){$("saved").innerHTML=S.saving?"Saving…":`<b aria-hidden="true">✓</b> Saved automatically · ${S.savedAt}`;}
+function touch(){S.saving=true;renderSave();clearTimeout(saveT);saveT=setTimeout(()=>{S.saving=false;S.savedAt=new Date().toTimeString().slice(0,5);renderSave()},700);}
+function render(){
+  $("steps").innerHTML=stepsHTML();
+  document.querySelectorAll("[data-d]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.d===dens()));
+  const v=$("view");
+  const cur=(el,on)=>on?el.setAttribute("aria-current","page"):el.removeAttribute("aria-current");
+  $("toolbar").hidden=!!S.view;
+  $("actionbar").hidden=S.view==="new";
+  $("main").classList.toggle("landing",S.view==="new");
+  $("dens-ctl").hidden=!(S.stage==="shortlist"||S.stage==="verify");
+  $("statusbar").hidden=!S.boardOpen;
+  $("steps").hidden=$("sep").hidden=!S.boardOpen;
+  cur($("to-settings"),S.view==="settings");cur($("to-boards"),S.view==="boards");cur($("to-new"),S.view==="new");
+  if(S.view==="boards"){v.className="";v.innerHTML=boardsHTML();
+    $("actionbar").innerHTML=`<span>Boards save automatically. An exported board is read-only.</span><button class="btn" id="ab-new">+ New board</button>`;$("ab-new").onclick=goNew;return;}
+  if(S.view==="new"){v.className="";v.innerHTML=newHTML();
+    const ta=$("nb-brief"),go=$("nb-go"),upd=()=>{go.disabled=!ta.value.trim()};ta.oninput=upd;
+    ta.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();if(ta.value.trim())$("nb-form").requestSubmit()}};
+    $("nb-form").onsubmit=e=>{e.preventDefault();toast("Mock-up: no search runs from here. In RefDesk this starts the search and opens Search and check.")};
+    v.querySelectorAll("[data-sg]").forEach(b=>b.onclick=()=>{ta.value=b.dataset.sg;upd();ta.focus()});
+    $("nb-all").onclick=()=>{S.view="boards";S.boardOpen=false;render()};
+    const adv=$("nb-adv"),more=$("nb-more"),cnt=$("nb-cnt"),sug=v.querySelector(".suggest");
+    const count=()=>{const n=[...adv.querySelectorAll("input")].filter(i=>i.id!=="c-items"?i.value.trim():i.value!=="12").length;cnt.textContent=n;cnt.hidden=!n};
+    const setAdv=o=>{S.adv=o;adv.hidden=!o;more.setAttribute("aria-expanded",String(o));sug.hidden=o};
+    more.onclick=()=>{setAdv(!S.adv);if(S.adv)$("c-period").focus()};adv.oninput=count;setAdv(!!S.adv);
+    v.querySelectorAll('input[name="use"]').forEach(r=>r.onchange=()=>{S.use=r.value;$("use-hint").textContent=USE_HINT[r.value]});
+    try{ta.focus({preventScroll:true})}catch(e){}
+    return;}
+  if(S.view==="settings"){v.className="";v.innerHTML=settingsHTML();
+    v.querySelectorAll('input[name="badge"]').forEach(r=>r.onchange=()=>{S.badge=r.value;try{localStorage.setItem("refdesk-badge",r.value)}catch(e){}});
+    v.querySelectorAll('input[name="theme"]').forEach(r=>r.onchange=()=>{setTheme(r.value)});
+    $("actionbar").innerHTML=`<span>Saved as soon as you choose</span><button class="btn ghost" id="back-board">← ${S.boardOpen?"Back to the board":"Back to New board"}</button>`;
+    $("back-board").onclick=()=>{S.view=S.boardOpen?null:"new";render()};return;}
+  if(S.stage==="brief"){v.className="";v.innerHTML=briefHTML();}
+  else if(S.stage==="run"){v.className="";v.innerHTML=runHTML();}
+  else if(S.stage==="approve"){v.className="";v.innerHTML=approveHTML();}
+  else{
+    const list=S.stage==="verify"?[...flagged(),...kept().filter(i=>!flagged().includes(i))]:ITEMS;
+    v.className="grid d-"+dens();v.innerHTML=list.map(tileHTML).join("");
+  }
+  const ab=$("actionbar");
+  if(S.stage==="brief"||S.stage==="run")ab.innerHTML=`<span>Your work is at ${STAGE_NAME[where()]}</span><button class="btn" data-go="${where()}">Back to ${STAGE_NAME[where()]} →</button>`;
+  else if(S.stage==="shortlist")ab.innerHTML=`<span>${kept().length} kept of ${ITEMS.length}</span><button class="btn" data-go="verify" ${kept().length?"":"disabled"}>Verify ${kept().length} →</button>`;
+  else if(S.stage==="verify"){const u=undecided().length;ab.innerHTML=`<span>${u?`${u} with ? still to decide`:"All checks decided"}</span><button class="btn" data-go="approve" ${u?"disabled":""}>Continue to approve →</button>`;}
+  else{const ok=S.ack&&S.name.trim();ab.innerHTML=`<span>${ok?"Ready. This cannot be undone.":"Tick the acknowledgement and enter your name"}</span><button class="btn" ${ok?"":"disabled"} title="Mock-up: nothing is exported">Approve and export</button>`;}
+  if(S.stage==="approve"){$("ack").onchange=e=>{S.ack=e.target.checked;touch();renderBar()};$("apname").oninput=e=>{S.name=e.target.value;touch();renderBar()};}
+}
+function renderBar(){const ok=S.ack&&S.name.trim();$("actionbar").innerHTML=`<span>${ok?"Ready. This cannot be undone.":"Tick the acknowledgement and enter your name"}</span><button class="btn" ${ok?"":"disabled"} title="Mock-up: nothing is exported">Approve and export</button>`;}
+
+// Lightbox
+let lbList=[],lastFocus=null,pan={x:0,y:0};
+function openLB(id){lastFocus=document.activeElement;lbList=[...$("view").querySelectorAll("[data-open]")].map(b=>+b.dataset.open);S.lb=id;S.zoom=false;S.info=true;$("lb").hidden=false;drawLB();$("lb-close").focus();}
+function closeLB(){$("lb").hidden=true;S.lb=null;render();const b=document.querySelector(`[data-open="${lastFocus?.dataset?.open}"]`);(b||lastFocus)?.focus?.();}
+function drawLB(){
+  const it=ITEMS[S.lb],pos=lbList.indexOf(S.lb);
+  $("lb-count").textContent=`${pos+1} / ${lbList.length} · Example work ${it.n}`;
+  $("lb-img").innerHTML=it.src?`<img id="lbimg" src="${it.src}" alt="Placeholder image for Example work ${it.n}">`:`<div class="noimg" style="color:var(--scrim-ink)">🔒 No image shown<br>${W.rights.permission}</div>`;
+  pan={x:0,y:0};applyZoom();
+  $("lb-marks").innerHTML=marksHTML(it).replace('class="marks"','class="lb-marks"');
+  const st=S.stage==="verify"?S.decided[it.id]:(it.kept?"keep":null);
+  $("lb-keep").setAttribute("aria-pressed",st==="keep");$("lb-drop").setAttribute("aria-pressed",st==="drop");
+  $("lb-keep").hidden=$("lb-drop").hidden=S.stage==="approve";
+  $("lb-info").setAttribute("aria-pressed",S.info);$("lb-panel").hidden=!S.info;
+  const a=tone[it.a],r=tone[it.ri];
+  $("lb-panel").innerHTML=`<div><h3>Example work ${it.n}</h3><p style="color:var(--ink-muted)">Maker name · date</p></div>
+   <div class="badges" style="padding:0">${badgesHTML(it).replace(/^<span class="badges">|<\/span>$/g,"")}</div>
+   ${it.reason?`<p style="color:var(--warn)">${it.reason}</p>`:""}
+   <div><h4>Why it fits</h4><p>${it.why}</p></div>
+   <div><h4>From the record</h4><div class="chips" style="display:flex">${it.ev.map(e=>`<span class="ev">${e}</span>`).join("")}</div></div>
+   <div><h4>Rights record</h4><dl class="rec"><dt>Status</dt><dd>${W.rights[it.ri]}</dd><dt>Source</dt><dd>Museum name</dd><dt>Credit line</dt><dd>From the record</dd><dt>Confidence</dt><dd>${it.a==="verified"?"High":"Low"}</dd><dt>Tier</dt><dd>Local</dd></dl></div>
+   <p class="ex">Mock-up: placeholder image and example fields, not a real record.</p>`;
+}
+function applyZoom(){const im=$("lbimg");$("lb-zoom").setAttribute("aria-pressed",S.zoom);$("lb-stage").classList.toggle("zoomed",S.zoom);if(im)im.style.transform=S.zoom?`translate(${pan.x}px,${pan.y}px) scale(2.2)`:"none";}
+function step(d){const p=lbList.indexOf(S.lb);S.lb=lbList[(p+d+lbList.length)%lbList.length];S.zoom=false;drawLB();}
+function decide(v){if(S.stage==="approve")return;touch();const it=ITEMS[S.lb];
+  if(S.stage==="verify")S.decided[it.id]=S.decided[it.id]===v?null:v;else it.kept=v==="keep"?!it.kept:false;
+  drawLB();}
+$("lb-close").onclick=closeLB;$("lb-prev").onclick=()=>step(-1);$("lb-next").onclick=()=>step(1);
+$("lb-info").onclick=()=>{S.info=!S.info;drawLB()};$("lb-zoom").onclick=()=>{S.zoom=!S.zoom;pan={x:0,y:0};applyZoom()};
+$("lb-keep").onclick=()=>decide("keep");$("lb-drop").onclick=()=>decide("drop");
+$("lb-stage").addEventListener("click",e=>{if(e.target.id==="lbimg"&&!S.zoom){S.zoom=true;applyZoom()}});
+let drag=null;
+$("lb-stage").addEventListener("pointerdown",e=>{if(S.zoom&&e.target.id==="lbimg"){drag={x:e.clientX-pan.x,y:e.clientY-pan.y};e.target.setPointerCapture(e.pointerId)}});
+$("lb-stage").addEventListener("pointermove",e=>{if(drag){pan={x:e.clientX-drag.x,y:e.clientY-drag.y};$("lbimg").style.transition="none";applyZoom()}});
+$("lb-stage").addEventListener("pointerup",()=>{if(drag){drag=null;const im=$("lbimg");if(im)im.style.transition=""}});
+document.addEventListener("keydown",e=>{
+  if($("lb").hidden)return;
+  const k=e.key.toLowerCase();
+  if(k==="escape")closeLB();else if(k==="arrowright")step(1);else if(k==="arrowleft")step(-1);
+  else if(k==="i"){S.info=!S.info;drawLB()}else if(k==="z"){S.zoom=!S.zoom;pan={x:0,y:0};applyZoom()}
+  else if(k==="k")decide("keep");else if(k==="d")decide("drop");
+  else if(k==="tab"){const f=[...$("lb").querySelectorAll("button:not([hidden]),[href],input")].filter(x=>x.offsetParent);if(!f.length)return;
+    const first=f[0],last=f[f.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}
+});
+
+// Page events
+document.addEventListener("click",e=>{
+  const o=e.target.closest("[data-open]");if(o){openLB(+o.dataset.open);return}
+  const kb=e.target.closest("[data-keep]");if(kb){const it=ITEMS[+kb.dataset.keep];
+    if(S.stage==="verify")S.decided[it.id]=S.decided[it.id]==="keep"?null:"keep";else it.kept=!it.kept;touch();render();return}
+  const bd=e.target.closest("[data-board]");if(bd){if(bd.dataset.board==="cur"){S.view=null;S.boardOpen=true;render();window.scrollTo(0,0)}else toast("Mock-up: only the current board opens.");return}
+  const mk=e.target.closest("[data-mock]");if(mk){toast(mk.dataset.mock);return}
+  const g=e.target.closest("[data-go]");if(g){S.stage=g.dataset.go;S.reached=Math.max(S.reached,order.indexOf(S.stage));S.density=null;render();window.scrollTo(0,0);return}
+  const st=e.target.closest(".step[data-k]");if(st&&!st.disabled){S.view=null;S.stage=st.dataset.k;S.density=null;render();return}
+  const d=e.target.closest("[data-d]");if(d){S.density=d.dataset.d;render();return}
+});
+$("to-settings").onclick=()=>{S.view="settings";render();window.scrollTo(0,0)};
+$("to-boards").onclick=()=>{S.view="boards";S.boardOpen=false;render();window.scrollTo(0,0)};
+$("to-new").onclick=goNew;
+renderSave();
+let mini=false;try{mini=localStorage.getItem("refdesk-rail")==="min"}catch(e){}
+function setMini(v){mini=v;document.documentElement.classList.toggle("min",v);const t=$("tog");
+  t.setAttribute("aria-expanded",String(!v));t.setAttribute("aria-label",v?"Expand the stage panel":"Minimise the stage panel");t.title=v?"Expand":"Minimise";
+  try{localStorage.setItem("refdesk-rail",v?"min":"open")}catch(e){}}
+$("tog").onclick=()=>setMini(!mini);setMini(mini);
+if(S.theme!=="system")setTheme(S.theme);
+render();
+})();
+</script>
