@@ -105,6 +105,27 @@ class TestOneEventPerTransition:
         assert seqs == list(range(1, len(seqs) + 1))  # continues, never restarts
 
 
+class TestReadingWhileWriting:
+    """Issue #237: the API reads the log while the loop appends to it. A last line with no
+    newline is still being written; reading it must not fail the run view."""
+
+    def test_a_half_written_last_line_is_ignored(self, tmp_path):
+        path, _ = logged(tmp_path, Mocks(), target=1)
+        complete = read_events(path)
+        whole = path.read_text(encoding="utf-8")
+        with path.open("a", encoding="utf-8") as f:
+            f.write(whole.splitlines()[0][:40])  # a writer caught mid-line
+        assert read_events(path) == complete
+
+    def test_a_broken_complete_line_still_raises(self, tmp_path):
+        """Only an unfinished last line is skipped; corruption is never hidden."""
+        path, _ = logged(tmp_path, Mocks(), target=1)
+        with path.open("a", encoding="utf-8") as f:
+            f.write('{"seq": 99, "run_id"\n')
+        with pytest.raises(ValueError):
+            read_events(path)
+
+
 class TestBriefRedaction:
     def test_the_brief_never_appears_in_the_file(self, tmp_path):
         path, _ = logged(tmp_path, Mocks(), target=2)

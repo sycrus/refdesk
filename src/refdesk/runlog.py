@@ -123,8 +123,13 @@ def read_events(path: str | Path) -> list[RunEvent]:
     path = Path(path)
     if not path.exists():
         return []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    return [RunEvent.model_validate_json(line) for line in lines if line.strip()]
+    text = path.read_text(encoding="utf-8")
+    # The loop may be appending while the API reads (issue #237). A last line with no
+    # newline is still being written, so it is not an event yet. A complete line that is
+    # not valid JSON still raises: only the unfinished tail is skipped.
+    lines = text.split("\n")
+    complete = lines[:-1]  # after the final "\n" there is either "" or an unfinished line
+    return [RunEvent.model_validate_json(line) for line in complete if line.strip()]
 
 
 class RunLog:
