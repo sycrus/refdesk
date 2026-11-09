@@ -203,6 +203,15 @@ export interface ExportReceipt {
   not_legal_advice: string;
 }
 
+// What the provenance pack will hold, grouped (issue 233). Built by the API's export rule.
+export interface PackSummary {
+  included: number;
+  open: string[];
+  reviewed: string[];
+  reference: string[];
+  left_out: { record_id: string; reason: string }[];
+}
+
 export interface ShortlistRequest {
   operator: string;
   items: { item_id: string; keep: boolean }[];

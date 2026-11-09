@@ -61,7 +61,9 @@ from refdesk.api.models import (
     GateId,
     GateState,
     ItemReview,
+    LeftOut,
     LoopState,
+    PackSummary,
     QueuedReport,
     ReviewRequest,
     RunSummary,
@@ -668,6 +670,31 @@ def cover_images(view: RunView, limit: int = 4) -> list[CoverImage]:
     return cover
 
 
+def pack_summary(items: list[BoardItem]) -> PackSummary:
+    """The pack grouped for the Approve screen (issue #233), from pack_items itself: every
+    included work is in exactly one group, and every other work says why it is left out."""
+    included, _, _ = pack_items(items)
+    ids = {i.record.id for i in included}
+    groups: dict[str, list[str]] = {"open": [], "reviewed": [], "reference": []}
+    left_out: list[LeftOut] = []
+    for item in items:
+        if item.record.id in ids:
+            if item.review is not None and item.review.decision == "keep":
+                groups["reviewed"].append(item.record.id)
+            elif item.record.rights.status is RightsStatus.PERMISSION_REQUIRED:
+                groups["reference"].append(item.record.id)
+            else:
+                groups["open"].append(item.record.id)
+        elif not item.selected:
+            left_out.append(LeftOut(record_id=item.record.id, reason="Not kept"))
+        elif item.review is not None and item.review.decision == "drop":
+            left_out.append(LeftOut(record_id=item.record.id, reason="Dropped at Verify"))
+        else:
+            reason = "Rights unverified, not reviewed"
+            left_out.append(LeftOut(record_id=item.record.id, reason=reason))
+    return PackSummary(included=len(included), left_out=left_out, **groups)
+
+
 def _git_sha() -> str:
     import subprocess
 
@@ -1113,6 +1140,13 @@ class BoardService:
             )
             for created, view in self.runs.history()
         ]
+
+    def pack(self, run_id: str) -> PackSummary:
+        """What the pack will hold, grouped (issue #233). Read only."""
+        view = self.runs.get(run_id)
+        if view is None:
+            raise UnknownRun(run_id)
+        return pack_summary(view.items)
 
     def rename(self, run_id: str, request: BoardName) -> RunView:
         """Rename a board (issue #234). Only the label changes: never the request, items or
