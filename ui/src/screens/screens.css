@@ -1290,3 +1290,69 @@
   font-size: var(--type-body-s-size);
   line-height: var(--type-body-s-line);
 }
+
+/* Images first on the board (issue 248): a one-line bar, a slim strip, the shortlist
+   tools beside the density switch, and the rest folded into Details. */
+.rd-board-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rd-board-name {
+  margin: 0;
+  font-family: var(--type-display-m-family);
+  font-size: var(--type-display-m-size);
+  line-height: var(--type-display-m-line);
+  font-weight: var(--type-display-m-weight);
+}
+
+.rd-board-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.rd-board-bar-actions p {
+  margin: 0;
+}
+
+.rd-board-strip--board {
+  margin: 0;
+  max-width: none;
+}
+
+.rd-board-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rd-board-details {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-card);
+  font-size: var(--type-body-s-size);
+  line-height: var(--type-body-s-line);
+}
+
+.rd-board-details[open] {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.rd-board-details summary {
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+.rd-board-details summary:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
