@@ -109,6 +109,22 @@ flowchart LR
 
 By default everything runs locally, or against a mock model server for tests. Every board records where its brief was sent, and says so: a line under the wordmark and on each board gives the mode — mock, local, cloud or search-only — and any board the mock server answered also carries a **Mock** tag on its strip and its Boards card, so test answers are never mistaken for real ones.
 
+### How the golden set is labelled
+
+The hand-labelled set (`golden-v1`) is built on a small local page (`refdesk.evals.label_app`, port 8200) that shows one work at a time: the brief, the work's cached open image, and its record fields. Swipe right or tap ✓ for relevant and pick a grade (2 fits the whole brief, 1 fits part of it); swipe left or tap ✗ for not relevant. Each label is written to the sheet as soon as it is given.
+
+<p align="center">
+  <img src="docs/images/labelling-review.png" width="360" alt="The labelling page in review mode: the brief, the work's image and record fields, Claude's proposed grade and phi4's check, and the relevant / not relevant buttons">
+</p>
+
+It runs in three modes, so each label can be compared with the others:
+
+- **Blind pass** (`label_app`): I label 20 cases with nothing about how a work was found: no rank, no retriever, no proposal.
+- **Second blind pass** (`label_app --pass2`, a day later): the same cases again in a different order, with my first labels hidden. This measures how far I agree with myself.
+- **Review** (`label_app --review`, shown above): the other 21 cases, with Claude's proposed grade and `phi4`'s check of it on each card. I still label every work myself; the proposal is there for reference.
+
+The set is frozen only if two trust rules pass: Claude's proposals must agree with my blind labels nearly as well as I agree with myself, and in review I must not change far fewer labels than I disagreed with when blind (the anchoring check). The page never proposes a label, and it never reads which retriever found a work. Steps and file layout: [`evals/labelling/v1/README.md`](evals/labelling/v1/README.md); the decision: [ADR-018](docs/adr/ADR-018-golden-set-synthetic-v0.md).
+
 ## Quick start
 
 Commands work in PowerShell or WSL2. Run the stages in order; each builds on the one before. `uv run python -m refdesk --help` lists every command.
