@@ -44,13 +44,14 @@ flowchart LR
   D --> E[Export a provenance pack]
 ```
 
-![A recorded board: images first, with the run's gates, models and approval state in the side panel](docs/images/demo-board.png)
-
 1. **Write a brief.** Describe the mood, subject or style you want. You can add conditions (a period, material or motif) and choose whether the brief may leave your machine.
 
    ![The landing: a short brief, with usage mode and machine options](docs/images/demo-landing.png)
 
 2. **Review the board.** The board opens on the images: a grid of the works found, name and rights badge a click away. Captions and full cards are one click away, and every board states how it was made (see [Where a brief is sent](#where-a-brief-is-sent)).
+
+   ![A recorded board: images first, with the run's gates, models and approval state in the side panel](docs/images/demo-board.png)
+
 3. **Check flagged items.** Anything refdesk could not verify is marked *Needs human check*, with the exact claim that failed. Keep it with a note, or drop it.
 4. **Approve.** An approver signs off on the selection. refdesk does not let anything be exported before that.
 5. **Export.** Download a provenance pack (CSV): every work with its source, rights basis, credit line and the date it was checked.
